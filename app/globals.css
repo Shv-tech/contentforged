@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-canvas: #faf9f5;
+    --text-main: #141413;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background-color: var(--bg-canvas);
+    color: var(--text-main);
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-main);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* Inter clean alternates */
+  }
+
+  ::selection {
+    background: #e8e6dc; /* Warm selection color, not harsh blue */
+    color: #141413;
+  }
+}
+
+@layer components {
+  /* Superhuman / Notion Minimalist Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center bg-accent-charcoal text-[#faf9f5] px-5 py-2.5 rounded-[8px] font-sans font-medium text-[15px] transition-all hover:bg-black border border-transparent shadow-[0_0_0_1px_rgba(0,0,0,0.1)];
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center bg-[#e8e6dc] text-accent-charcoal px-5 py-2.5 rounded-[8px] font-sans font-medium text-[15px] transition-all hover:bg-[#dfddd3] shadow-[0_0_0_1px_#d1cfc5];
+  }
+
+  .btn-pill {
+    @apply inline-flex items-center justify-center bg-[#f2f9ff] text-[#097fe8] px-4 py-1.5 rounded-full font-sans font-semibold text-[13px] tracking-[0.125px] transition-all hover:bg-[#e6f4ff];
+  }
+
+  /* Structural Classes */
+  .layout-container {
+    @apply max-w-[1100px] mx-auto px-6 md:px-12;
+  }
+
+  .border-whisper {
+    @apply border border-[rgba(0,0,0,0.08)];
+  }
+}
+
+/* Elegant Fade In */
+@keyframes delicateFade {
+  0% { opacity: 0; transform: translateY(10px); filter: blur(2px); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+.animate-in {
+  animation: delicateFade 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  opacity: 0;
+}
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
