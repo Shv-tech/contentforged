@@ -2,19 +2,14 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Loader2, ArrowRight, Zap, Lock, Command, BrainCircuit, TrendingUp, GitBranch, AlertCircle, Sparkles, Star, MessageSquare, Repeat2, ThumbsUp, XCircle, CheckCircle2, Cpu, Network, ExternalLink, Bot, User, LayoutDashboard, Type, Hash, FileText, BarChart, Mail, Image as ImgIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Command, BrainCircuit, TrendingUp, GitBranch, AlertCircle, Sparkles, Star, XCircle, CheckCircle2, Cpu, Network, ExternalLink, Bot, User, LayoutDashboard, Type, Hash, FileText, BarChart, Mail, Image as ImgIcon, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import Script from 'next/script';
 import { useAppStore } from '@/lib/store';
 
-const PLATFORMS = [
-  { id: 'linkedin', label: 'LinkedIn Leadership' },
-  { id: 'twitter_thread', label: 'X / Twitter Thread' },
-  { id: 'email_newsletter', label: 'Executive Newsletter' },
-];
-
-// Defined locally to enforce the new $1 price drop for Unlimited
+// Defined locally to enforce the $1 price drop for Unlimited
 const PRICING = [
   { id: 'free', name: 'Free Trial', price: '0', features: ['3 days full access', 'Strategist Desk', 'Brand DNA Protocol', 'No API Key required'], highlighted: false },
   { id: 'tier1', name: 'Starter', price: '19', features: ['Bring Your Own Key', 'Brand DNA Protocol', 'Stop-Scroll Grader', 'Standard Output Trees'], highlighted: false },
@@ -22,44 +17,11 @@ const PRICING = [
 ];
 
 export default function LandingPage() {
-  const [topic, setTopic] = useState('');
-  const [platform, setPlatform] = useState('linkedin');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [trialExhausted, setTrialExhausted] = useState(false);
+  const router = useRouter();
   const [checkoutPlan, setCheckoutPlan] = useState<{ id: string, name: string, price: number } | null>(null);
-  const { setPlan } = useAppStore(); // Zustand store mapping
-
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    setResult(null);
-
-    try {
-      const res = await fetch('/api/free-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input_content: topic, platform }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (data.upsell) {
-          setTrialExhausted(true);
-        } else {
-          toast.error(data.error);
-        }
-        return;
-      }
-
-      setResult(data.output);
-      toast.success(`Command executed. ${data.credits_remaining} trials remaining.`);
-    } catch (err) {
-      toast.error('Systems busy. Try again.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  
+  // Pull the authenticated user and plan setter from your global store
+  const { user, setPlan } = useAppStore(); 
 
   return (
     <main className="min-h-screen bg-[#FAFAFA] text-gray-900 font-sans selection:bg-gray-200 overflow-x-hidden">
@@ -105,12 +67,22 @@ export default function LandingPage() {
           <a href="#how" className="text-[13px] font-medium text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">Methodology</a>
           <a href="#pricing" className="text-[13px] font-medium text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">Pricing</a>
           <div className="flex items-center gap-4">
-            <Link href="/login" className="text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors">
-              Log in
-            </Link>
-            <Link href="/signup" className="bg-gray-900 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
-              Unlock Workspace
-            </Link>
+            {user ? (
+              // DYNAMIC AUTH STATE: User is logged in
+              <Link href="/dashboard" className="bg-gray-900 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
+                Go to Workspace
+              </Link>
+            ) : (
+              // User is NOT logged in
+              <>
+                <Link href="/login" className="text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                  Log in
+                </Link>
+                <Link href="/signup" className="bg-gray-900 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
+                  Unlock Workspace
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -144,38 +116,12 @@ export default function LandingPage() {
         <p className="text-[18px] text-gray-500 max-w-[600px] leading-relaxed mb-12">
           Every other AI tool applauds your mediocre ideas. <strong>ContentForge is the first one that won't.</strong> It diagnoses. It disagrees. It delivers.
         </p>
-          
-          {trialExhausted && (
-             <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-8 text-center">
-                <Lock className="w-8 h-8 text-gray-900 mb-4" />
-                <h3 className="font-semibold text-[20px] text-gray-900 mb-2">Intelligence Limit Reached</h3>
-                <p className="text-[14px] text-gray-500 mb-6 max-w-[400px]">
-                  You have experienced the engine. Unlock the full enterprise workspace to continue.
-                </p>
-                <Link href="/signup" className="bg-gray-900 text-white text-[13px] font-medium px-6 py-3 rounded-lg hover:bg-gray-800 transition shadow-sm">
-                  Enter the Workspace
-                </Link>
-             </div>
-          )}
 
-            
-          
-
-          {/* OUTPUT RENDERER */}
-          {result && (
-            <div className="w-full max-w-[800px] mb-16 bg-white border border-gray-200 rounded-xl p-8 text-left shadow-[0_8px_30px_rgb(0,0,0,0.04)] animate-in slide-in-from-top-4">
-              <div className="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-[13px]">YOU</div>
-                <div>
-                  <div className="font-semibold text-[14px] text-gray-900">Your Account</div>
-                  <div className="text-[12px] text-gray-400">Now • Optimized by ContentForge</div>
-                </div>
-              </div>
-              <div className="font-sans text-[15px] text-gray-800 whitespace-pre-wrap leading-relaxed">
-                {result.replace(/---/g, '').trim()}
-              </div>
-            </div>
-          )}
+        <div className="flex justify-center gap-4 relative z-10">
+          <Link href={user ? "/dashboard" : "/signup"} className="bg-gray-900 text-white font-medium px-8 py-3.5 rounded-lg hover:bg-gray-800 transition-colors shadow-lg">
+            {user ? "Enter Workspace" : "Start"}
+          </Link>
+        </div>
       </section>
        
       {/* THE CONSULTANT POSITIONING */}
@@ -633,14 +579,21 @@ export default function LandingPage() {
                 </ul>
                 
                 {tier.id === 'free' ? (
-                  <Link href="/signup" className={`text-center py-3 px-6 rounded-lg font-medium text-[14px] transition-colors w-full ${
+                  <Link href={user ? "/dashboard" : "/signup"} className={`text-center py-3 px-6 rounded-lg font-medium text-[14px] transition-colors w-full ${
                     tier.highlighted ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-50 border border-gray-200 text-gray-900 hover:bg-gray-100'
                   }`}>
-                    Start Free
+                    {user ? "Go to Workspace" : "Start Free"}
                   </Link>
                 ) : (
                   <button 
-                    onClick={() => setCheckoutPlan({ id: tier.id, name: tier.name, price: parseFloat(tier.price) })}
+                    onClick={() => {
+                      if (!user) {
+                        toast.error("Please create your account to upgrade.");
+                        router.push("/signup");
+                        return;
+                      }
+                      setCheckoutPlan({ id: tier.id, name: tier.name, price: parseFloat(tier.price) });
+                    }}
                     className={`text-center py-3 px-6 rounded-lg font-medium text-[14px] transition-colors w-full ${
                       tier.highlighted ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-50 border border-gray-200 text-gray-900 hover:bg-gray-100'
                     }`}
