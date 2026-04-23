@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { 
   Lock, Settings, LogOut, Coins, PanelLeftClose, PanelLeftOpen, 
   Zap, Type, Hash, FileText, BarChart, Image as ImgIcon, Mail, Copy, 
   LayoutTemplate, Mic, LineChart, Target, Building, Users, BookOpen, 
   Presentation, Video, Search, ShieldAlert, Workflow, Fingerprint, 
-  Newspaper, Headphones, Layers, Repeat2 
+  Newspaper, Headphones, Layers, Repeat2, ArrowUpRight
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import toast from 'react-hot-toast';
@@ -50,7 +51,7 @@ const TOOLS = [
 const TIER_WEIGHTS: Record<string, number> = { free: 0, tier1: 1, tier2: 2, tier3: 3 };
 
 export function SidebarPane({ onOpenSettings }: { onOpenSettings: () => void }) {
-  const { plan, activeTool, setActiveTool, setUser, creditsRemaining } = useAppStore();
+  const { plan, activeTool, setActiveTool, setUser, creditsRemaining, user } = useAppStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const router = useRouter();
   const currentTierWeight = TIER_WEIGHTS[plan || 'free'];
@@ -81,7 +82,9 @@ export function SidebarPane({ onOpenSettings }: { onOpenSettings: () => void }) 
       <div className={`p-4 border-b border-gray-200 flex flex-col gap-2 ${isCollapsed ? 'items-center' : ''}`}>
         <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!isCollapsed && (
-            <span className="font-semibold tracking-tight text-[16px] text-gray-900">ContentForge</span>
+            <Link href="/" className="font-semibold tracking-tight text-[16px] text-gray-900 hover:opacity-70 transition-opacity">
+              ContentForge
+            </Link>
           )}
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
@@ -92,16 +95,28 @@ export function SidebarPane({ onOpenSettings }: { onOpenSettings: () => void }) 
           </button>
         </div>
         
-        {/* BADGES & CREDITS (Hidden when collapsed) */}
+        {/* BADGES, CREDITS & UPGRADE (Hidden when collapsed) */}
         {!isCollapsed && (
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-[9px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-sm font-bold uppercase tracking-wider">
-              {plan === 'tier3' ? 'Unlimited' : plan === 'tier2' ? 'Pro' : plan === 'tier1' ? 'Starter' : 'Free Trial'}
-            </span>
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
-              <Coins className="w-3 h-3" />
-              {plan === 'tier3' ? 'Unlimited' : `${creditsRemaining} Credits`}
+          <div className="flex flex-col gap-3 mt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-sm font-bold uppercase tracking-wider">
+                {plan === 'tier3' ? 'Unlimited' : plan === 'tier2' ? 'Pro' : plan === 'tier1' ? 'Starter' : 'Free Trial'}
+              </span>
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
+                <Coins className="w-3 h-3" />
+                {plan === 'tier3' ? 'Unlimited' : `${creditsRemaining} Credits`}
+              </div>
             </div>
+            
+            {/* UPGRADE BUTTON FOR NON-UNLIMITED USERS */}
+            {plan !== 'tier3' && (
+              <Link 
+                href="/#pricing" 
+                className="w-full bg-gray-900 text-white text-[12px] font-medium py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-800 transition shadow-sm"
+              >
+                Upgrade Workspace <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
           </div>
         )}
       </div>
@@ -164,6 +179,17 @@ export function SidebarPane({ onOpenSettings }: { onOpenSettings: () => void }) 
 
       {/* SETTINGS & LOGOUT FOOTER */}
       <div className={`p-4 border-t border-gray-200 flex flex-col gap-2 ${isCollapsed ? 'items-center px-2' : ''} bg-[#FAFAFA]`}>
+        
+        {/* DISPLAY USER EMAIL */}
+        {!isCollapsed && user?.email && (
+          <div className="px-2 pb-3 mb-1 border-b border-gray-200">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Account</div>
+            <div className="text-[12px] font-medium text-gray-900 truncate" title={user.email}>
+              {user.email}
+            </div>
+          </div>
+        )}
+
         <button 
           onClick={onOpenSettings} 
           title={isCollapsed ? "API Settings" : undefined}
@@ -172,6 +198,7 @@ export function SidebarPane({ onOpenSettings }: { onOpenSettings: () => void }) 
           <Settings className="w-4 h-4" /> 
           {!isCollapsed && <span>API Settings</span>}
         </button>
+        
         <button 
           onClick={handleLogout} 
           title={isCollapsed ? "Disconnect" : undefined}
