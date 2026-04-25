@@ -29,50 +29,61 @@ export interface PricingTier {
   id: string;
   name: string;
   price: number;
+  originalPrice?: number;
+  discount?: string;
   credits: number;
   features: string[];
   highlighted?: boolean;
 }
 
+// ==========================================
+// UNIFIED ENTERPRISE PRICING SOURCE OF TRUTH
+// ==========================================
 export const PRICING: PricingTier[] = [
+  {
+    id: 'basic', // System ID remains 'free' to maintain database continuity
+    name: 'Basic',
+    price: 5,
+    originalPrice: 19,
+    discount: '74%',
+    credits: 5,
+    features: [
+      '3 tools access',
+      'Strategist Desk',
+      'Brand DNA Protocol',
+    ],
+  },
   {
     id: 'tier1',
     name: 'Starter',
-    price: 19,
-    credits: 50,
+    price: 20,
+    originalPrice: 49,
+    discount: '59%',
+    credits: 100,
     features: [
-      '50 repurposes per month',
-      '3 tools included',
-      'Basic Formatter & Splitter',
-      'Standard Tone Presets',
-      'CSV export',
+      '10+ creator tools',
+      'Bring Your Own Key',
+      'Brand DNA Protocol',
+      'Stop-Scroll Grader',
+      'Standard Output Trees'
     ],
   },
-  {
-    id: 'tier2',
-    name: 'Pro',
-    price: 49,
-    credits: 200,
-    highlighted: true,
-    features: [
-      '200 repurposes per month',
-      '10+ creator tools included',
-      'PDF Carousel Export',
-      'Zero-Cost Outreach Injector',
-      'Stop-Scroll Hook Grader',
-    ],
-  },
+ 
   {
     id: 'tier3',
     name: 'Unlimited',
-    price: 99,
-    credits: -1,
+    price: 39,
+    originalPrice: 99,
+    discount: '61%',
+    credits: 999999, // Represents unlimited in the credit subtraction logic
+    highlighted: true,
     features: [
-      'Unlimited repurposes',
-      '30+ creator tools included',
-      'Ghostwriter Voice Cloner',
-      'Local RAG History Search',
-      'Competitor Deconstructor',
+      '35+ creator tools',
+      'Multi Agent system',
+      'Everything in Starter',
+      'Ghostwriter Voice Clone',
+      'Zero-Cost Outreach',
+      'Multi-Brand Workspace'
     ],
   },
 ];

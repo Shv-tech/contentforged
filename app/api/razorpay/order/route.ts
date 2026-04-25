@@ -12,8 +12,8 @@ export async function POST(req: Request) {
 
     const { planId, baseAmount, email, name } = await req.json();
 
-    // Calculate the exact math (Base + 18% Tax)
-    const taxRate = 0.18;
+    // Calculate the exact math (Base + 28% Tax)
+    const taxRate = 0.28;
     const taxAmount = parseFloat((baseAmount * taxRate).toFixed(2));
     const totalAmount = parseFloat((baseAmount + taxAmount).toFixed(2));
 

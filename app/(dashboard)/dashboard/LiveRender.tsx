@@ -43,7 +43,7 @@ export function LiveRender() {
               SV
             </div>
             <div>
-              <div className="text-[14px] font-bold text-gray-900 leading-tight">Shaurya Verma</div>
+              <div className="text-[14px] font-bold text-gray-900 leading-tight">You</div>
               <div className="text-[12px] text-gray-500">Now • {renderPlatform === 'linkedin' ? 'Edited' : ''}</div>
             </div>
           </div>

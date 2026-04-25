@@ -48,7 +48,7 @@ const TOOLS = [
   { id: 'omni_channel', name: 'Omni-Channel Repurposer', tier: 'tier3', icon: Repeat2, group: 'Enterprise' },
 ];
 
-const TIER_WEIGHTS: Record<string, number> = { free: 0, tier1: 1, tier2: 2, tier3: 3 };
+const TIER_WEIGHTS: Record<string, number> = { free: 0, basic: 1, tier1: 2, tier2: 3, tier3: 4 };
 
 export function SidebarPane({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { plan, activeTool, setActiveTool, setUser, creditsRemaining, user } = useAppStore();
@@ -190,14 +190,15 @@ export function SidebarPane({ onOpenSettings }: { onOpenSettings: () => void }) 
           </div>
         )}
 
-        <button 
-          onClick={onOpenSettings} 
-          title={isCollapsed ? "API Settings" : undefined}
+        {/* REPLACED BUTTON WITH A LINK TO /ACCOUNT */}
+        <Link 
+          href="/account"
+          title={isCollapsed ? "Account Settings" : undefined}
           className={`flex items-center ${isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-2'} w-full text-[13px] font-medium text-gray-500 hover:text-gray-900 transition rounded-md hover:bg-gray-100`}
         >
           <Settings className="w-4 h-4" /> 
-          {!isCollapsed && <span>API Settings</span>}
-        </button>
+          {!isCollapsed && <span>Account & API</span>}
+        </Link>
         
         <button 
           onClick={handleLogout} 

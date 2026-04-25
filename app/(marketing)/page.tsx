@@ -8,20 +8,17 @@ import toast from 'react-hot-toast';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import Script from 'next/script';
 import { useAppStore } from '@/lib/store';
+import { PRICING } from '@/types';
 
-// Defined locally to enforce the $1 price drop for Unlimited
-const PRICING = [
-  { id: 'free', name: 'Free Trial', price: '0', features: ['3 days full access', 'Strategist Desk', 'Brand DNA Protocol', 'No API Key required'], highlighted: false },
-  { id: 'tier1', name: 'Starter', price: '19', features: ['Bring Your Own Key', 'Brand DNA Protocol', 'Stop-Scroll Grader', 'Standard Output Trees'], highlighted: false },
-  { id: 'tier3', name: 'Unlimited', price: '1', features: ['Everything in Starter', 'Ghostwriter Voice Clone', 'Zero-Cost Outreach', 'Multi-Brand Workspace'], highlighted: true },
-];
 
 export default function LandingPage() {
   const router = useRouter();
   const [checkoutPlan, setCheckoutPlan] = useState<{ id: string, name: string, price: number } | null>(null);
-  
+  const TIER_WEIGHTS: Record<string, number> = { free: 0, basic: 1, tier1: 2, tier2: 3, tier3: 4 };
+  const { user, plan, setPlan } = useAppStore();
+  const currentTierWeight = TIER_WEIGHTS[plan || 'free'];
   // Pull the authenticated user and plan setter from your global store
-  const { user, setPlan } = useAppStore(); 
+  
 
   return (
     <main className="min-h-screen bg-[#FAFAFA] text-gray-900 font-sans selection:bg-gray-200 overflow-x-hidden">
@@ -69,9 +66,29 @@ export default function LandingPage() {
           <div className="flex items-center gap-4">
             {user ? (
               // DYNAMIC AUTH STATE: User is logged in
-              <Link href="/dashboard" className="bg-gray-900 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
-                Go to Workspace
-              </Link>
+              <div className="flex items-center gap-4">
+            {user ? (
+              // DYNAMIC AUTH STATE: User is logged in
+              <>
+                <Link href="/account" className="text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                  Account
+                </Link>
+                <Link href="/dashboard" className="bg-gray-900 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
+                  Go to Workspace
+                </Link>
+              </>
+            ) : (
+              // User is NOT logged in
+              <>
+                <Link href="/login" className="text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                  Log in
+                </Link>
+                <Link href="/signup" className="bg-gray-900 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
+                  Unlock Workspace
+                </Link>
+              </>
+            )}
+          </div>
             ) : (
               // User is NOT logged in
               <>
@@ -542,11 +559,13 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* PRICING */}
+{/* PRICING */}
       <section id="pricing" className="py-24 bg-[#FAFAFA] border-b border-gray-200">
         <div className="max-w-[1200px] mx-auto px-6">
           <div className="text-center max-w-[600px] mx-auto mb-16">
+            <div className="text-[11px] font-bold text-orange-600 uppercase tracking-widest mb-4 flex items-center gap-4 justify-center animate-pulse">
+              <span className="w-8 h-[1px] bg-orange-600"></span><h3>MASSIVE LAUNCH WEEK DISCOUNT</h3><span className="w-8 h-[1px] bg-orange-600"></span>
+            </div>
             <h2 className="font-semibold text-[40px] tracking-tight text-gray-900 mb-4">
               Software access. No token markups.
             </h2>
@@ -563,10 +582,28 @@ export default function LandingPage() {
                     Most Popular
                   </div>
                 )}
+                
                 <h3 className="font-semibold text-[20px] text-gray-900 uppercase tracking-widest text-[12px] mb-2">{tier.name}</h3>
-                <div className="mb-8">
-                  <span className="font-semibold text-[48px] tracking-tight text-gray-900">${tier.price}</span>
-                  <span className="text-[14px] text-gray-500 ml-1">/ mo</span>
+                
+                {/* UPGRADED PRICE BLOCK WITH DISCOUNTS */}
+                <div className="mb-8 flex flex-col">
+                  {/* ORIGINAL PRICE & DISCOUNT BADGE */}
+                  {(tier.originalPrice && tier.discount) && (
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[16px] text-gray-400 line-through font-medium decoration-gray-300">
+                        ${tier.originalPrice}
+                      </span>
+                      <span className="text-[10px] font-bold bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                        Save {tier.discount}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* NEW PRICE */}
+                  <div className="flex items-baseline">
+                    <span className="font-semibold text-[48px] tracking-tight text-gray-900">${tier.price}</span>
+                    <span className="text-[14px] text-gray-500 ml-1">/ mo</span>
+                  </div>
                 </div>
                 
                 <ul className="space-y-4 flex-1 mb-8">
@@ -578,29 +615,23 @@ export default function LandingPage() {
                   ))}
                 </ul>
                 
-                {tier.id === 'free' ? (
-                  <Link href={user ? "/dashboard" : "/signup"} className={`text-center py-3 px-6 rounded-lg font-medium text-[14px] transition-colors w-full ${
+                {/* UNIFIED CHECKOUT BUTTON */}
+                <button 
+                  onClick={() => {
+                    if (!user) {
+                      toast.error("Please create your account to upgrade.");
+                      router.push("/signup");
+                      return;
+                    }
+                    // Triggers the checkout modal instantly
+                    setCheckoutPlan({ id: tier.id, name: tier.name, price: Number(tier.price) });
+                  }}
+                  className={`text-center py-3 px-6 rounded-lg font-medium text-[14px] transition-colors w-full mt-auto ${
                     tier.highlighted ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-50 border border-gray-200 text-gray-900 hover:bg-gray-100'
-                  }`}>
-                    {user ? "Go to Workspace" : "Start Free"}
-                  </Link>
-                ) : (
-                  <button 
-                    onClick={() => {
-                      if (!user) {
-                        toast.error("Please create your account to upgrade.");
-                        router.push("/signup");
-                        return;
-                      }
-                      setCheckoutPlan({ id: tier.id, name: tier.name, price: parseFloat(tier.price) });
-                    }}
-                    className={`text-center py-3 px-6 rounded-lg font-medium text-[14px] transition-colors w-full ${
-                      tier.highlighted ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-50 border border-gray-200 text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    Unlock {tier.name}
-                  </button>
-                )}
+                  }`}
+                >
+                  Unlock {tier.name}
+                </button>
               </div>
             ))}
           </div>
@@ -626,9 +657,11 @@ export default function LandingPage() {
             ContentForge
           </div>
           <div className="flex gap-8">
-            <a href="#" className="text-[13px] text-gray-500 hover:text-gray-900 font-medium">Privacy</a>
-            <a href="#" className="text-[13px] text-gray-500 hover:text-gray-900 font-medium">Terms</a>
-            <a href="#" className="text-[13px] text-gray-500 hover:text-gray-900 font-medium">Support</a>
+            <a href="/privacy" className="text-[13px] text-gray-500 hover:text-gray-900 font-medium">Privacy</a>
+            <a href="/terms" className="text-[13px] text-gray-500 hover:text-gray-900 font-medium">Terms</a>
+            <a href="mailto:contact@shvgroups.com" className="text-[13px] text-gray-500 hover:text-gray-900 font-medium">
+              Support
+            </a>
           </div>
           <p className="text-[12px] text-gray-400 font-medium">
             © 2026 ContentForge by SHV Groups.

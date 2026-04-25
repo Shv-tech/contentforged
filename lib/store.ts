@@ -4,8 +4,8 @@ import { LLMProvider, Platform, PlatformOutput } from '@/types';
 
 interface AppState {
   user: { id: string; email: string } | null;
-  // strictly typed plans for the 25-tool gatekeeping
-  plan: 'free' | 'tier1' | 'tier2' | 'tier3'; 
+  // strictly typed plans updated to support the new 'basic' $5 tier and unpaid 'free' state
+  plan: 'free' | 'basic' | 'tier1' | 'tier2' | 'tier3'; 
   creditsRemaining: number;
   apiKey: string;
   llmProvider: LLMProvider;
@@ -22,12 +22,15 @@ interface AppState {
   renderPlatform: 'linkedin' | 'twitter' | null;
   isLiveRenderOpen: boolean; // Controls the panel visibility
 
-  // NEW: Multi-Agent War Room State
+  // Multi-Agent War Room State
   warRoomStatus: 'idle' | 'strategist' | 'writer' | 'redteam' | 'done';
 
   setUser: (user: { id: string; email: string } | null) => void;
-  setPlan: (plan: 'free' | 'tier1' | 'tier2' | 'tier3') => void;
-  setCredits: (credits: number) => void;
+  setPlan: (plan: 'free' | 'basic' | 'tier1' | 'tier2' | 'tier3') => void;
+  
+  // FIX: Renamed from setCredits to match AuthProvider implementation
+  setCreditsRemaining: (credits: number) => void;
+  
   setApiKey: (key: string) => void;
   setLlmProvider: (provider: LLMProvider) => void;
   setInputType: (type: 'text' | 'url' | 'youtube') => void;
@@ -43,7 +46,7 @@ interface AppState {
   setRenderData: (content: string, platform: 'linkedin' | 'twitter') => void;
   toggleLiveRender: (isOpen?: boolean) => void; // Toggle function
   
-  // NEW: Update War Room UI
+  // Update War Room UI
   setWarRoomStatus: (status: AppState['warRoomStatus']) => void;
 }
 
@@ -51,8 +54,8 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       user: null,
-      plan: 'free', // Production default. Requires auth/payment to upgrade.
-      creditsRemaining: 10,
+      plan: 'free', // Production default (Unpaid state). Requires auth/payment to upgrade.
+      creditsRemaining: 0,
       apiKey: '',
       llmProvider: 'openai',
       inputType: 'text',
@@ -73,7 +76,10 @@ export const useAppStore = create<AppState>()(
 
       setUser: (user) => set({ user }),
       setPlan: (plan) => set({ plan }),
-      setCredits: (credits) => set({ creditsRemaining: credits }),
+      
+      // FIX: Implementation of setCreditsRemaining
+      setCreditsRemaining: (credits) => set({ creditsRemaining: credits }),
+      
       setApiKey: (apiKey) => set({ apiKey }),
       setLlmProvider: (llmProvider) => set({ llmProvider }),
       setInputType: (inputType) => set({ inputType, inputContent: '' }),
