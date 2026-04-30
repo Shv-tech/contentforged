@@ -3,11 +3,10 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/components/AuthProvider';
-
+import 'katex/dist/katex.min.css';
 const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
-  title: 'ContentForge | Enterprise Intelligence',
+export const metadata: Metadata = { title: 'ContentForge | Enterprise Intelligence',
   description:
     'The AI content repurposing engine for creators who ship daily. Paste once, post everywhere. Wholesale intelligence, zero markup.',
   openGraph: {
