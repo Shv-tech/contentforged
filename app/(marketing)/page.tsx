@@ -393,75 +393,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* BYOK ARCHITECTURE SECTION */}
-      <section id="byok" className="py-24 bg-white border-b border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6">
-          <div className="text-[11px] font-bold text-orange-600 uppercase tracking-widest mb-4 flex items-center gap-4 justify-center">
-            <span className="w-8 h-[1px] bg-orange-600"></span> Bring Your Own Key <span className="w-8 h-[1px] bg-orange-600"></span>
-          </div>
-          <h2 className="font-semibold text-[40px] md:text-[48px] tracking-tight text-gray-900 leading-[1.1] mb-6 text-center">
-            Wholesale Intelligence. Zero Markup.
-          </h2>
-          <p className="text-[16px] text-gray-500 leading-relaxed text-center max-w-[700px] mx-auto mb-16">
-            Other platforms charge you $50/mo just to use an API that costs them $2. We don't mark up compute. You plug your own OpenAI or Anthropic API key directly into ContentForge, and you pay the labs wholesale prices. 
-          </p>
-
-          <div className="grid md:grid-cols-2 gap-8 max-w-[900px] mx-auto">
-            {/* Anthropic Card */}
-            <div className="bg-[#FAFAFA] border border-gray-200 rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-gray-300 transition-colors">
-              <div className="absolute top-0 right-0 p-6 opacity-5"><Cpu className="w-32 h-32" /></div>
-              <div className="w-12 h-12 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center mb-6">
-                <Network className="w-6 h-6 text-orange-600" />
-              </div>
-              <h3 className="font-semibold text-[24px] text-gray-900 mb-1">Anthropic</h3>
-              <div className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-6">Claude 3.5 Sonnet</div>
-              
-              <p className="text-[14px] text-gray-600 mb-6 leading-relaxed min-h-[60px]">
-                Highly recommended for ContentForge. Excels at nuanced writing, aggressive brand tones, and avoiding "AI-sounding" clichés.
-              </p>
-              
-              <div className="bg-white rounded-xl p-4 border border-gray-200 mb-8 shadow-sm">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[12px] text-gray-500 font-medium">Wholesale Cost:</span>
-                  <span className="text-[14px] font-bold text-gray-900">~$3.00 <span className="text-[11px] text-gray-400 font-normal">/ 1M Tokens</span></span>
-                </div>
-                <div className="w-full h-1 bg-gray-100 rounded-full"><div className="w-[60%] h-full bg-orange-500 rounded-full"></div></div>
-              </div>
-
-              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 text-gray-900 font-medium text-[13px] rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-                Get Anthropic API Key <ExternalLink className="w-4 h-4" />
-              </a>
-            </div>
-
-            {/* OpenAI Card */}
-            <div className="bg-[#FAFAFA] border border-gray-200 rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-gray-300 transition-colors">
-              <div className="absolute top-0 right-0 p-6 opacity-5"><Cpu className="w-32 h-32" /></div>
-              <div className="w-12 h-12 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center mb-6">
-                <Network className="w-6 h-6 text-green-600" />
-              </div>
-              <h3 className="font-semibold text-[24px] text-gray-900 mb-1">OpenAI</h3>
-              <div className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-6">GPT-4o Architecture</div>
-              
-              <p className="text-[14px] text-gray-600 mb-6 leading-relaxed min-h-[60px]">
-                The industry standard. Incredibly fast and highly analytical. Perfect for the Stop-Scroll Grader and complex logic processing.
-              </p>
-              
-              <div className="bg-white rounded-xl p-4 border border-gray-200 mb-8 shadow-sm">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[12px] text-gray-500 font-medium">Wholesale Cost:</span>
-                  <span className="text-[14px] font-bold text-gray-900">~$5.00 <span className="text-[11px] text-gray-400 font-normal">/ 1M Tokens</span></span>
-                </div>
-                <div className="w-full h-1 bg-gray-100 rounded-full"><div className="w-[100%] h-full bg-green-500 rounded-full"></div></div>
-              </div>
-
-              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 text-gray-900 font-medium text-[13px] rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-                Get OpenAI API Key <ExternalLink className="w-4 h-4" />
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* PSYCHOLOGY MECHANISMS */}
       <section className="py-24 bg-[#FAFAFA] border-b border-gray-200 overflow-hidden">
         <div className="max-w-[1200px] mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center">
@@ -566,12 +497,8 @@ export default function LandingPage() {
             <div className="text-[11px] font-bold text-orange-600 uppercase tracking-widest mb-4 flex items-center gap-4 justify-center animate-pulse">
               <span className="w-8 h-[1px] bg-orange-600"></span><h3>MASSIVE LAUNCH WEEK DISCOUNT</h3><span className="w-8 h-[1px] bg-orange-600"></span>
             </div>
-            <h2 className="font-semibold text-[40px] tracking-tight text-gray-900 mb-4">
-              Software access. No token markups.
-            </h2>
-            <p className="text-[16px] text-gray-500 leading-relaxed">
-              Pay a flat fee for the platform. Bring your own API key. Cancel anytime.
-            </p>
+            
+           
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-[1000px] mx-auto">

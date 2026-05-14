@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Script from 'next/script';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Download, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface CheckoutButtonProps {
@@ -14,8 +14,10 @@ interface CheckoutButtonProps {
   onSuccess?: () => void;
 }
 
-export function RazorpayCheckoutButton({ planId, baseAmount, userId, email, name = 'Creator', onSuccess }: CheckoutButtonProps) {
+export function RazorpayCheckoutButton({ planId, baseAmount, userId, email, name = 'Workspace Owner', onSuccess }: CheckoutButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
 
   const handlePayment = async () => {
     setIsLoading(true);
@@ -35,13 +37,13 @@ export function RazorpayCheckoutButton({ planId, baseAmount, userId, email, name
       // 2. Initialize Razorpay Modal
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: orderData.amount, // from your backend (base + 18% tax in cents)
+        amount: orderData.amount, // from your backend (base + 18% tax in cents/paise)
         currency: orderData.currency,
         name: 'ContentForge',
-        description: `${planId.toUpperCase()} Subscription`,
+        description: `${planId.toUpperCase()} Workspace Upgrade`,
         order_id: orderData.orderId,
         handler: async function (response: any) {
-          toast.loading('Verifying payment...', { id: toastId });
+          toast.loading('Cryptographically verifying transaction...', { id: toastId });
           
           try {
             // 3. Call your existing Verify endpoint
@@ -60,10 +62,17 @@ export function RazorpayCheckoutButton({ planId, baseAmount, userId, email, name
             const verifyData = await verifyRes.json();
 
             if (verifyRes.ok && verifyData.success) {
-              toast.success('Payment verified successfully!', { id: toastId });
+              toast.success('Workspace upgraded successfully.', { id: toastId });
+              setIsSuccess(true);
+              
+              // 4. Capture the invoice URL returned from your backend
+              if (verifyData.invoiceUrl) {
+                setInvoiceUrl(verifyData.invoiceUrl);
+              }
+
               if (onSuccess) onSuccess();
             } else {
-              throw new Error(verifyData.error || 'Verification failed.');
+              throw new Error(verifyData.error || 'Cryptographic verification failed.');
             }
           } catch (verifyError: any) {
             toast.error(verifyError.message || 'Payment verification failed.', { id: toastId });
@@ -76,22 +85,58 @@ export function RazorpayCheckoutButton({ planId, baseAmount, userId, email, name
         theme: {
           color: '#111827', // UI Match: Gray-900
         },
+        modal: {
+          // Gracefully handle if the user closes the pop-up without paying
+          ondismiss: function() {
+            setIsLoading(false);
+            toast.dismiss(toastId);
+          }
+        }
       };
 
       const rzp = new (window as any).Razorpay(options);
       
       rzp.on('payment.failed', function (response: any) {
-        toast.error(`Payment failed: ${response.error.description}`, { id: toastId });
+        toast.error(`Transaction declined: ${response.error.description}`, { id: toastId });
+        setIsLoading(false);
       });
 
       rzp.open();
     } catch (error: any) {
-      toast.error(error.message || 'Unable to initiate checkout.', { id: toastId });
-    } finally {
+      toast.error(error.message || 'Unable to establish secure connection.', { id: toastId });
       setIsLoading(false);
     }
   };
 
+  // ========================================================================
+  // SUCCESS STATE UI (Renders after successful payment & verification)
+  // ========================================================================
+  if (isSuccess) {
+    return (
+      <div className="flex flex-col gap-3 mt-4 w-full">
+        <div className="w-full bg-green-50 text-green-700 font-medium text-[14px] py-3 rounded-xl border border-green-200 flex items-center justify-center gap-2">
+          <CheckCircle className="w-5 h-5" />
+          Upgrade Complete
+        </div>
+        
+        {invoiceUrl && (
+          <a 
+            href={invoiceUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="w-full bg-white text-gray-900 border border-gray-200 font-medium text-[14px] py-3 rounded-xl hover:bg-gray-50 transition flex items-center justify-center gap-2 shadow-sm"
+          >
+            <Download className="w-4 h-4" />
+            Download Receipt
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  // ========================================================================
+  // DEFAULT CHECKOUT UI
+  // ========================================================================
   return (
     <>
       {/* Required Razorpay Script */}
@@ -100,9 +145,9 @@ export function RazorpayCheckoutButton({ planId, baseAmount, userId, email, name
       <button
         onClick={handlePayment}
         disabled={isLoading}
-        className="w-full bg-gray-900 text-white font-medium text-[14px] py-3 rounded-xl hover:bg-gray-800 transition disabled:opacity-70 flex items-center justify-center gap-2"
+        className="w-full mt-4 bg-gray-900 text-white font-medium text-[14px] py-3 rounded-xl hover:bg-gray-800 transition disabled:opacity-70 flex items-center justify-center gap-2 shadow-sm"
       >
-        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : `Unlock ${planId.toUpperCase()}`}
+        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : `Upgrade to ${planId.toUpperCase()}`}
       </button>
     </>
   );

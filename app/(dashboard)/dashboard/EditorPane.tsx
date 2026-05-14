@@ -2,62 +2,136 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { 
-  Send, Paperclip, Bot, User, Sparkles, ImagePlus, X, 
-  PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, RefreshCw 
+  Send, Plus, X, ChevronDown, ChevronUp, RefreshCw, 
+  Check, User as UserIcon, Aperture, Image as ImageIcon, FileText,
+  PanelRightClose, PanelRightOpen, PanelLeftOpen,
+  Activity,
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { createClient } from '@/lib/supabase-browser';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import { ToolHub } from '@/components/ToolHub';
+import toast from 'react-hot-toast';
 
 // --- INTERFACES ---
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  attachment?: string;
+  attachments?: string[]; // Base64 images
+  pdfs?: string[];        // Base64 PDFs
 }
+
+// --- ACTUAL PRODUCTION MODELS ---
+const MODELS = [
+  { id: 'GPT-4o', provider: 'openai', desc: 'Fast, versatile reasoning' },
+  { id: 'Claude 4', provider: 'anthropic', desc: 'Deep synthesis & strategy' }
+];
+
+const convertFileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+  });
+};
 
 // --- CUSTOM COMPONENTS ---
 const GraderCard = ({ data }: { data: any }) => {
+  const totalScore = data.scores?.reduce((acc: number, curr: any) => acc + curr.score, 0) || 0;
+  
+  const getScoreColor = (score: number) => {
+    if (score >= 9) return 'bg-emerald-500';
+    if (score >= 7) return 'bg-amber-500';
+    return 'bg-rose-500';
+  };
+
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm max-w-xl my-4 font-sans">
-      {/* The Hook Quote */}
-      <blockquote className="text-[17px] italic text-gray-800 leading-relaxed mb-4 font-serif">
-        "{data.hook}"
-      </blockquote>
-
-      {/* The Strategy Badge */}
-      <div className="inline-block px-3 py-1 bg-orange-50 text-orange-600 text-[11px] font-bold tracking-widest uppercase rounded-md mb-6">
-        {data.badge}
-      </div>
-
-      <hr className="border-gray-100 mb-6" />
-
-      {/* The Progress Bars */}
-      <div className="space-y-5">
-        {data.scores.map((item: any, idx: number) => (
-          <div key={idx}>
-            <div className="flex justify-between text-[13px] text-gray-600 font-medium mb-2">
-              <span>{item.label}</span>
-              <span className="text-gray-900 font-semibold">{item.score}/10</span>
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm w-full max-w-full md:max-w-2xl my-6 font-sans overflow-hidden">
+      <div className="p-5 md:p-6 border-b border-gray-100 bg-gray-50/50">
+        <div className="flex justify-between items-start gap-4 mb-4">
+          <div className="inline-flex px-3 py-1 bg-gray-900 text-white text-[10px] font-bold tracking-widest uppercase rounded-md shrink-0">
+            {data.badge || 'ANALYSIS COMPLETE'}
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-2xl font-bold text-gray-900 leading-none">
+              {totalScore}<span className="text-sm text-gray-400 font-medium">/50</span>
             </div>
-            <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-              <div 
-                className="bg-gray-900 h-full rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${(item.score / 10) * 100}%` }}
-              />
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-1 font-semibold">
+              Overall Score
             </div>
           </div>
-        ))}
+        </div>
+        
+        <blockquote className="text-[15px] italic text-gray-800 leading-relaxed border-l-4 border-gray-300 pl-4 break-words whitespace-pre-wrap max-w-full">
+          "{data.hook}"
+        </blockquote>
       </div>
 
-      {/* Overall Verdict & Fix */}
-      <div className="mt-6 pt-4 border-t border-gray-100">
-        <div className="text-[12px] font-bold text-gray-900 mb-1">VERDICT: {data.verdict}</div>
-        <div className="text-[13px] text-gray-600">{data.critical_fix}</div>
+      <div className="p-5 md:p-6">
+        <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2">
+          <Activity className="w-3.5 h-3.5 text-blue-500" /> Performance Autopsy
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+          {data.scores?.map((item: any, idx: number) => (
+            <div key={idx} className="w-full">
+              <div className="flex justify-between text-[12px] font-medium mb-1.5">
+                <span className="text-gray-600 truncate mr-2">{item.label}</span>
+                <span className="text-gray-900 font-bold shrink-0">{item.score}/10</span>
+              </div>
+              <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-1000 ease-out ${getScoreColor(item.score)}`}
+                  style={{ width: `${(item.score / 10) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-5 md:p-6 bg-gray-900 text-white">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          {data.replication_pattern && (
+            <div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Zap className="w-3 h-3 text-amber-400" /> Replication Pattern
+              </div>
+              <div className="text-[13px] text-gray-300 leading-relaxed break-words whitespace-pre-wrap">
+                {data.replication_pattern}
+              </div>
+            </div>
+          )}
+          
+          <div className={!data.replication_pattern ? "md:col-span-2" : ""}>
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 text-rose-400" /> Critical Fix
+            </div>
+            <div className="text-[13px] text-gray-300 leading-relaxed break-words whitespace-pre-wrap">
+              {data.critical_fix}
+            </div>
+          </div>
+        </div>
+        
+        <div className="mt-6 pt-4 border-t border-gray-800 flex justify-between items-center">
+          <span className="text-[11px] text-gray-400 uppercase tracking-widest font-semibold">Final Verdict</span>
+          <span className={`text-[11px] font-bold tracking-widest uppercase px-3 py-1 rounded-md ${
+            data.verdict?.toLowerCase().includes('publish') 
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+              : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+          }`}>
+            {data.verdict}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -65,42 +139,167 @@ const GraderCard = ({ data }: { data: any }) => {
 
 // --- MAIN APPLICATION PANE ---
 export function EditorPane() {
-  const { activeTool, apiKey, llmProvider, setRenderData, isLiveRenderOpen, toggleLiveRender } = useAppStore();
+  const { 
+    apiKey, setRenderData, user, 
+    activeSessionId, setActiveSessionId,
+    isLiveRenderOpen, toggleLiveRender,
+    isSidebarOpen, toggleSidebar,
+    activeTool 
+  } = useAppStore();
   
+  const supabase = createClient();
   const [input, setInput] = useState('');
-  const [attachment, setAttachment] = useState<string | null>(null);
+  
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [attachedDocsText, setAttachedDocsText] = useState<string[]>([]);
+  const [docNames, setDocNames] = useState<string[]>([]);
+  const [uploadedPdfs, setUploadedPdfs] = useState<string[]>([]);
+  
   const [isLoading, setIsLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({});
+  const [messages, setMessages] = useState<Message[]>([]);
   
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: "I'm your ContentForge Strategist. Pitch me an idea, drop a draft, or ask for a brutal critique. What are we building today?",
-    }
-  ]);
-  
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
+  const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const userName = (user as any)?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Strategist';
+
+  // 🔥 FIX 3: Hydrate messages WITH their attachments and PDFs from the database
+  useEffect(() => {
+    async function loadMessages() {
+      if (!activeSessionId) {
+        setMessages([]); 
+        return;
+      }
+      const { data } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', activeSessionId)
+        .order('created_at', { ascending: true });
+        
+      if (data) {
+        setMessages(data.map(d => ({ 
+          id: d.id, 
+          role: d.role as 'user'|'assistant', 
+          content: d.content,
+          attachments: d.attachments || undefined,
+          pdfs: d.pdfs || undefined
+        })));
+      }
+    }
+    loadMessages();
+  }, [activeSessionId, supabase]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const triggerFileInput = () => fileInputRef.current?.click();
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => setAttachment(event.target?.result as string);
-      reader.readAsDataURL(file);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
+        setIsModelDropdownOpen(false);
+      }
+      if (attachMenuRef.current && !attachMenuRef.current.contains(event.target as Node)) {
+        setIsAttachMenuOpen(false);
+      }
     }
-  };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const toggleThought = (id: string) => {
     setExpandedThoughts(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (attachments.length + files.length > 10) {
+      toast.error("You can only attach up to 10 images per message.");
+      return;
+    }
+
+    const newImages: string[] = [];
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`Image ${file.name} exceeds 5MB limit.`);
+        continue;
+      }
+      try {
+        const base64String = await convertFileToBase64(file);
+        newImages.push(base64String);
+      } catch (error) {
+        console.error("Error converting image:", error);
+      }
+    }
+    
+    setAttachments(prev => [...prev, ...newImages]);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+    setIsAttachMenuOpen(false);
+  };
+
+  const handleDocChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setIsLoading(true);
+    const toastId = toast.loading("Attaching documents...", { id: 'doc-parse' });
+
+    try {
+      for (const file of files) {
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`${file.name} exceeds 10MB limit.`);
+          continue;
+        }
+
+        if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+          const text = await file.text();
+          setAttachedDocsText(prev => [...prev, `[Document: ${file.name}]\n${text}`]);
+          setDocNames(prev => [...prev, file.name]);
+        } 
+        else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+          const reader = new FileReader();
+          const base64: string = await new Promise((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          setUploadedPdfs(prev => [...prev, base64]);
+          setDocNames(prev => [...prev, file.name]);
+        } 
+        else {
+          toast.error(`Unsupported format: ${file.name}`);
+        }
+      }
+      toast.success("Documents attached!", { id: toastId });
+    } catch (error) {
+      console.error("Attachment error:", error);
+      toast.error("Failed to attach document.", { id: toastId });
+    } finally {
+      setIsLoading(false);
+      if (docInputRef.current) docInputRef.current.value = '';
+      setIsAttachMenuOpen(false);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeDoc = (index: number) => {
+    setDocNames(prev => prev.filter((_, i) => i !== index));
+    setAttachedDocsText(prev => prev.filter((_, i) => i !== index));
+    setUploadedPdfs(prev => prev.filter((_, i) => i !== index)); 
   };
 
   const handleAutoFix = async (originalScore: number | null) => {
@@ -111,19 +310,28 @@ export function EditorPane() {
     
     setMessages(newHistory);
     setIsLoading(true);
-    await executeAI(newHistory);
+    await executeAI(newHistory, activeSessionId);
   };
 
-  const executeAI = async (historyToProcess: Message[]) => {
+  const executeAI = async (historyToProcess: Message[], currentSessionId?: string | null) => {
     try {
+      const activeProvider = MODELS.find(m => m.id === selectedModel)?.provider || 'openai';
+      
+      const lastMsg = historyToProcess[historyToProcess.length - 1];
+      const currentImages = lastMsg.attachments || [];
+      const currentPdfs = lastMsg.pdfs || [];
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: historyToProcess,
           apiKey: apiKey,
-          provider: llmProvider,
-          activeTool: activeTool
+          provider: activeProvider, 
+          images: currentImages, 
+          pdfs: currentPdfs,
+          userId: user?.id,
+          activeTool: activeTool 
         })
       });
 
@@ -132,66 +340,158 @@ export function EditorPane() {
 
       let replyText = data.reply;
 
-      // --- LIVE RENDER INTERCEPTOR ---
-      const renderRegex = /<render\s+platform=["'](linkedin|twitter)["']>([\s\S]*?)<\/render>/i;
+      // 🔥 FIX 1: Robust Regex that ignores additional attributes like title="..."
+      const renderRegex = /<render\s+platform=["'](.*?)["'][^>]*>([\s\S]*?)<\/render>/i;
       const renderMatch = replyText.match(renderRegex);
       
       if (renderMatch) {
-        const platform = renderMatch[1].toLowerCase() as 'linkedin' | 'twitter';
+        const platform = renderMatch[1].toLowerCase() as 'linkedin' | 'twitter' | 'ebook' | 'facebook';
         const content = renderMatch[2].trim();
-        
         if (setRenderData) setRenderData(content, platform);
-        
         replyText = replyText.replace(
           renderMatch[0], 
           `\n\n✨ *I've pushed the finalized draft to your Live Render canvas.*`
         );
       }
 
-      setMessages((prev) => [...prev, {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: replyText
-      }]);
+      setMessages((prev) => [...prev, { id: Date.now().toString(), role: 'assistant', content: replyText }]);
+
+      if (currentSessionId) {
+        await supabase.from('chat_messages').insert({
+          session_id: currentSessionId,
+          role: 'assistant',
+          content: replyText
+        });
+      }
 
     } catch (error: any) {
-      setMessages((prev) => [...prev, {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: `🚨 Error: ${error.message}`
-      }]);
+      setMessages((prev) => [...prev, { id: Date.now().toString(), role: 'assistant', content: `🚨 Error: ${error.message}` }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEbookGeneration = async (topic: string, sessionId: string) => {
+    try {
+      setIsLoading(true);
+      const activeProvider = MODELS.find(m => m.id === selectedModel)?.provider || 'openai';
+
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: `*Architecting book structure for: "${topic}"...*` }]);
+
+      const outRes = await fetch('/api/ebook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step: 'outline', topic, provider: activeProvider, secureUserId: user?.id })
+      });
+      const { chapters } = await outRes.json();
+
+      let compiledBook = "";
+
+      for (let i = 0; i < chapters.length; i++) {
+        const chapTitle = chapters[i];
+        
+        setMessages(prev => [...prev, { 
+          id: Date.now().toString(), 
+          role: 'assistant', 
+          content: `*Drafting Chapter ${i + 1} of ${chapters.length}: ${chapTitle}...*` 
+        }]);
+
+        const chapRes = await fetch('/api/ebook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: 'chapter', topic, chapterTitle: chapTitle, outline: chapters, provider: activeProvider, secureUserId: user?.id })
+        });
+        
+        const { content } = await chapRes.json();
+        compiledBook += `## ${chapTitle}\n\n${content}\n\n---\n\n`;
+      }
+
+      // 🔥 FIX 4: Send clean text to DB instead of raw HTML tag
+      const displayPayload = `\n\n✨ *I've pushed the finalized eBook draft to your Live Render canvas.*`;
+      
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: displayPayload }]);
+      
+      // Save clean message to database so it doesn't break on refresh
+      await supabase.from('chat_messages').insert({ session_id: sessionId, role: 'assistant', content: displayPayload });
+      
+      // Push the actual content to the canvas independently
+      if (setRenderData) setRenderData(compiledBook, 'ebook');
+      
+    } catch (err: any) {
+      toast.error('Ebook generation failed.');
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && !attachment) || isLoading) return;
+    if ((!input.trim() && attachments.length === 0 && attachedDocsText.length === 0 && uploadedPdfs.length === 0) || isLoading) return;
     
+    let currentSessionId = activeSessionId;
+    
+    if (!currentSessionId) {
+      const { data: sessionData } = await supabase
+        .from('chat_sessions')
+        .insert({ user_id: user?.id, title: 'New Workspace' })
+        .select().single();
+        
+      if (sessionData) {
+        currentSessionId = sessionData.id;
+        setActiveSessionId(sessionData.id);
+      }
+    }
+
+    if (messages.length === 0 && currentSessionId) {
+      const newTitle = input.substring(0, 30) + (input.length > 30 ? '...' : 'Document Analysis');
+      await supabase.from('chat_sessions').update({ title: newTitle }).eq('id', currentSessionId);
+      window.dispatchEvent(new Event('refresh-sidebar'));
+    }
+
+    let finalPrompt = input;
+    if (attachedDocsText.length > 0) {
+      finalPrompt = `${attachedDocsText.join('\n\n')}\n\nUser Prompt: ${input}`;
+    }
+
     const newMessage: Message = { 
       id: Date.now().toString(), 
       role: 'user', 
-      content: input,
-      attachment: attachment || undefined
+      content: finalPrompt,
+      attachments: attachments.length > 0 ? attachments : undefined,
+      pdfs: uploadedPdfs.length > 0 ? uploadedPdfs : undefined 
     };
+    
     const newHistory = [...messages, newMessage];
     
     setMessages(newHistory);
     setInput('');
-    setAttachment(null);
+    setAttachments([]);
+    setAttachedDocsText([]);
+    setUploadedPdfs([]);
+    setDocNames([]);
     setIsLoading(true);
 
-    await executeAI(newHistory);
+    // 🔥 FIX 2: Explicitly save attachments & PDFs to the database so they survive refresh
+    if (currentSessionId) {
+      await supabase.from('chat_messages').insert({
+        session_id: currentSessionId,
+        role: 'user',
+        content: finalPrompt,
+        attachments: newMessage.attachments ? newMessage.attachments : null,
+        pdfs: newMessage.pdfs ? newMessage.pdfs : null
+      });
+    }
+
+    if (activeTool === 'ebook_writer') {
+      await handleEbookGeneration(finalPrompt, currentSessionId as string);
+    } else {
+      await executeAI(newHistory, currentSessionId);
+    }
   };
 
-  // --- PARSERS & PRE-PROCESSORS ---
   const preprocessMath = (text: string) => {
     if (!text) return text;
-    return text
-      .replace(/\\\[/g, '$$$$')
-      .replace(/\\\]/g, '$$$$')
-      .replace(/\\\(/g, '$')
-      .replace(/\\\)/g, '$');
+    return text.replace(/\\\[/g, '$$$$').replace(/\\\]/g, '$$$$').replace(/\\\(/g, '$').replace(/\\\)/g, '$');
   };
 
   const parseContent = (content: string) => {
@@ -213,164 +513,193 @@ export function EditorPane() {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white relative">
-      <input 
-        type="file"
-        ref={fileInputRef} 
-        onChange={handleFileSelect} 
-        accept="image/*" 
-        className="hidden" 
-      />
+      <input type="file" ref={imageInputRef} onChange={handleImageChange} accept="image/png, image/jpeg, image/webp" multiple className="hidden" />
+      <input type="file" ref={docInputRef} onChange={handleDocChange} accept=".pdf,.txt" multiple className="hidden" />
 
-      {/* Header */}
-      <div className="h-14 border-b border-gray-100 flex items-center px-6 shrink-0 justify-between bg-white/80 backdrop-blur-md z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-md bg-[#F2F2F2] flex items-center justify-center text-gray-900">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <h2 className="text-[14px] font-semibold text-gray-900 tracking-tight">Strategist Desk</h2>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          {activeTool && (
-            <span className="text-[11px] font-medium px-2.5 py-1 bg-gray-100 rounded-md text-gray-600">
-              Tool: {activeTool}
-            </span>
+      <div className="absolute top-4 left-4 right-4 z-40 flex justify-between items-center pointer-events-none">
+        <div className="pointer-events-auto">
+          {!isSidebarOpen && (
+            <button onClick={() => toggleSidebar()} className="p-2.5 bg-white border border-gray-200 shadow-sm rounded-full text-gray-500 hover:text-gray-900 transition-colors" title="Open Sidebar">
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
           )}
-          <button 
-            onClick={() => toggleLiveRender()}
-            className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-          >
-            {isLiveRenderOpen ? <PanelRightClose className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}
+        </div>
+        <div className="pointer-events-auto">
+          <button onClick={() => toggleLiveRender()} className="p-2.5 bg-white border border-gray-200 shadow-sm rounded-full text-gray-500 hover:text-gray-900 transition-colors" title="Toggle Live Render">
+            {isLiveRenderOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
-      {/* Chat History */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-        {messages.map((msg) => {
-          const { thoughtProcess, finalContent, score, needsFix } = parseContent(msg.content);
-          const isExpanded = expandedThoughts[msg.id];
+      {messages.length === 0 && (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
+          <h1 className="text-4xl font-medium text-gray-900 tracking-tight mb-2">
+            Hi {userName}
+          </h1>
+          <h2 className="text-4xl font-medium text-gray-400 tracking-tight mb-12">
+            What should we do today?
+          </h2>
+          
+          <div className="flex gap-3 flex-wrap justify-center max-w-2xl">
+            {['Audit my latest post', 'Analyze brand tone', 'Generate viral hook'].map((suggestion) => (
+              <button 
+                key={suggestion}
+                onClick={() => setInput(suggestion)}
+                className="px-5 py-3 bg-gray-50 border border-gray-100 rounded-full text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-          return (
-            <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 shadow-sm border ${
-                msg.role === 'user' ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 text-gray-900'
-              }`}>
-                {msg.role === 'user' ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4" />}
-              </div>
-              
-              <div className={`flex flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[85%]`}>
-                
-                {msg.attachment && (
-                  <div className="mb-2 rounded-xl overflow-hidden border border-gray-200 shadow-sm max-w-[300px]">
-                    <img src={msg.attachment} alt="Upload" className="w-full h-auto object-cover" />
+      {messages.length > 0 && (
+        <div className="flex-1 overflow-y-auto px-4 md:px-24 pt-16 pb-32 custom-scrollbar">
+          <div className="max-w-3xl mx-auto space-y-10">
+            {messages.map((msg) => {
+              const { thoughtProcess, finalContent, score, needsFix } = parseContent(msg.content);
+              const isExpanded = expandedThoughts[msg.id];
+
+              return (
+                <div key={msg.id} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
+                    msg.role === 'user' ? 'bg-gray-100 text-gray-600' : 'bg-gray-900 text-white'
+                  }`}>
+                    {msg.role === 'user' ? <UserIcon className="w-4 h-4" /> : <Aperture className="w-4 h-4 text-white" />}
                   </div>
-                )}
-
-                {thoughtProcess && (
-                  <div className="w-full mb-1">
-                    <button 
-                      onClick={() => toggleThought(msg.id)}
-                      className="flex items-center gap-2 text-[13px] font-medium text-gray-500 hover:text-gray-900 transition-colors bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" /> 
-                      {isExpanded ? 'Hide thinking' : 'Show thinking'}
-                      {isExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
-                    </button>
+                  
+                  <div className={`flex flex-col gap-2 max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                     
-                    {isExpanded && (
-                      <div className="mt-2 p-4 bg-gray-50 border border-gray-100 rounded-xl text-[13px] text-gray-600 font-mono whitespace-pre-wrap leading-relaxed shadow-inner">
-                        {thoughtProcess}
+                    {/* Render DB Hydrated Images */}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="mb-1 flex flex-wrap gap-2 max-w-[300px] justify-end">
+                        {msg.attachments.map((imgBase64, idx) => (
+                          <div key={idx} className="rounded-2xl overflow-hidden border border-gray-200 w-20 h-20 shadow-sm">
+                            <img src={imgBase64} alt="Upload" className="w-full h-full object-cover" />
+                          </div>
+                        ))}
                       </div>
                     )}
-                  </div>
-                )}
 
-                <div className={`p-5 text-[15px] leading-relaxed font-sans w-full ${
-                  msg.role === 'user' 
-                    ? 'bg-gray-100 text-gray-900 rounded-2xl rounded-tr-sm whitespace-pre-wrap' 
-                    : 'bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-200 shadow-sm prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-600 prose-pre:bg-gray-900 prose-pre:text-white prose-td:border-gray-200 prose-th:border-gray-200 prose-th:bg-gray-50'
-                }`}>
-                  {msg.role === 'user' ? (
-                    finalContent
-                  ) : (
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        // This intercepts the AI's JSON code block and renders the UI
-                        code(props) {
-                          const { children, className, node, ...rest } = props;
-                          const match = /language-(\w+)/.exec(className || '');
-                          
-                          if (match && match[1] === 'grader') {
-                            try {
-                              const parsedData = JSON.parse(String(children).replace(/\n$/, ''));
-                              return <GraderCard data={parsedData} />;
-                            } catch (e) {
-                              console.error("Grader JSON Parse Error", e);
+                    {thoughtProcess && (
+                      <div className="w-full mb-2">
+                        <button 
+                          onClick={() => toggleThought(msg.id)}
+                          className="flex items-center gap-2 text-[13px] font-medium text-gray-400 hover:text-gray-700 transition-colors py-1 group"
+                        >
+                          <span className={`w-4 h-4 rounded-full border border-gray-300 flex items-center justify-center transition-colors ${isExpanded ? 'bg-gray-100' : ''}`}>
+                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </span>
+                          {isExpanded ? 'Hide thinking process' : 'View thinking process'}
+                        </button>
+                        
+                        {isExpanded && (
+                          <div className="mt-3 mb-2 pl-4 border-l-2 border-gray-200 text-[14px] text-gray-500 font-sans whitespace-pre-wrap leading-relaxed animate-in slide-in-from-top-1 fade-in duration-200">
+                            {thoughtProcess}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className={`text-[15px] leading-relaxed font-sans ${
+                      msg.role === 'user' 
+                        ? 'bg-gray-100 text-gray-900 px-5 py-3.5 rounded-3xl rounded-tr-sm whitespace-pre-wrap' 
+                        : 'text-gray-800 prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-600 prose-pre:bg-[#0D1117] prose-pre:text-gray-100 prose-pre:rounded-xl prose-pre:border prose-pre:border-gray-800'
+                    }`}>
+                      {msg.role === 'user' ? (
+                        finalContent.replace(/\[Document Context: .*?\]\n[\s\S]*?\n\nUser Prompt: /g, '')
+                      ) : (
+                        <ReactMarkdown 
+                          // @ts-ignore
+                          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            code(props) {
+                              const { children, className, node, ...rest } = props;
+                              const match = /language-(\w+)/.exec(className || '');
+                              if (match && match[1] === 'grader') {
+                                try {
+                                  return <GraderCard data={JSON.parse(String(children).replace(/\n$/, ''))} />;
+                                } catch (e) {
+                                  return <code className={className} {...rest}>{children}</code>;
+                                }
+                              }
                               return <code className={className} {...rest}>{children}</code>;
                             }
-                          }
-                          
-                          return <code className={className} {...rest}>{children}</code>;
-                        }
-                      }}
-                    >
-                      {preprocessMath(finalContent)}
-                    </ReactMarkdown>
-                  )}
+                          }}
+                        >
+                          {preprocessMath(finalContent)}
+                        </ReactMarkdown>
+                      )}
+                    </div>
+
+                    {needsFix && msg.role === 'assistant' && (
+                      <button 
+                        onClick={() => handleAutoFix(score)}
+                        className="mt-2 flex items-center gap-2 px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 rounded-full text-[12px] font-semibold transition-all shadow-sm"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Auto-Fix to 45+
+                      </button>
+                    )}
+
+                  </div>
                 </div>
+              );
+            })}
 
-                {needsFix && msg.role === 'assistant' && (
-                  <button 
-                    onClick={() => handleAutoFix(score)}
-                    className="mt-1 flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 rounded-lg text-[13px] font-semibold transition-colors shadow-sm"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" /> Auto-Fix for 45+ Score
-                  </button>
-                )}
-
+            {isLoading && (
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center shrink-0 shadow-sm">
+                  <Aperture className="w-4 h-4 text-white animate-[spin_3s_linear_infinite]" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="h-4 w-32 bg-gray-100 rounded-full animate-pulse mt-2"></div>
+                  <div className="h-4 w-48 bg-gray-50 rounded-full animate-pulse"></div>
+                </div>
               </div>
-            </div>
-          );
-        })}
-
-        {isLoading && (
-          <div className="flex gap-4 max-w-4xl mx-auto">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 shadow-sm border bg-white border-gray-200 text-gray-900">
-              <Bot className="w-4 h-4" />
-            </div>
-            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-sm rounded-tl-sm flex items-center gap-1.5 h-[52px]">
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></span>
-            </div>
+            )}
+            <div ref={messagesEndRef} className="h-4" />
           </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+        </div>
+      )}
 
-      {/* Input Area */}
-      <div className="p-4 shrink-0 bg-white border-t border-transparent">
-        <div className="max-w-4xl mx-auto bg-white border border-gray-200 rounded-2xl p-2 flex flex-col shadow-sm focus-within:border-gray-400 focus-within:shadow-md transition-all duration-200">
+      <div className={`absolute left-0 right-0 px-4 md:px-0 transition-all duration-500 ease-in-out flex justify-center ${
+        messages.length === 0 ? 'bottom-1/3' : 'bottom-6'
+      }`}>
+        <div className="w-full max-w-3xl bg-[#F0F4F9] rounded-3xl p-2.5 shadow-sm border border-transparent focus-within:bg-white focus-within:border-gray-200 focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all">
           
-          {attachment && (
-            <div className="px-3 pt-3 pb-1">
-              <div className="relative inline-block group">
-                <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                  <img src={attachment} alt="Preview" className="w-full h-full object-cover" />
+          {(attachments.length > 0 || docNames.length > 0) && (
+            <div className="px-3 pt-2 pb-2 flex gap-2 flex-wrap max-h-32 overflow-y-auto custom-scrollbar">
+              
+              {attachments.map((img, idx) => (
+                <div key={`img-${idx}`} className="relative inline-block group shrink-0">
+                  <div className="w-14 h-14 rounded-xl overflow-hidden shadow-sm border border-gray-200">
+                    <img src={img} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                  <button 
+                    onClick={() => removeAttachment(idx)}
+                    className="absolute -top-2 -right-2 bg-gray-900 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
-                <button 
-                  onClick={() => setAttachment(null)}
-                  className="absolute -top-2 -right-2 bg-gray-900 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
+              ))}
+
+              {docNames.map((name, idx) => (
+                <div key={`doc-${idx}`} className="relative inline-flex items-center gap-2 bg-white border border-gray-200 py-1.5 px-3 rounded-xl shadow-sm shrink-0 group">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <span className="text-[12px] font-semibold text-gray-700 max-w-[120px] truncate">{name}</span>
+                  <button 
+                    onClick={() => removeDoc(idx)}
+                    className="absolute -top-2 -right-2 bg-gray-900 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+
             </div>
           )}
 
@@ -378,26 +707,81 @@ export function EditorPane() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Pitch an idea, drop a hook, or ask for a critique..."
-            className="w-full bg-transparent text-[15px] text-gray-900 p-3 outline-none resize-none min-h-[50px] max-h-[300px] placeholder:text-gray-400 custom-scrollbar"
+            placeholder="Ask ContentForge or drop an image..."
+            className="w-full bg-transparent text-[15px] text-gray-900 px-4 py-2 outline-none resize-none min-h-[44px] max-h-[200px] placeholder:text-gray-500 custom-scrollbar"
             rows={1}
           />
-          <div className="flex items-center justify-between px-2 pb-1 mt-1">
-            <div className="flex items-center gap-1">
-              <button onClick={triggerFileInput} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <Paperclip className="w-4 h-4" />
-              </button>
-              <button onClick={triggerFileInput} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <ImagePlus className="w-4 h-4" />
+          
+          <div className="flex items-center justify-between px-2 pt-2 relative">
+            <div className="flex items-center gap-2">
+              
+              <div className="relative" ref={attachMenuRef}>
+                <button 
+                  onClick={() => setIsAttachMenuOpen(!isAttachMenuOpen)} 
+                  className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-200 rounded-full transition-colors"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+                
+                {isAttachMenuOpen && (
+                  <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border border-gray-100 shadow-[0_4px_24px_rgba(0,0,0,0.1)] rounded-2xl py-1.5 z-50 animate-in fade-in slide-in-from-bottom-2">
+                    <button onClick={() => imageInputRef.current?.click()} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition text-left outline-none">
+                      <ImageIcon className="w-4 h-4 text-gray-400" /> Upload Photos
+                    </button>
+                    <button onClick={() => docInputRef.current?.click()} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition text-left outline-none">
+                      <FileText className="w-4 h-4 text-gray-400" /> Upload Document
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <ToolHub />
+            </div>
+
+            <div className="flex items-center gap-2">
+              
+              <div className="relative" ref={modelDropdownRef}>
+                <button 
+                  onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors text-[13px] font-medium text-gray-700 outline-none"
+                >
+                  {selectedModel} <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+                </button>
+
+                {isModelDropdownOpen && (
+                  <div className="absolute bottom-full right-0 mb-2 w-64 bg-white border border-gray-100 shadow-[0_4px_24px_rgba(0,0,0,0.1)] rounded-2xl p-2 z-50 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="px-3 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Models</div>
+                    {MODELS.map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => { setSelectedModel(model.id); setIsModelDropdownOpen(false); }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 transition text-left group outline-none"
+                      >
+                        <div>
+                          <div className={`text-[14px] font-medium transition-colors ${selectedModel === model.id ? 'text-gray-900' : 'text-gray-700 group-hover:text-gray-900'}`}>
+                            {model.id}
+                          </div>
+                          <div className="text-[12px] text-gray-500">{model.desc}</div>
+                        </div>
+                        {selectedModel === model.id && (
+                          <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-white" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button 
+                onClick={handleSend}
+                disabled={(!input.trim() && attachments.length === 0 && attachedDocsText.length === 0 && uploadedPdfs.length === 0) || isLoading}
+                className="p-2.5 bg-gray-900 text-white rounded-full hover:bg-gray-800 transition disabled:opacity-30 disabled:bg-gray-200 disabled:text-gray-400"
+              >
+                <Send className="w-4 h-4" />
               </button>
             </div>
-            <button 
-              onClick={handleSend}
-              disabled={(!input.trim() && !attachment) || isLoading}
-              className="px-4 py-2 bg-gray-900 text-white text-[13px] font-medium rounded-lg hover:bg-gray-800 transition disabled:opacity-30 flex items-center gap-2"
-            >
-              {isLoading ? 'Thinking...' : 'Send'} <Send className="w-3 h-3" />
-            </button>
           </div>
         </div>
       </div>

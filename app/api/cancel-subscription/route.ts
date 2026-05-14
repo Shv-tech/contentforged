@@ -1,5 +1,6 @@
+
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createClient } from '@/lib/supabase/server'; // FIX: Swapped to the correct App Router Client
 
 export async function POST(req: Request) {
   try {
@@ -9,11 +10,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = createServerClient();
+    const supabase = createClient(); // FIX: Initialize the correct client
 
-    // Downgrade the user to the free tier and reset credits
+    // FIX: Downgrade the user in the PROFILES table, not the users table
     const { error } = await supabase
-      .from('users')
+      .from('profiles')
       .update({
         plan: 'free',
         credits_remaining: 5,

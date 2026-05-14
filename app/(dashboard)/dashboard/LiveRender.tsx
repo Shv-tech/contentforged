@@ -1,9 +1,10 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
-import { FileText, ThumbsUp, MessageSquare, Repeat2, Send } from 'lucide-react';
+import { FileText, ThumbsUp, MessageSquare, Repeat2, Send, Share2, Heart, MessageCircle, Bookmark } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import EbookCanvas from '@/components/EbookCanvas'; // Import the new PDF engine
 
 export function LiveRender() {
   // This is where it listens to the store!
@@ -21,6 +22,20 @@ export function LiveRender() {
     );
   }
 
+  // --- EBOOK DOUBLE-TITLE FIX & EXTRACTION ---
+  let displayTitle = "Compiled Document";
+  let displayContent = renderContent;
+
+  if (renderPlatform === 'ebook') {
+    // Look for the first Markdown H1 or H2 to use as the official PDF Title
+    const titleMatch = renderContent.match(/^(?:#|##)\s+(.*)/m);
+    if (titleMatch) {
+      displayTitle = titleMatch[1].trim();
+      // Strip the title from the body so EbookCanvas doesn't render it twice
+      displayContent = renderContent.replace(titleMatch[0], '').trim();
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#F9FAFB] relative">
       {/* Header */}
@@ -32,48 +47,95 @@ export function LiveRender() {
       </div>
 
       {/* Render Canvas Area */}
-      <div className="flex-1 overflow-y-auto p-8 custom-scrollbar flex justify-center items-start">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar flex justify-center items-start">
         
-        {/* Mock Social Media Card */}
-        <div className="w-full max-w-[500px] bg-white border border-gray-200 rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+        {/* CONDITIONAL ROUTING: EBOOK vs SOCIAL MEDIA */}
+        {renderPlatform === 'ebook' ? (
           
-          {/* Mock Header */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gray-900 to-gray-600 flex items-center justify-center text-white font-bold text-[14px] shadow-sm">
-              SV
-            </div>
-            <div>
-              <div className="text-[14px] font-bold text-gray-900 leading-tight">You</div>
-              <div className="text-[12px] text-gray-500">Now • {renderPlatform === 'linkedin' ? 'Edited' : ''}</div>
-            </div>
+          <div className="w-full">
+            <EbookCanvas title={displayTitle} content={displayContent} />
           </div>
 
-          {/* The Actual AI Generated Content */}
-          <div className="text-[14px] text-gray-800 leading-relaxed font-sans prose prose-sm max-w-none prose-p:whitespace-pre-wrap prose-strong:font-bold prose-strong:text-gray-900 prose-ul:my-2 prose-li:my-0.5">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {renderContent}
-            </ReactMarkdown>
-          </div>
+        ) : (
 
-          {/* Mock Engagement Footer */}
-          <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between text-gray-400">
-            <div className="flex items-center gap-6">
-              <button className="flex items-center gap-2 hover:text-blue-600 transition">
-                <ThumbsUp className="w-4 h-4" /> <span className="text-[12px] font-medium">Like</span>
-              </button>
-              <button className="flex items-center gap-2 hover:text-gray-900 transition">
-                <MessageSquare className="w-4 h-4" /> <span className="text-[12px] font-medium">Comment</span>
-              </button>
-              <button className="flex items-center gap-2 hover:text-gray-900 transition">
-                <Repeat2 className="w-4 h-4" /> <span className="text-[12px] font-medium">Repost</span>
-              </button>
+          /* Mock Social Media Card */
+          <div className="w-full max-w-[500px] bg-white border border-gray-200 rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+            
+            {/* Mock Header */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gray-900 to-gray-600 flex items-center justify-center text-white font-bold text-[14px] shadow-sm">
+                SV
+              </div>
+              <div>
+                <div className="text-[14px] font-bold text-gray-900 leading-tight">You</div>
+                <div className="text-[12px] text-gray-500">
+                  Now • {renderPlatform === 'linkedin' ? 'Edited' : renderPlatform === 'twitter' ? 'Just now' : 'Just now'}
+                </div>
+              </div>
             </div>
-            <button className="flex items-center gap-2 hover:text-gray-900 transition">
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
 
-        </div>
+            {/* The Actual AI Generated Content */}
+            <div className="text-[14px] text-gray-800 leading-relaxed font-sans prose prose-sm max-w-none prose-p:whitespace-pre-wrap prose-strong:font-bold prose-strong:text-gray-900 prose-ul:my-2 prose-li:my-0.5">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {displayContent}
+              </ReactMarkdown>
+            </div>
+
+            {/* Dynamic Engagement Footer Based on Platform */}
+            <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between text-gray-400">
+              
+              {renderPlatform === 'twitter' ? (
+                // Twitter / X Footer
+                <div className="flex items-center justify-between w-full px-2">
+                  <button className="flex items-center gap-2 hover:text-blue-500 transition">
+                    <MessageCircle className="w-4 h-4" /> <span className="text-[12px]">Reply</span>
+                  </button>
+                  <button className="flex items-center gap-2 hover:text-green-500 transition">
+                    <Repeat2 className="w-4 h-4" /> <span className="text-[12px]">Repost</span>
+                  </button>
+                  <button className="flex items-center gap-2 hover:text-rose-500 transition">
+                    <Heart className="w-4 h-4" /> <span className="text-[12px]">Like</span>
+                  </button>
+                  <button className="flex items-center gap-2 hover:text-blue-500 transition">
+                    <Bookmark className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : renderPlatform === 'facebook' ? (
+                // Facebook Footer
+                <div className="flex items-center justify-around w-full">
+                  <button className="flex items-center gap-2 hover:text-blue-600 transition">
+                    <ThumbsUp className="w-4 h-4" /> <span className="text-[12px] font-semibold">Like</span>
+                  </button>
+                  <button className="flex items-center gap-2 hover:text-gray-900 transition">
+                    <MessageSquare className="w-4 h-4" /> <span className="text-[12px] font-semibold">Comment</span>
+                  </button>
+                  <button className="flex items-center gap-2 hover:text-gray-900 transition">
+                    <Share2 className="w-4 h-4" /> <span className="text-[12px] font-semibold">Share</span>
+                  </button>
+                </div>
+              ) : (
+                // Default / LinkedIn Footer
+                <>
+                  <div className="flex items-center gap-6">
+                    <button className="flex items-center gap-2 hover:text-blue-600 transition">
+                      <ThumbsUp className="w-4 h-4" /> <span className="text-[12px] font-medium">Like</span>
+                    </button>
+                    <button className="flex items-center gap-2 hover:text-gray-900 transition">
+                      <MessageSquare className="w-4 h-4" /> <span className="text-[12px] font-medium">Comment</span>
+                    </button>
+                    <button className="flex items-center gap-2 hover:text-gray-900 transition">
+                      <Repeat2 className="w-4 h-4" /> <span className="text-[12px] font-medium">Repost</span>
+                    </button>
+                  </div>
+                  <button className="flex items-center gap-2 hover:text-gray-900 transition">
+                    <Send className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
+
+          </div>
+        )}
       </div>
     </div>
   );

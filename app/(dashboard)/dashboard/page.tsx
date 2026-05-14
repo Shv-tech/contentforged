@@ -8,35 +8,66 @@ import { WarRoomPane } from './WarRoomPane';
 import { useAppStore } from '@/lib/store';
 import { X, AlertTriangle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SwarmCanvas from './SwarmCanvas';
+import { createClient } from '@/lib/supabase/client'; // Adjust path to your client Supabase file
 
 export default function DashboardController() {
   const store = useAppStore();
   const [mounted, setMounted] = useState(false);
 
   // ==========================================
-  // SETTINGS MODAL STATE
+  // SETTINGS MODAL & LIVE DATA STATE
   // ==========================================
   const [showSettings, setShowSettings] = useState(false); 
   const [localKey, setLocalKey] = useState('');
   const [localProvider, setLocalProvider] = useState<'openai' | 'anthropic'>('openai');
-  const [isCanceling, setIsCanceling] = useState(false); // NEW: Cancellation loading state
+  const [isCanceling, setIsCanceling] = useState(false);
+  
+  // NEW: Live database states
+  const [livePlanName, setLivePlanName] = useState<string>('Loading...');
+  const [isFetchingPlan, setIsFetchingPlan] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    
-    // Hydrate the settings from your store on load
     setLocalKey(store.apiKey);
     setLocalProvider(store.llmProvider);
-    
-    // ========================================================
-    // PRODUCTION MODE
-    // In production, user and plan data will come from your 
-    // Supabase/Auth database fetch here.
-    // e.g., store.setUser(data.user); store.setPlan(data.plan);
-    // ========================================================
   }, []); 
 
-  // Function to save your API keys
+  // ==========================================
+  // REAL-TIME SUPABASE SYNC
+  // ==========================================
+  useEffect(() => {
+    if (showSettings) {
+      const fetchLiveSubscription = async () => {
+        setIsFetchingPlan(true);
+        const supabase = createClient();
+        
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            // Assuming your profiles table tracks the plan name
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('plan_type') // Replace with your exact column name
+              .eq('id', user.id)
+              .single();
+              
+            const currentPlan = profile?.plan_type || 'free';
+            setLivePlanName(currentPlan);
+            store.setPlan(currentPlan); // Sync the global store with the live DB truth
+          }
+        } catch (error) {
+          console.error("Failed to fetch live plan:", error);
+          setLivePlanName('error');
+        } finally {
+          setIsFetchingPlan(false);
+        }
+      };
+      
+      fetchLiveSubscription();
+    }
+  }, [showSettings]);
+
   const saveSettings = () => {
     store.setApiKey(localKey);
     store.setLlmProvider(localProvider);
@@ -44,7 +75,6 @@ export default function DashboardController() {
     toast.success('API Configuration Saved.');
   };
 
-  // NEW: Function to handle subscription cancellation
   const handleCancel = async () => {
     if (!confirm('Are you sure? You will immediately lose access to all premium tools.')) return;
     
@@ -60,9 +90,9 @@ export default function DashboardController() {
 
       if (!res.ok) throw new Error('Failed to cancel.');
 
-      store.setPlan('free'); // Instantly lock the UI globally
-      toast.success('Workspace downgraded to Basic.', { id: toastId });
-      setShowSettings(false);
+      setLivePlanName('free');
+      store.setPlan('free'); 
+      toast.success('Workspace downgraded successfully.', { id: toastId });
     } catch (error) {
       toast.error('Could not process cancellation.', { id: toastId });
     } finally {
@@ -75,13 +105,10 @@ export default function DashboardController() {
   return (
     <div className="flex h-screen w-full bg-[#FAFAFA] text-gray-900 font-sans relative overflow-hidden">
       
-      {/* Sidebar */}
+      {/* 1. SIDEBAR: Controls the activeTool state */}
       <SidebarPane onOpenSettings={() => setShowSettings(true)} />
 
-      {/* ========================================================
-          DYNAMIC LEFT SIDE: Editor vs. Enterprise War Room
-          Takes full width if Render is closed
-          ======================================================== */}
+      {/* 2. LEFT PANEL: Switches between the War Room Terminal and the Editor */}
       <div 
         className={`flex-1 min-w-[500px] flex flex-col transition-all duration-300 ease-in-out ${
           store.isLiveRenderOpen ? 'border-r border-gray-200' : ''
@@ -90,23 +117,22 @@ export default function DashboardController() {
         {store.activeTool === 'war_room' ? <WarRoomPane /> : <EditorPane />}
       </div>
 
-      {/* ========================================================
-          RIGHT SIDE: Live Mockup Engine
-          Collapsible based on store state
-          ======================================================== */}
+      {/* 3. RIGHT PANEL (THE CANVAS): Switches between Swarm Mode and Standard Mode */}
       <div 
         className={`transition-all duration-300 ease-in-out overflow-hidden bg-[#F9FAFB] flex flex-col ${
           store.isLiveRenderOpen ? 'w-[45%] opacity-100' : 'w-0 opacity-0 border-none'
         }`}
       >
         <div className="w-full h-full min-w-[400px]">
-          <LiveRender />
+         
+          {store.activeTool === 'war_room' ? (
+            <SwarmCanvas />
+          ) : (
+            <LiveRender />
+          )}
         </div>
       </div>
 
-      {/* ========================================================
-          THE SETTINGS MODAL UI (Light Mode)
-          ======================================================== */}
       {showSettings && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-900/20 backdrop-blur-sm p-4">
           <div className="bg-white border border-gray-200 rounded-xl w-full max-w-[500px] shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
@@ -119,7 +145,6 @@ export default function DashboardController() {
             
             <div className="p-5 space-y-6">
               
-              {/* API CONFIGURATION SECTION */}
               <div>
                 <label className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Provider</label>
                 <select 
@@ -153,7 +178,7 @@ export default function DashboardController() {
 
               <hr className="border-gray-100" />
 
-              {/* DANGER ZONE / BILLING SECTION */}
+              {/* LIVE DATABASE DRIVEN BILLING SECTION */}
               <div>
                 <h3 className="text-[12px] font-bold text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                   <AlertTriangle className="w-3.5 h-3.5" /> Danger Zone
@@ -161,24 +186,25 @@ export default function DashboardController() {
                 
                 <div className="bg-red-50 border border-red-100 rounded-xl p-4">
                   <div className="flex justify-between items-center mb-3">
-                    <span className="text-[14px] font-medium text-red-900">Current Plan</span>
-                    <span className="text-[11px] font-bold bg-white text-red-600 px-2 py-1 rounded shadow-sm uppercase tracking-wider">
-                      {store.plan === 'free' ? 'BASIC' : store.plan}
-                    </span>
+                    <span className="text-[14px] font-medium text-red-900">Live Database Status</span>
+                    
+                    {isFetchingPlan ? (
+                      <Loader2 className="w-4 h-4 text-red-500 animate-spin" />
+                    ) : (
+                      <span className="text-[11px] font-bold bg-white text-red-600 px-2 py-1 rounded shadow-sm uppercase tracking-wider">
+                        {livePlanName}
+                      </span>
+                    )}
                   </div>
                   
-                  {store.plan !== 'free' ? (
+                  {livePlanName !== 'free' && livePlanName !== 'Loading...' && livePlanName !== 'error' && (
                     <button 
                       onClick={handleCancel}
                       disabled={isCanceling}
                       className="w-full bg-red-600 text-white text-[13px] font-medium py-2.5 rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2 disabled:opacity-70 mt-2"
                     >
-                      {isCanceling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cancel Subscription'}
+                      {isCanceling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cancel Active Subscription'}
                     </button>
-                  ) : (
-                    <p className="text-[12px] text-red-700 leading-relaxed mt-1">
-                      You are currently on the basic plan. No active subscription found. Upgrade from the sidebar to access premium tools.
-                    </p>
                   )}
                 </div>
               </div>

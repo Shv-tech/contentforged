@@ -1,277 +1,281 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Users, Sparkles, CheckCircle2, ShieldAlert, Crosshair, PenTool, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Send, Cpu, FileDown, Globe, Zap, AlertTriangle, Loader2, ChevronLeft, Layout, FileText } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import jsPDF from 'jspdf'; 
 
-type WarRoomStage = 'idle' | 'strategist' | 'writer' | 'redteam' | 'done' | 'error';
+interface SwarmArtifact {
+  title: string;
+  content: string;
+  extension: string;
+}
+
+interface LogEntry {
+  role: 'user' | 'swarm' | 'error';
+  content: string;
+  artifacts?: SwarmArtifact[];
+  actions?: string[];
+}
 
 export function WarRoomPane() {
-  const { apiKey, llmProvider, activeTool, setRenderData } = useAppStore();
+  const store = useAppStore() as any; 
+  const messages = store.messages || [];
   
-  const [input, setInput] = useState('');
-  const [stage, setStage] = useState<WarRoomStage>('idle');
-  const [errorMsg, setErrorMsg] = useState('');
-  
-  const [outputs, setOutputs] = useState({
-    strategy: '',
-    draft: '',
-    critique: '',
-  });
+  const apiKey = useAppStore((state) => state.apiKey);
+  const setActiveTool = useAppStore((state) => state.setActiveTool);
+  const isLiveRenderOpen = useAppStore((state) => state.isLiveRenderOpen);
+  const toggleLiveRender = useAppStore((state) => state.toggleLiveRender);
 
+  const [input, setInput] = useState('');
+  const [isSwarming, setIsSwarming] = useState(false);
+  const [log, setLog] = useState<LogEntry[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to the bottom as the agents stream their work
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [log, isSwarming]);
+
+  const handleDownload = (artifact: SwarmArtifact) => {
+    if (artifact.extension === 'pdf') {
+      const doc = new jsPDF();
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text(artifact.title, 15, 20);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(12);
+      const splitText = doc.splitTextToSize(artifact.content, 180);
+      doc.text(splitText, 15, 30);
+      doc.save(`${artifact.title.replace(/\s+/g, '_')}.pdf`);
+    } else {
+      const blob = new Blob([artifact.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${artifact.title.replace(/\s+/g, '_')}.${artifact.extension}`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
-  }, [stage, outputs]);
-
-  // Centralized API Caller for the Agents
-  const triggerAgent = async (systemInstruction: string, context: string) => {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiKey,
-        provider: llmProvider,
-        activeTool: 'war_room',
-        messages: [
-          { role: 'user', content: `${systemInstruction}\n\nCONTEXT TO PROCESS:\n${context}` }
-        ]
-      })
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Agent execution failed.');
-    return data.reply;
   };
 
-  const simulateWarRoom = async () => {
-    if (!input.trim()) return;
+  const executeSwarm = async () => {
+    if (!input.trim() || isSwarming) return;
     
-    setStage('strategist');
-    setErrorMsg('');
-    setOutputs({ strategy: '', draft: '', critique: '' });
-    
-    const userBrief = input;
+    const userPrompt = input;
     setInput('');
+    setLog(prev => [...prev, { role: 'user', content: userPrompt }]);
+    
+    const newMessages = [...messages, { role: 'user', content: userPrompt }];
+    if (store.setMessages) store.setMessages(newMessages);
+
+    setIsSwarming(true);
 
     try {
-      // ========================================================================
-      // AGENT 1: THE CHIEF STRATEGIST
-      // Job: Analyze psychology, define the angle, find the identity threat.
-      // ========================================================================
-      const strategistPrompt = `WAR ROOM PHASE 1: STRATEGY. 
-      You are the Chief Brand Strategist for a $100M agency. Do NOT write the post. 
-      Your job is to analyze the user's brief. Provide a 3-bullet strategic directive:
-      1. The Core Psychology (e.g., Zeigarnik Effect, Identity Threat).
-      2. The Contrarian Angle (What is the enemy/status quo?).
-      3. The Structural Hook mechanism.
-      Format aggressively using bolding. No polite intro.`;
+      const res = await fetch('/api/swarm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: userPrompt, apiKey })
+      });
 
-      const strategyResult = await triggerAgent(strategistPrompt, userBrief);
-      setOutputs(prev => ({ ...prev, strategy: strategyResult }));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'The swarm encountered a critical failure.');
 
+      setLog(prev => [...prev, { 
+        role: 'swarm', 
+        content: data.reply,
+        artifacts: data.artifacts,
+        actions: data.actions
+      }]);
 
-      // ========================================================================
-      // AGENT 2: THE ELITE COPYWRITER
-      // Job: Take the strategy and execute a brutal, scroll-stopping draft.
-      // ========================================================================
-      setStage('writer');
+      // 🔥 THE BULLETPROOF FIX 🔥
+      // Instead of relying on the AI to type the HTML tags, we forcefully inject the 
+      // artifact content into the tag ourselves before passing it to the global store.
+      let finalGlobalContent = data.reply;
       
-      const writerPrompt = `WAR ROOM PHASE 2: DRAFTING. 
-      You are the Elite Copywriter. 
-      Review the User's Brief and the Chief Strategist's Directive.
-      Execute the draft perfectly. Use short, punchy sentences. Optimize for scroll-stopping rhythm. Do not use hashtags yet. No polite intro.`;
-      
-      const writerContext = `USER BRIEF:\n${userBrief}\n\nSTRATEGIST DIRECTIVE:\n${strategyResult}`;
-      
-      const draftResult = await triggerAgent(writerPrompt, writerContext);
-      setOutputs(prev => ({ ...prev, draft: draftResult }));
-
-
-      // ========================================================================
-      // AGENT 3: THE RED TEAM EDITOR
-      // Job: Attack the draft, fix weaknesses, output final <render> tag.
-      // ========================================================================
-      setStage('redteam');
-      
-      const redTeamPrompt = `WAR ROOM PHASE 3: RED TEAM & FINALIZE. 
-      You are the Brutal Red Team Editor. Your job is to tear down the copywriter's draft, fix it, and prep it for deployment.
-      1. Identify exactly ONE weakness in the current draft (e.g., "Hook is too slow", "Lacks rhythm").
-      2. Rewrite the draft to fix this weakness.
-      3. CRITICAL: You MUST output the final, polished version wrapped EXACTLY in these tags: <render platform="linkedin"> [Final Content Here] </render>. 
-      Do not put the critique inside the render tags. Put the critique first, then the render tags.`;
-
-      const redTeamContext = `STRATEGIST DIRECTIVE:\n${strategyResult}\n\nCURRENT DRAFT:\n${draftResult}`;
-      
-      const finalResult = await triggerAgent(redTeamPrompt, redTeamContext);
-      
-      // Parse the output to extract the Live Render tag
-      let visibleCritique = finalResult;
-      const renderRegex = /<render\s+platform=["'](linkedin|twitter)["']>([\s\S]*?)<\/render>/i;
-      const renderMatch = finalResult.match(renderRegex);
-      
-      if (renderMatch) {
-        const platform = renderMatch[1].toLowerCase() as 'linkedin' | 'twitter';
-        const content = renderMatch[2].trim();
-        
-        // Push to the Live Render canvas via global store
-        if (setRenderData) setRenderData(content, platform);
-        
-        // Remove the raw tag from the chat UI and replace with success message
-        visibleCritique = finalResult.replace(
-          renderMatch[0], 
-          `\n\n*(Artifact scrubbed of weaknesses and pushed to Live Render canvas.)*`
-        );
+      if (data.artifacts && data.artifacts.length > 0) {
+        const primaryArtifact = data.artifacts[0];
+        // We append the hidden tags to the text so SwarmCanvas instantly catches it.
+        finalGlobalContent += `\n\n<canvas_artifact type="swarm_output">\n# ${primaryArtifact.title}\n\n${primaryArtifact.content}\n</canvas_artifact>`;
       }
 
-      setOutputs(prev => ({ ...prev, critique: visibleCritique }));
-      setStage('done');
+      if (store.setMessages) {
+        store.setMessages([...newMessages, { role: 'assistant', content: finalGlobalContent }]);
+      }
+
+      // Auto-open the canvas if an artifact was generated
+      if (data.artifacts && data.artifacts.length > 0 && !store.isLiveRenderOpen && store.toggleLiveRender) {
+        store.toggleLiveRender();
+      }
 
     } catch (error: any) {
-      setErrorMsg(error.message);
-      setStage('error');
+      setLog(prev => [...prev, { role: 'error', content: `**Swarm Failure:** ${error.message}` }]);
+    } finally {
+      setIsSwarming(false);
     }
+  };
+
+  // Hides the injected tags from the Chat UI so it stays clean
+  const renderCleanContent = (content: string) => {
+    const cleanText = content.replace(/<canvas_artifact[^>]*>([\s\S]*?)<\/canvas_artifact>/, '').trim();
+    return (
+      <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-slate-800 prose-pre:text-slate-100 text-inherit">
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+          {cleanText}
+        </ReactMarkdown>
+      </div>
+    );
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white relative font-sans">
-      {/* HEADER */}
-      <div className="h-14 border-b border-gray-100 flex items-center px-6 shrink-0 justify-between bg-white/80 backdrop-blur-md z-10">
+    <div className="flex-1 flex flex-col h-full bg-[#F8FAFC] font-sans relative overflow-hidden">
+      
+      <div className="h-14 border-b border-slate-200 flex items-center px-4 shrink-0 justify-between bg-white z-10 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-md bg-gray-900 flex items-center justify-center text-white">
-            <Users className="w-4 h-4" />
+          <button 
+            onClick={() => setActiveTool('editor')}
+            className="flex items-center gap-1 px-2 py-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-all"
+            title="Return to standard editor"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span className="text-[13px] font-medium hidden sm:block">Back to Editor</span>
+          </button>
+          <div className="w-[1px] h-4 bg-slate-200 mx-1 hidden sm:block"></div>
+          <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-white">
+            <Cpu className="w-3.5 h-3.5" />
           </div>
-          <div>
-            <h2 className="text-[14px] font-semibold text-gray-900 tracking-tight">Enterprise War Room</h2>
-          </div>
+          <h2 className="text-[14px] font-bold text-slate-900 tracking-tight">Omni-Swarm Terminal</h2>
         </div>
-        <div className="flex items-center gap-2 px-2.5 py-1 bg-red-50 border border-red-100 rounded-md">
-          <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
-          <span className="text-[10px] font-bold text-red-600 uppercase tracking-widest">
-            Multi-Agent Matrix
-          </span>
+
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-md">
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
+            <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Parallel Matrix</span>
+          </div>
+          <div className="hidden sm:block w-[1px] h-4 bg-slate-200"></div>
+          <button
+            onClick={() => toggleLiveRender()}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[12px] font-bold uppercase tracking-wider transition-all border ${
+              isLiveRenderOpen
+                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <Layout className="w-3.5 h-3.5" />
+            <span className="hidden md:block">{isLiveRenderOpen ? 'Close Canvas' : 'Open Canvas'}</span>
+          </button>
         </div>
       </div>
 
-      {/* CHAT/WORKFLOW AREA */}
-      <div className="flex-1 overflow-y-auto p-6 bg-[#FAFAFA] custom-scrollbar">
-        {stage === 'idle' && (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400 max-w-sm mx-auto text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-6">
-              <Users className="w-8 h-8 text-gray-400" />
-            </div>
-            <h3 className="text-[16px] font-semibold text-gray-900 mb-2">Initiate War Room</h3>
-            <p className="text-[13px] leading-relaxed">
-              Brief your dedicated trio of AI agents below. The Strategist, Copywriter, and Red Team will debate, draft, and refine your concept autonomously.
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+        {log.length === 0 && !isSwarming && (
+          <div className="h-full flex flex-col items-center justify-center text-center animate-in fade-in duration-500 pb-20">
+            <Globe className="w-12 h-12 mb-4 text-slate-300" />
+            <h3 className="text-[16px] font-bold text-slate-900">The Swarm is Listening</h3>
+            <p className="text-[13px] text-slate-500 mt-2 max-w-md leading-relaxed">
+              Command the swarm to research live websites, trigger external APIs, schedule events, and build multi-format files autonomously.
             </p>
           </div>
         )}
 
-        <div className="max-w-4xl mx-auto space-y-6 pb-10">
-          
-          {/* Agent 1: Strategist */}
-          {stage !== 'idle' && stage !== 'error' && (
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-blue-50/50 border-b border-gray-100 px-5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center">
-                    <Crosshair className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[11px] font-bold text-gray-900 uppercase tracking-widest">Agent 1: Chief Strategist</span>
+        {log.map((entry, i) => (
+          <div key={i} className={`flex flex-col ${entry.role === 'user' ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 fade-in duration-300`}>
+            <div className={`max-w-[90%] md:max-w-[80%] p-5 rounded-2xl ${
+              entry.role === 'user' 
+                ? 'bg-slate-900 text-white rounded-tr-sm shadow-md' : 
+              entry.role === 'error' 
+                ? 'bg-red-50 text-red-700 border border-red-200 rounded-tl-sm' : 
+              'bg-white border border-slate-200 shadow-sm text-slate-800 rounded-tl-sm'
+            }`}>
+              
+              {entry.role === 'swarm' ? renderCleanContent(entry.content) : (
+                <div className="prose prose-sm max-w-none prose-p:leading-relaxed text-inherit">
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{entry.content}</ReactMarkdown>
                 </div>
-                {stage === 'strategist' && <span className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 uppercase tracking-widest"><Sparkles className="w-3.5 h-3.5 animate-spin"/> Analyzing</span>}
-              </div>
-              <div className={`p-6 text-[14px] text-gray-800 leading-relaxed font-sans prose prose-sm max-w-none prose-p:leading-relaxed prose-strong:font-semibold prose-strong:text-gray-900 ${stage === 'strategist' ? 'min-h-[100px] flex items-center text-gray-400 italic' : ''}`}>
-                {stage === 'strategist' ? 'Deconstructing audience psychology and establishing core threat vectors...' : <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{outputs.strategy}</ReactMarkdown>}
-              </div>
-            </div>
-          )}
-
-          {/* Agent 2: Copywriter */}
-          {(stage === 'writer' || stage === 'redteam' || stage === 'done') && (
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-orange-50/50 border-b border-gray-100 px-5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center">
-                    <PenTool className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[11px] font-bold text-gray-900 uppercase tracking-widest">Agent 2: Lead Copywriter</span>
+              )}
+              
+              {entry.actions && entry.actions.length > 0 && (
+                <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap gap-2">
+                  <p className="w-full text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Actions Executed</p>
+                  {entry.actions.map((act, idx) => (
+                    <span key={idx} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-md text-[11px] font-bold uppercase tracking-wider shadow-sm">
+                      <Zap className="w-3 h-3 fill-emerald-500 text-emerald-500" /> {act}
+                    </span>
+                  ))}
                 </div>
-                {stage === 'writer' && <span className="flex items-center gap-1.5 text-[11px] font-bold text-orange-600 uppercase tracking-widest"><Sparkles className="w-3.5 h-3.5 animate-spin"/> Drafting</span>}
-              </div>
-              <div className={`p-6 text-[14px] text-gray-800 leading-relaxed font-sans prose prose-sm max-w-none prose-p:leading-relaxed ${stage === 'writer' ? 'min-h-[100px] flex items-center text-gray-400 italic' : ''}`}>
-                {stage === 'writer' ? 'Executing draft based on strategic constraints...' : <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{outputs.draft}</ReactMarkdown>}
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* Agent 3: Red Team */}
-          {(stage === 'redteam' || stage === 'done') && (
-            <div className="bg-white border border-red-100 rounded-xl shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-red-50/50 border-b border-red-50 px-5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-md bg-red-100 text-red-600 flex items-center justify-center">
-                    <ShieldAlert className="w-3.5 h-3.5" />
+              {entry.artifacts && entry.artifacts.length > 0 && (
+                <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap gap-2">
+                  <p className="w-full text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Generated Files</p>
+                  {entry.artifacts.map((art, idx) => (
+                    <button 
+                      key={idx} 
+                      onClick={() => handleDownload(art)} 
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg hover:bg-indigo-100 hover:border-indigo-200 transition shadow-sm text-[13px] font-bold"
+                    >
+                      <FileDown className="w-4 h-4" /> Download {art.title}.{art.extension}
+                    </button>
+                  ))}
+                  
+                  {/* Visual trigger indicating Canvas update */}
+                  <div className="w-full mt-2 flex items-center justify-between bg-indigo-600 text-white p-3 rounded-lg shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      <div>
+                        <p className="text-[12px] font-bold">Document Sent to Canvas</p>
+                        <p className="text-[10px] text-indigo-200 uppercase tracking-wider">High-Fidelity PDF Ready</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => !isLiveRenderOpen && toggleLiveRender()}
+                      className="text-[10px] font-bold bg-white text-indigo-700 px-3 py-1.5 rounded uppercase tracking-wider shadow-sm hover:bg-indigo-50 transition"
+                    >
+                      View Canvas
+                    </button>
                   </div>
-                  <span className="text-[11px] font-bold text-gray-900 uppercase tracking-widest">Agent 3: Red Team Editor</span>
                 </div>
-                {stage === 'redteam' && <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 uppercase tracking-widest"><Sparkles className="w-3.5 h-3.5 animate-spin"/> Critiquing</span>}
-              </div>
-              <div className={`p-6 text-[14px] text-gray-800 leading-relaxed font-sans prose prose-sm max-w-none prose-p:leading-relaxed prose-strong:text-red-600 ${stage === 'redteam' ? 'min-h-[100px] flex items-center text-gray-400 italic' : ''}`}>
-                {stage === 'redteam' ? 'Hunting for algorithmic penalties, weak syntax, and logical flaws...' : <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{outputs.critique}</ReactMarkdown>}
-              </div>
+              )}
             </div>
-          )}
+          </div>
+        ))}
 
-          {/* SUCCESS STATE */}
-          {stage === 'done' && (
-            <div className="flex items-center justify-center gap-2.5 text-[12px] font-bold text-green-700 bg-green-50 py-4 rounded-xl border border-green-200 animate-in zoom-in-95 duration-300 uppercase tracking-widest shadow-sm">
-              <CheckCircle2 className="w-4 h-4" /> Artifact Finalized & Pushed to Canvas
-            </div>
-          )}
-
-          {/* ERROR STATE */}
-          {stage === 'error' && (
-            <div className="flex items-center justify-center gap-2.5 text-[13px] font-medium text-red-700 bg-red-50 py-4 rounded-xl border border-red-200 animate-in zoom-in-95">
-              <AlertTriangle className="w-5 h-5" /> {errorMsg}
-            </div>
-          )}
-
-          {/* Invisible div to scroll to */}
-          <div ref={scrollRef} />
-        </div>
+        {isSwarming && (
+          <div className="flex items-center gap-3 text-indigo-600 bg-indigo-50 w-fit px-5 py-3 rounded-xl border border-indigo-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-[12px] font-bold tracking-widest uppercase">Swarm Executing Logic Loop...</span>
+          </div>
+        )}
+        
+        <div ref={scrollRef} className="h-4" />
       </div>
 
-      {/* INPUT AREA */}
-      <div className="p-4 bg-white border-t border-transparent shrink-0">
-        <div className="max-w-4xl mx-auto bg-white border border-gray-200 rounded-2xl p-2 flex flex-col shadow-[0_2px_10px_rgb(0,0,0,0.04)] focus-within:border-gray-400 focus-within:shadow-md transition-all duration-200">
+      <div className="p-4 bg-white border-t border-slate-200 shrink-0">
+        <div className="max-w-5xl mx-auto flex gap-3">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); simulateWarRoom(); } }}
-            placeholder={stage === 'idle' || stage === 'done' || stage === 'error' ? "Brief your agency on the campaign objective..." : "The War Room is currently engaged..."}
-            className="w-full bg-transparent text-[15px] text-gray-900 p-3 outline-none resize-none min-h-[60px] max-h-[200px] placeholder:text-gray-400 custom-scrollbar disabled:opacity-50"
-            disabled={stage !== 'idle' && stage !== 'done' && stage !== 'error'}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                executeSwarm();
+              }
+            }}
+            placeholder="E.g., 'Research top 5 AI agencies, format as CSV, and schedule a review meeting for Friday.'"
+            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-4 outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all text-[14px] resize-none min-h-[56px] max-h-[150px] custom-scrollbar disabled:opacity-60"
+            disabled={isSwarming}
+            rows={1}
           />
-          <div className="flex items-center justify-between px-2 pb-1 mt-1">
-            <div className="flex items-center gap-2 text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-              BYOK API Active <ChevronRight className="w-3 h-3" /> 3 Calls Required
-            </div>
-            <button 
-              onClick={simulateWarRoom}
-              disabled={!input.trim() || (stage !== 'idle' && stage !== 'done' && stage !== 'error')}
-              className="px-5 py-2.5 bg-gray-900 text-white text-[13px] font-medium rounded-lg hover:bg-gray-800 transition disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
-            >
-              {stage !== 'idle' && stage !== 'done' && stage !== 'error' ? 'Deploying...' : 'Initiate Sequence'} <Send className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button 
+            onClick={executeSwarm} 
+            disabled={isSwarming || !input.trim()} 
+            className="px-6 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-all flex items-center justify-center shadow-sm h-[56px]"
+          >
+            <Send className="w-5 h-5" />
+          </button>
         </div>
       </div>
     </div>

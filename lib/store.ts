@@ -17,14 +17,23 @@ interface AppState {
   outputs: PlatformOutput[];
   activeTool: string | null;
   
+  // --- SESSION & NAVIGATION STATE ---
+  activeSessionId: string | null;
+  setActiveSessionId: (id: string | null) => void;
+  isSidebarOpen: boolean;
+  toggleSidebar: () => void;
+  
   // State variables to hold the rendered canvas data
   renderContent: string | null;
-  renderPlatform: 'linkedin' | 'twitter' | null;
+  renderPlatform: 'linkedin' | 'twitter' | 'ebook' | 'facebook' | null;
   isLiveRenderOpen: boolean; // Controls the panel visibility
 
-  // Multi-Agent War Room State
   warRoomStatus: 'idle' | 'strategist' | 'writer' | 'redteam' | 'done';
 
+  
+  messages: any[];
+  setMessages: (messages: any[]) => void;
+  
   setUser: (user: { id: string; email: string } | null) => void;
   setPlan: (plan: 'free' | 'basic' | 'tier1' | 'tier2' | 'tier3') => void;
   
@@ -43,9 +52,10 @@ interface AppState {
   setActiveTool: (toolId: string | null) => void;
   
   // Function signature to update the render data
-  setRenderData: (content: string, platform: 'linkedin' | 'twitter') => void;
+  setRenderData: (content: string, platform: 'linkedin' | 'twitter' | 'ebook' | 'facebook') => void;
   toggleLiveRender: (isOpen?: boolean) => void; // Toggle function
-  
+  setLiveRenderOpen: (isOpen: boolean) => void; //
+ 
   // Update War Room UI
   setWarRoomStatus: (status: AppState['warRoomStatus']) => void;
 }
@@ -66,6 +76,12 @@ export const useAppStore = create<AppState>()(
       outputs: [],
       activeTool: null,
       
+      // --- SESSION & NAVIGATION DEFAULTS ---
+      activeSessionId: null,
+      setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
+      isSidebarOpen: true, // Default to open
+      toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+      
       // Initial values for the render data
       renderContent: null,
       renderPlatform: null,
@@ -73,6 +89,10 @@ export const useAppStore = create<AppState>()(
       
       // Initial value for war room
       warRoomStatus: 'idle',
+
+      // 🔥 ADDED: GLOBAL MEMORY INITIALIZATION
+      messages: [],
+      setMessages: (messages) => set({ messages }),
 
       setUser: (user) => set({ user }),
       setPlan: (plan) => set({ plan }),
@@ -102,9 +122,12 @@ export const useAppStore = create<AppState>()(
         renderPlatform: platform,
         isLiveRenderOpen: true // Auto-opens when data is pushed
       }),
+      
       toggleLiveRender: (isOpen) => set((state) => ({ 
         isLiveRenderOpen: isOpen !== undefined ? isOpen : !state.isLiveRenderOpen 
       })),
+
+      setLiveRenderOpen: (isOpen) => set({ isLiveRenderOpen: isOpen }), // 🔥 ADDED: Fixes the TS error in WarRoomPane
       
       // Update war room state
       setWarRoomStatus: (status) => set({ warRoomStatus: status }),
@@ -117,6 +140,11 @@ export const useAppStore = create<AppState>()(
         llmProvider: state.llmProvider,
         tone: state.tone,
         selectedPlatforms: state.selectedPlatforms,
+        activeSessionId: state.activeSessionId,
+        renderContent: state.renderContent,
+        renderPlatform: state.renderPlatform,
+        isLiveRenderOpen: state.isLiveRenderOpen,
+        messages: state.messages // 
       }),
     }
   )

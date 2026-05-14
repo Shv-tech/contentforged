@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { createServerClient } from '@/lib/supabase-server';
+import { createClient } from '@/lib/supabase/server'; // FIX: Swapped to the correct App Router Client
 import { PRICING } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -23,11 +23,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid plan.' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
+    const supabase = createClient(); // FIX: Initialize the correct client
 
-    // Update user plan + credits
+    // FIX: Update user plan + credits in the PROFILES table
     await supabase
-      .from('users')
+      .from('profiles')
       .update({
         plan: tier_id,
         credits_remaining: tier.credits,
