@@ -900,31 +900,9 @@ function CoverPage({
         />
 
         {/* Stats row */}
-        <div className="flex justify-center gap-10">
-          {[
-            { val: totalPages, label: 'Pages' },
-            { val: '$1kâ€“$5k', label: 'Revenue Target' },
-            { val: '30', label: 'Day Sprint' },
-          ].map((s) => (
-            <div key={s.label}>
-              <div
-                className="text-3xl font-black leading-none"
-                style={{
-                  color: theme.gold,
-                  fontFamily: '"DM Sans", "Inter", sans-serif',
-                }}
-              >
-                {s.val}
-              </div>
-              <div
-                className="text-[10px] font-bold tracking-[2px] uppercase mt-1.5"
-                style={{ color: 'rgba(255,255,255,0.3)' }}
-              >
-                {s.label}
-              </div>
-            </div>
-          ))}
-        </div>
+        
+  
+        
       </div>
     </div>
   );
@@ -2021,7 +1999,7 @@ export default function EbookCanvas({
             color: '#555',
           }}
         >
-          â† â†’ to navigate
+          Press ← → to navigate
         </div>
       </div>
     </>
