@@ -58,8 +58,9 @@ export const sendBillingEmail = async (
   name: string,
   data?: { amount?: string; planName?: string; pdfUrl?: string }
 ) => {
-  // THE FIX: Move Resend initialization inside the function so it only runs when an email is actually sent!
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  // THE FIX: The "Dummy Key Hack" bypasses Vercel's static compiler crash.
+  // In production, it will use your actual environment variable.
+  const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy_key_to_bypass_vercel_build");
 
   let subject = '';
   let body = '';
