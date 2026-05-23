@@ -12,8 +12,8 @@ export async function POST(req: Request) {
 
     const { planId, baseAmount, email, name } = await req.json();
 
-    // Calculate the exact math (Base + 28% Tax)
-    const taxRate = 0.28;
+    // FIXED: Calculate the exact math (Base + 18% Tax) to match frontend validation
+    const taxRate = 0.18;
     const taxAmount = parseFloat((baseAmount * taxRate).toFixed(2));
     const totalAmount = parseFloat((baseAmount + taxAmount).toFixed(2));
 
@@ -49,8 +49,8 @@ export async function POST(req: Request) {
       }
     });
 
-  } catch (error: any) {
-    console.error("Razorpay Generation Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const eMessage = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: eMessage }, { status: 500 });
   }
 }

@@ -112,66 +112,56 @@ export async function searchInternet(args: { query: string, timeRange: string })
 // ============================================================================
 // THE OPENAI TOOL SCHEMA MAP
 // ============================================================================
+// lib/swarm-tools.ts
+
 export const swarmTools = [
   {
-    type: "function",
-    function: {
-      name: "scrapeWebsite",
-      description: "Use this to browse the live internet, read competitor websites, or gather real-time data from a specific URL.",
-      parameters: {
-        type: "object",
-        properties: {
-          url: { type: "string" },
-          searchIntent: { type: "string", description: "What specific information are you looking for?" }
-        },
-        required: ["url", "searchIntent"]
-      }
+    name: "searchInternet",
+    description: "Searches the live internet for real-time data, current trends, news, and competitor intelligence. ALWAYS use this in the Observe phase before formulating a strategy.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "The exact search query to run on the internet." },
+        timeRange: { type: "string", enum: ["last_24_hours", "last_week", "last_month", "all_time"] }
+      },
+      required: ["query", "timeRange"]
     }
   },
   {
-    type: "function",
-    function: {
-      name: "dispatchWebhook",
-      description: "Use this to take action in the real world (e.g., send emails, schedule calendar events, post social media, update CRM).",
-      parameters: {
-        type: "object",
-        properties: {
-          actionTarget: { type: "string", description: "What system are you targeting? (e.g., 'gmail', 'google_calendar', 'slack', 'twitter')" },
-          payload: { type: "object", description: "A JSON object containing all the data needed for the action (e.g., { to: 'email', subject: 'hi', body: '...' })" }
-        },
-        required: ["actionTarget", "payload"]
-      }
+    name: "scrapeWebsite",
+    description: "Use this to browse the live internet, read competitor websites, or gather real-time data from a specific URL.",
+    input_schema: {
+      type: "object",
+      properties: {
+        url: { type: "string" },
+        searchIntent: { type: "string", description: "What specific information are you looking for?" }
+      },
+      required: ["url", "searchIntent"]
     }
   },
   {
-    type: "function",
-    function: {
-      name: "buildArtifact",
-      description: "Use this to generate downloadable files for the user. MUST use this to deliver the final O.O.D.A loop report.",
-      parameters: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          content: { type: "string", description: "The raw text/data for the file. Use commas for CSVs, markdown for PDFs." },
-          extension: { type: "string", enum: ["pdf", "csv", "md", "txt"] }
-        },
-        required: ["title", "content", "extension"]
-      }
+    name: "dispatchWebhook",
+    description: "Use this to take action in the real world (e.g., send emails, schedule calendar events, post social media, update CRM).",
+    input_schema: {
+      type: "object",
+      properties: {
+        actionTarget: { type: "string", description: "What system are you targeting? (e.g., 'gmail', 'google_calendar', 'slack', 'twitter')" },
+        payload: { type: "object", description: "A JSON object containing all the data needed for the action." }
+      },
+      required: ["actionTarget", "payload"]
     }
   },
   {
-    type: "function",
-    function: {
-      name: "searchInternet",
-      description: "Searches the live internet for real-time data, current trends, news, and competitor intelligence. ALWAYS use this in the Observe phase before formulating a strategy.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "The exact search query to run on the internet." },
-          timeRange: { type: "string", enum: ["last_24_hours", "last_week", "last_month", "all_time"] }
-        },
-        required: ["query", "timeRange"]
-      }
+    name: "buildArtifact",
+    description: "Use this to generate downloadable files for the user. MUST use this to deliver the final O.O.D.A loop report.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        content: { type: "string", description: "The raw text/data for the file. Use commas for CSVs, markdown for PDFs." },
+        extension: { type: "string", enum: ["pdf", "csv", "md", "txt"] }
+      },
+      required: ["title", "content", "extension"]
     }
   }
 ];

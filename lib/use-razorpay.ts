@@ -81,7 +81,7 @@ export function useRazorpay() {
           theme: { color: '#0071e3' },
           modal: {
             ondismiss: () => {
-              toast('Payment cancelled.', { icon: '↩' });
+              toast('Payment cancelled.', { icon: 'â†©' });
             },
           },
         };

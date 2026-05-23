@@ -7,7 +7,7 @@
 CREATE TABLE public.users (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
-  llm_provider TEXT DEFAULT 'openai',
+  llm_provider TEXT DEFAULT 'anthropic',
   credits_remaining INTEGER DEFAULT 5,
   plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'tier1', 'tier2', 'tier3')),
   created_at TIMESTAMPTZ DEFAULT now(),

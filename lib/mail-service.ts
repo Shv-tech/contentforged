@@ -43,7 +43,7 @@ const getBaseTemplate = (name: string, body: string, actionText: string, actionU
           </tr>
         </table>
         <p style="margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center;">
-          © 2026 SHV Groups Pvt Ltd. <br> 
+          Â© 2026 SHV Groups Pvt Ltd. <br> 
           You are receiving this because of your active subscription to ContentForge.
         </p>
       </td>

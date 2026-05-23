@@ -212,7 +212,7 @@ export default function LandingPage() {
                   <div className="w-8 h-8 rounded-full bg-white border border-gray-200 text-orange-500 flex items-center justify-center shrink-0"><Bot className="w-4 h-4"/></div>
                   <div className="bg-white border border-gray-100 shadow-sm p-4 rounded-2xl rounded-tl-sm text-[14px] text-gray-800 leading-relaxed">
                     <strong>Precision over verbosity.</strong> 2000 words is a manifesto, not a post. Start by refining your brand narrative. If you want to prove the maximalists wrong, you hit them with a sharp, information-theoretic hook. <br/><br/>
-                    ✨ *I've pushed the finalized 150-word draft to your Live Render canvas.*
+                    âœ¨ *I've pushed the finalized 150-word draft to your Live Render canvas.*
                   </div>
                 </div>
               </div>
@@ -350,7 +350,7 @@ export default function LandingPage() {
           
           <div className="grid md:grid-cols-2 gap-6">
             {[
-              { num: '01', title: 'Your AI tells you what you want to hear.', desc: 'ChatGPT, Gemini, every other tool — trained to validate, agree, polish. They make your bad ideas sound better. They do not make them work.' },
+              { num: '01', title: 'Your AI tells you what you want to hear.', desc: 'ChatGPT, Gemini, every other tool â€” trained to validate, agree, polish. They make your bad ideas sound better. They do not make them work.' },
               { num: '02', title: 'Generic content is invisible content.', desc: 'When everyone uses the same AI, everyone produces the same content. Same hooks. Same structure. Same generic advice.' },
               { num: '03', title: "Writing for all platforms. Reaching none.", desc: 'What works on LinkedIn kills on Twitter. What kills on Twitter gets ignored on Instagram. You need a platform-native brain.' },
               { num: '04', title: 'Every session starts from zero.', desc: 'Every other AI forgets you after each conversation. It never learns what your audience responds to. ContentForge compounds.' }
@@ -377,9 +377,9 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { icon: BrainCircuit, title: 'Brand DNA Protocol', desc: 'On first interaction, FORGE extracts your entire content identity — your niche, your contrarian belief, your positioning target. Every future post is built around your specific strategic fingerprint.' },
-              { icon: TrendingUp, title: 'Performance Intelligence', desc: 'Paste your analytics. FORGE runs a full Performance Autopsy — why it worked, what psychological mechanism fired, and how to replicate it. Your 10th post is measurably better than your 1st.' },
-              { icon: GitBranch, title: 'Content Tree Architecture', desc: 'One idea becomes five. Every response from FORGE includes a full Content Tree — your LinkedIn post, Twitter thread, Instagram caption, and newsletter angle. All in one shot.' }
+              { icon: BrainCircuit, title: 'Brand DNA Protocol', desc: 'On first interaction, FORGE extracts your entire content identity â€” your niche, your contrarian belief, your positioning target. Every future post is built around your specific strategic fingerprint.' },
+              { icon: TrendingUp, title: 'Performance Intelligence', desc: 'Paste your analytics. FORGE runs a full Performance Autopsy â€” why it worked, what psychological mechanism fired, and how to replicate it. Your 10th post is measurably better than your 1st.' },
+              { icon: GitBranch, title: 'Content Tree Architecture', desc: 'One idea becomes five. Every response from FORGE includes a full Content Tree â€” your LinkedIn post, Twitter thread, Instagram caption, and newsletter angle. All in one shot.' }
             ].map((feat, i) => (
               <div key={i} className="p-8 bg-white border border-gray-200 rounded-2xl hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all">
                 <div className="w-12 h-12 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center mb-8">
@@ -591,7 +591,7 @@ export default function LandingPage() {
             </a>
           </div>
           <p className="text-[12px] text-gray-400 font-medium">
-            © 2026 ContentForge by SHV Groups.
+            Â© 2026 ContentForge by SHV Groups.
           </p>
         </div>
       </footer>

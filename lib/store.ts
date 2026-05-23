@@ -30,9 +30,12 @@ interface AppState {
 
   warRoomStatus: 'idle' | 'strategist' | 'writer' | 'redteam' | 'done';
 
-  
   messages: any[];
   setMessages: (messages: any[]) => void;
+
+  // ðŸ”¥ ADDED: Dictionary Memory for Sessions
+  chatHistory: Record<string, any[]>;
+  setChatHistory: (sessionId: string, messages: any[]) => void;
   
   setUser: (user: { id: string; email: string } | null) => void;
   setPlan: (plan: 'free' | 'basic' | 'tier1' | 'tier2' | 'tier3') => void;
@@ -90,9 +93,15 @@ export const useAppStore = create<AppState>()(
       // Initial value for war room
       warRoomStatus: 'idle',
 
-      // 🔥 ADDED: GLOBAL MEMORY INITIALIZATION
+      // ðŸ”¥ ADDED: GLOBAL MEMORY INITIALIZATION
       messages: [],
       setMessages: (messages) => set({ messages }),
+
+      // ðŸ”¥ ADDED: Dictionary Implementation
+      chatHistory: {},
+      setChatHistory: (sessionId, messages) => set((state) => ({
+        chatHistory: { ...state.chatHistory, [sessionId]: messages }
+      })),
 
       setUser: (user) => set({ user }),
       setPlan: (plan) => set({ plan }),
@@ -127,7 +136,7 @@ export const useAppStore = create<AppState>()(
         isLiveRenderOpen: isOpen !== undefined ? isOpen : !state.isLiveRenderOpen 
       })),
 
-      setLiveRenderOpen: (isOpen) => set({ isLiveRenderOpen: isOpen }), // 🔥 ADDED: Fixes the TS error in WarRoomPane
+      setLiveRenderOpen: (isOpen) => set({ isLiveRenderOpen: isOpen }), // ðŸ”¥ ADDED: Fixes the TS error in WarRoomPane
       
       // Update war room state
       setWarRoomStatus: (status) => set({ warRoomStatus: status }),
@@ -144,7 +153,8 @@ export const useAppStore = create<AppState>()(
         renderContent: state.renderContent,
         renderPlatform: state.renderPlatform,
         isLiveRenderOpen: state.isLiveRenderOpen,
-        messages: state.messages // 
+        messages: state.messages, 
+        chatHistory: state.chatHistory // ðŸ”¥ THIS SAVES YOUR CHATS ACROSS SESSIONS & REFRESHES
       }),
     }
   )

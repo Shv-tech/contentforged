@@ -44,11 +44,12 @@ export function CheckoutModal({ planId, planName, basePrice, onClose, onSuccess 
       head: [['Description', 'Amount (USD)']],
       body: [
         [`ContentForge ${planName.toUpperCase()} Plan (Monthly)`, `$${basePrice.toFixed(2)}`],
-        ['IGST (18%)', `$${taxAmount.toFixed(2)}`],
+        // FIXED: Universal Tax Naming Standard for USD Checkout
+        ['Tax (18%)', `$${taxAmount.toFixed(2)}`],
       ],
       foot: [['Total Paid', `$${totalAmount.toFixed(2)}`]],
       theme: 'grid',
-      headStyles: { fillColor: [17, 24, 39] }, // Gray-900
+      headStyles: { fillColor: [17, 24, 39] }, 
       footStyles: { fillColor: [243, 244, 246], textColor: [17, 24, 39] }
     });
 
@@ -58,14 +59,13 @@ export function CheckoutModal({ planId, planName, basePrice, onClose, onSuccess 
   const handlePayment = async () => {
     setIsLoading(true);
     try {
-      // 1. Generate Order securely on backend
       const res = await fetch('/api/razorpay/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           planId, 
           baseAmount: basePrice,
-          email: 'user@example.com', // Get from Auth context
+          email: 'user@example.com', 
           name: 'Creator'
         }),
       });
@@ -75,7 +75,6 @@ export function CheckoutModal({ planId, planName, basePrice, onClose, onSuccess 
       
       setOrderDetails(orderData);
 
-      // 2. Initialize Razorpay
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: orderData.amount,
@@ -86,7 +85,7 @@ export function CheckoutModal({ planId, planName, basePrice, onClose, onSuccess 
         handler: function (response: any) {
           setPaymentComplete(true);
           toast.success("Payment verified. Workspace upgraded.");
-          onSuccess(); // Triggers global state update
+          onSuccess(); 
         },
         theme: { color: "#111827" },
       };
@@ -108,7 +107,6 @@ export function CheckoutModal({ planId, planName, basePrice, onClose, onSuccess 
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm p-4 font-sans animate-in fade-in">
       <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-[480px] shadow-[0_20px_60px_rgb(0,0,0,0.1)] overflow-hidden">
         
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
           <h3 className="text-[18px] font-semibold text-gray-900">Upgrade your workspace</h3>
           {!paymentComplete && (
@@ -138,7 +136,6 @@ export function CheckoutModal({ planId, planName, basePrice, onClose, onSuccess 
             </div>
           ) : (
             <>
-              {/* Order Details Breakdown */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
                 <div className="text-[13px] font-bold text-gray-900 uppercase tracking-widest mb-4">Order Details</div>
                 
@@ -158,7 +155,6 @@ export function CheckoutModal({ planId, planName, basePrice, onClose, onSuccess 
                 </div>
               </div>
 
-              {/* Auto-renew Notice */}
               <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex gap-3 mb-6">
                 <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                 <p className="text-[13px] text-gray-600 leading-relaxed">
@@ -166,7 +162,6 @@ export function CheckoutModal({ planId, planName, basePrice, onClose, onSuccess 
                 </p>
               </div>
 
-              {/* Payment Action */}
               <button 
                 onClick={handlePayment}
                 disabled={isLoading}

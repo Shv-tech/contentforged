@@ -4,10 +4,9 @@ import { useAppStore } from '@/lib/store';
 import { FileText, ThumbsUp, MessageSquare, Repeat2, Send, Share2, Heart, MessageCircle, Bookmark } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import EbookCanvas from '@/components/EbookCanvas'; // Import the new PDF engine
+import EbookCanvas from '@/components/EbookCanvas'; 
 
 export function LiveRender() {
-  // This is where it listens to the store!
   const { renderContent, renderPlatform } = useAppStore();
 
   if (!renderContent) {
@@ -22,23 +21,35 @@ export function LiveRender() {
     );
   }
 
-  // --- EBOOK DOUBLE-TITLE FIX & EXTRACTION ---
-  let displayTitle = "Compiled Document";
+  // --- EBOOK DOUBLE-TITLE FIX & EXTRACTION PIPELINE ---
+  let displayTitle = "Strategic Masterclass";
   let displayContent = renderContent;
 
   if (renderPlatform === 'ebook') {
-    // Look for the first Markdown H1 or H2 to use as the official PDF Title
-    const titleMatch = renderContent.match(/^(?:#|##)\s+(.*)/m);
-    if (titleMatch) {
-      displayTitle = titleMatch[1].trim();
-      // Strip the title from the body so EbookCanvas doesn't render it twice
-      displayContent = renderContent.replace(titleMatch[0], '').trim();
+    // 1. Extract the absolute first overarching title to use as the Ebook Cover Title
+    const firstTitleMatch = displayContent.match(/^(?:#|##)\s+(.*)/m);
+    if (firstTitleMatch) {
+      displayTitle = firstTitleMatch[1].trim();
+      displayContent = displayContent.replace(firstTitleMatch[0], '').trim();
     }
+
+    // 2. THE DEDUPLICATION ENGINE: 
+    // Fixes the issue where the API injects "## Chapter X" and the LLM also generates "## Chapter X".
+    // This regex finds back-to-back headers and strips the redundant one.
+    displayContent = displayContent.replace(/^(#{1,3}\s+[^\n]+)\n+(#{1,3}\s+[^\n]+)/gm, (match, h1, h2) => {
+      const t1 = h1.replace(/^#+\s*/, '').toLowerCase().trim();
+      const t2 = h2.replace(/^#+\s*/, '').toLowerCase().trim();
+      
+      // If the headers are identical or one contains the other (e.g., "Chapter 1" vs "Chapter 1: The Intro"), keep only the first
+      if (t1 === t2 || t2.includes(t1) || t1.includes(t2)) {
+        return h1;
+      }
+      return match;
+    });
   }
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#F9FAFB] relative">
-      {/* Header */}
       <div className="h-14 border-b border-gray-200 flex items-center px-6 shrink-0 bg-white/80 backdrop-blur-md">
         <h2 className="text-[14px] font-semibold text-gray-900">Live Render</h2>
         <span className="ml-3 text-[10px] font-bold px-2.5 py-1 bg-gray-100 rounded-md text-gray-600 uppercase tracking-wider">
@@ -46,22 +57,13 @@ export function LiveRender() {
         </span>
       </div>
 
-      {/* Render Canvas Area */}
       <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar flex justify-center items-start">
-        
-        {/* CONDITIONAL ROUTING: EBOOK vs SOCIAL MEDIA */}
         {renderPlatform === 'ebook' ? (
-          
           <div className="w-full">
             <EbookCanvas title={displayTitle} content={displayContent} />
           </div>
-
         ) : (
-
-          /* Mock Social Media Card */
           <div className="w-full max-w-[500px] bg-white border border-gray-200 rounded-xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-            
-            {/* Mock Header */}
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gray-900 to-gray-600 flex items-center justify-center text-white font-bold text-[14px] shadow-sm">
                 SV
@@ -69,23 +71,19 @@ export function LiveRender() {
               <div>
                 <div className="text-[14px] font-bold text-gray-900 leading-tight">You</div>
                 <div className="text-[12px] text-gray-500">
-                  Now • {renderPlatform === 'linkedin' ? 'Edited' : renderPlatform === 'twitter' ? 'Just now' : 'Just now'}
+                  Now â€¢ {renderPlatform === 'linkedin' ? 'Edited' : renderPlatform === 'twitter' ? 'Just now' : 'Just now'}
                 </div>
               </div>
             </div>
 
-            {/* The Actual AI Generated Content */}
             <div className="text-[14px] text-gray-800 leading-relaxed font-sans prose prose-sm max-w-none prose-p:whitespace-pre-wrap prose-strong:font-bold prose-strong:text-gray-900 prose-ul:my-2 prose-li:my-0.5">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {displayContent}
               </ReactMarkdown>
             </div>
 
-            {/* Dynamic Engagement Footer Based on Platform */}
             <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between text-gray-400">
-              
               {renderPlatform === 'twitter' ? (
-                // Twitter / X Footer
                 <div className="flex items-center justify-between w-full px-2">
                   <button className="flex items-center gap-2 hover:text-blue-500 transition">
                     <MessageCircle className="w-4 h-4" /> <span className="text-[12px]">Reply</span>
@@ -101,7 +99,6 @@ export function LiveRender() {
                   </button>
                 </div>
               ) : renderPlatform === 'facebook' ? (
-                // Facebook Footer
                 <div className="flex items-center justify-around w-full">
                   <button className="flex items-center gap-2 hover:text-blue-600 transition">
                     <ThumbsUp className="w-4 h-4" /> <span className="text-[12px] font-semibold">Like</span>
@@ -114,7 +111,6 @@ export function LiveRender() {
                   </button>
                 </div>
               ) : (
-                // Default / LinkedIn Footer
                 <>
                   <div className="flex items-center gap-6">
                     <button className="flex items-center gap-2 hover:text-blue-600 transition">

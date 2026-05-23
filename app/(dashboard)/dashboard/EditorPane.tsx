@@ -17,6 +17,7 @@ import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { ToolHub } from '@/components/ToolHub';
+import { extractTextFromLocalPDF } from '@/lib/pdf-extractor';
 import toast from 'react-hot-toast';
 
 // --- INTERFACES ---
@@ -24,14 +25,12 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  attachments?: string[]; // Base64 images
-  pdfs?: string[];        // Base64 PDFs
+  attachments?: string[]; // Base64 images (kept for images only)
 }
 
 // --- ACTUAL PRODUCTION MODELS ---
 const MODELS = [
-  { id: 'GPT-4o', provider: 'openai', desc: 'Fast, versatile reasoning' },
-  { id: 'Claude 4', provider: 'anthropic', desc: 'Deep synthesis & strategy' }
+  { id: 'claude haiku 4.5', provider: 'anthropic', desc: 'Deep synthesis & strategy' }
 ];
 
 const convertFileToBase64 = (file: File): Promise<string> => {
@@ -144,7 +143,8 @@ export function EditorPane() {
     activeSessionId, setActiveSessionId,
     isLiveRenderOpen, toggleLiveRender,
     isSidebarOpen, toggleSidebar,
-    activeTool 
+    activeTool,
+    chatHistory, setChatHistory // Extracted Global Memory Dictionary
   } = useAppStore();
   
   const supabase = createClient();
@@ -153,7 +153,6 @@ export function EditorPane() {
   const [attachments, setAttachments] = useState<string[]>([]);
   const [attachedDocsText, setAttachedDocsText] = useState<string[]>([]);
   const [docNames, setDocNames] = useState<string[]>([]);
-  const [uploadedPdfs, setUploadedPdfs] = useState<string[]>([]);
   
   const [isLoading, setIsLoading] = useState(false);
   
@@ -161,7 +160,6 @@ export function EditorPane() {
   const docInputRef = useRef<HTMLInputElement>(null);
   
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({});
-  const [messages, setMessages] = useState<Message[]>([]);
   
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
@@ -172,26 +170,30 @@ export function EditorPane() {
 
   const userName = (user as any)?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Strategist';
 
-  // 🔥 FIX 3: Hydrate messages WITH their attachments and PDFs from the database
+  // Drive UI strictly from Global Session Memory
+  const messages = activeSessionId ? (chatHistory[activeSessionId] || []) : [];
+
+  // Hydrate missing memory from Database on load/switch
   useEffect(() => {
     async function loadMessages() {
-      if (!activeSessionId) {
-        setMessages([]); 
-        return;
-      }
+      if (!activeSessionId) return;
+      
+      // Skip DB fetch if already loaded into fast memory
+      const existing = useAppStore.getState().chatHistory[activeSessionId];
+      if (existing && existing.length > 0) return; 
+
       const { data } = await supabase
         .from('chat_messages')
         .select('*')
         .eq('session_id', activeSessionId)
         .order('created_at', { ascending: true });
         
-      if (data) {
-        setMessages(data.map(d => ({ 
+      if (data && data.length > 0) {
+        useAppStore.getState().setChatHistory(activeSessionId, data.map(d => ({ 
           id: d.id, 
           role: d.role as 'user'|'assistant', 
           content: d.content,
-          attachments: d.attachments || undefined,
-          pdfs: d.pdfs || undefined
+          attachments: d.attachments || undefined
         })));
       }
     }
@@ -247,17 +249,18 @@ export function EditorPane() {
     setIsAttachMenuOpen(false);
   };
 
-  const handleDocChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  // --- THE CLIENT-SIDE EXTRACTION FIX ---
+  const handleFileUpload = async (files: File[]) => {
     if (files.length === 0) return;
 
     setIsLoading(true);
-    const toastId = toast.loading("Attaching documents...", { id: 'doc-parse' });
+    const toastId = toast.loading("Processing documents...", { id: 'doc-parse' });
 
     try {
       for (const file of files) {
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error(`${file.name} exceeds 10MB limit.`);
+        // Safe check for massive files (50MB is generous for local Wasm parsing)
+        if (file.size > 50 * 1024 * 1024) {
+          toast.error(`${file.name} exceeds 50MB limit.`);
           continue;
         }
 
@@ -267,29 +270,32 @@ export function EditorPane() {
           setDocNames(prev => [...prev, file.name]);
         } 
         else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-          const reader = new FileReader();
-          const base64: string = await new Promise((resolve, reject) => {
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-
-          setUploadedPdfs(prev => [...prev, base64]);
+          toast.loading(`Extracting text from ${file.name}...`, { id: toastId });
+          
+          // Execute client-side extraction to bypass Vercel payload limits completely
+          const extractedText = await extractTextFromLocalPDF(file);
+          
+          setAttachedDocsText(prev => [...prev, `[Document: ${file.name}]\n${extractedText}`]);
           setDocNames(prev => [...prev, file.name]);
         } 
         else {
           toast.error(`Unsupported format: ${file.name}`);
         }
       }
-      toast.success("Documents attached!", { id: toastId });
+      toast.success("Documents attached and processed!", { id: toastId });
     } catch (error) {
       console.error("Attachment error:", error);
-      toast.error("Failed to attach document.", { id: toastId });
+      toast.error("Failed to attach document. It might be encrypted.", { id: toastId });
     } finally {
       setIsLoading(false);
       if (docInputRef.current) docInputRef.current.value = '';
       setIsAttachMenuOpen(false);
     }
+  };
+
+  const handleDocChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    await handleFileUpload(files);
   };
 
   const removeAttachment = (index: number) => {
@@ -299,16 +305,17 @@ export function EditorPane() {
   const removeDoc = (index: number) => {
     setDocNames(prev => prev.filter((_, i) => i !== index));
     setAttachedDocsText(prev => prev.filter((_, i) => i !== index));
-    setUploadedPdfs(prev => prev.filter((_, i) => i !== index)); 
   };
 
   const handleAutoFix = async (originalScore: number | null) => {
-    if (originalScore === null) return;
+    if (originalScore === null || !activeSessionId) return;
     const fixPrompt = `You scored the previous input a ${originalScore}. Apply your own critical fixes and generate a new version that guarantees a 45+ score. Do not explain, just execute the fix.`;
     const newMessage: Message = { id: Date.now().toString(), role: 'user', content: fixPrompt };
-    const newHistory = [...messages, newMessage];
     
-    setMessages(newHistory);
+    const currentMsgs = useAppStore.getState().chatHistory[activeSessionId] || [];
+    const newHistory = [...currentMsgs, newMessage];
+    
+    useAppStore.getState().setChatHistory(activeSessionId, newHistory);
     setIsLoading(true);
     await executeAI(newHistory, activeSessionId);
   };
@@ -319,7 +326,6 @@ export function EditorPane() {
       
       const lastMsg = historyToProcess[historyToProcess.length - 1];
       const currentImages = lastMsg.attachments || [];
-      const currentPdfs = lastMsg.pdfs || [];
 
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -329,7 +335,6 @@ export function EditorPane() {
           apiKey: apiKey,
           provider: activeProvider, 
           images: currentImages, 
-          pdfs: currentPdfs,
           userId: user?.id,
           activeTool: activeTool 
         })
@@ -340,7 +345,6 @@ export function EditorPane() {
 
       let replyText = data.reply;
 
-      // 🔥 FIX 1: Robust Regex that ignores additional attributes like title="..."
       const renderRegex = /<render\s+platform=["'](.*?)["'][^>]*>([\s\S]*?)<\/render>/i;
       const renderMatch = replyText.match(renderRegex);
       
@@ -350,13 +354,14 @@ export function EditorPane() {
         if (setRenderData) setRenderData(content, platform);
         replyText = replyText.replace(
           renderMatch[0], 
-          `\n\n✨ *I've pushed the finalized draft to your Live Render canvas.*`
+          `\n\nâœ¨ *I've pushed the finalized draft to your Live Render canvas.*`
         );
       }
 
-      setMessages((prev) => [...prev, { id: Date.now().toString(), role: 'assistant', content: replyText }]);
-
       if (currentSessionId) {
+        const currentMsgs = useAppStore.getState().chatHistory[currentSessionId] || [];
+        useAppStore.getState().setChatHistory(currentSessionId, [...currentMsgs, { id: Date.now().toString(), role: 'assistant', content: replyText }]);
+
         await supabase.from('chat_messages').insert({
           session_id: currentSessionId,
           role: 'assistant',
@@ -365,7 +370,10 @@ export function EditorPane() {
       }
 
     } catch (error: any) {
-      setMessages((prev) => [...prev, { id: Date.now().toString(), role: 'assistant', content: `🚨 Error: ${error.message}` }]);
+      if (currentSessionId) {
+        const currentMsgs = useAppStore.getState().chatHistory[currentSessionId] || [];
+        useAppStore.getState().setChatHistory(currentSessionId, [...currentMsgs, { id: Date.now().toString(), role: 'assistant', content: `ðŸš¨ Error: ${error.message}` }]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -376,7 +384,12 @@ export function EditorPane() {
       setIsLoading(true);
       const activeProvider = MODELS.find(m => m.id === selectedModel)?.provider || 'openai';
 
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: `*Architecting book structure for: "${topic}"...*` }]);
+      const updateChat = (text: string) => {
+        const msgs = useAppStore.getState().chatHistory[sessionId] || [];
+        useAppStore.getState().setChatHistory(sessionId, [...msgs, { id: Date.now().toString(), role: 'assistant', content: text }]);
+      };
+
+      updateChat(`*Architecting book structure for: "${topic}"...*`);
 
       const outRes = await fetch('/api/ebook', {
         method: 'POST',
@@ -389,12 +402,7 @@ export function EditorPane() {
 
       for (let i = 0; i < chapters.length; i++) {
         const chapTitle = chapters[i];
-        
-        setMessages(prev => [...prev, { 
-          id: Date.now().toString(), 
-          role: 'assistant', 
-          content: `*Drafting Chapter ${i + 1} of ${chapters.length}: ${chapTitle}...*` 
-        }]);
+        updateChat(`*Drafting Chapter ${i + 1} of ${chapters.length}: ${chapTitle}...*`);
 
         const chapRes = await fetch('/api/ebook', {
           method: 'POST',
@@ -406,15 +414,11 @@ export function EditorPane() {
         compiledBook += `## ${chapTitle}\n\n${content}\n\n---\n\n`;
       }
 
-      // 🔥 FIX 4: Send clean text to DB instead of raw HTML tag
-      const displayPayload = `\n\n✨ *I've pushed the finalized eBook draft to your Live Render canvas.*`;
+      const displayPayload = `\n\nâœ¨ *I've pushed the finalized eBook draft to your Live Render canvas.*`;
+      updateChat(displayPayload);
       
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: displayPayload }]);
-      
-      // Save clean message to database so it doesn't break on refresh
       await supabase.from('chat_messages').insert({ session_id: sessionId, role: 'assistant', content: displayPayload });
       
-      // Push the actual content to the canvas independently
       if (setRenderData) setRenderData(compiledBook, 'ebook');
       
     } catch (err: any) {
@@ -426,7 +430,7 @@ export function EditorPane() {
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && attachments.length === 0 && attachedDocsText.length === 0 && uploadedPdfs.length === 0) || isLoading) return;
+    if ((!input.trim() && attachments.length === 0 && attachedDocsText.length === 0) || isLoading) return;
     
     let currentSessionId = activeSessionId;
     
@@ -442,12 +446,15 @@ export function EditorPane() {
       }
     }
 
-    if (messages.length === 0 && currentSessionId) {
+    const msgs = currentSessionId ? (useAppStore.getState().chatHistory[currentSessionId] || []) : [];
+
+    if (msgs.length === 0 && currentSessionId) {
       const newTitle = input.substring(0, 30) + (input.length > 30 ? '...' : 'Document Analysis');
       await supabase.from('chat_sessions').update({ title: newTitle }).eq('id', currentSessionId);
       window.dispatchEvent(new Event('refresh-sidebar'));
     }
 
+    // Attach local client-extracted text to the backend payload safely
     let finalPrompt = input;
     if (attachedDocsText.length > 0) {
       finalPrompt = `${attachedDocsText.join('\n\n')}\n\nUser Prompt: ${input}`;
@@ -457,28 +464,27 @@ export function EditorPane() {
       id: Date.now().toString(), 
       role: 'user', 
       content: finalPrompt,
-      attachments: attachments.length > 0 ? attachments : undefined,
-      pdfs: uploadedPdfs.length > 0 ? uploadedPdfs : undefined 
+      attachments: attachments.length > 0 ? attachments : undefined
     };
     
-    const newHistory = [...messages, newMessage];
+    const newHistory = [...msgs, newMessage];
     
-    setMessages(newHistory);
+    if (currentSessionId) {
+      useAppStore.getState().setChatHistory(currentSessionId, newHistory);
+    }
+    
     setInput('');
     setAttachments([]);
     setAttachedDocsText([]);
-    setUploadedPdfs([]);
     setDocNames([]);
     setIsLoading(true);
 
-    // 🔥 FIX 2: Explicitly save attachments & PDFs to the database so they survive refresh
     if (currentSessionId) {
       await supabase.from('chat_messages').insert({
         session_id: currentSessionId,
         role: 'user',
         content: finalPrompt,
-        attachments: newMessage.attachments ? newMessage.attachments : null,
-        pdfs: newMessage.pdfs ? newMessage.pdfs : null
+        attachments: newMessage.attachments ? newMessage.attachments : null
       });
     }
 
@@ -557,7 +563,7 @@ export function EditorPane() {
       {messages.length > 0 && (
         <div className="flex-1 overflow-y-auto px-4 md:px-24 pt-16 pb-32 custom-scrollbar">
           <div className="max-w-3xl mx-auto space-y-10">
-            {messages.map((msg) => {
+            {messages.map((msg: Message) => {
               const { thoughtProcess, finalContent, score, needsFix } = parseContent(msg.content);
               const isExpanded = expandedThoughts[msg.id];
 
@@ -575,7 +581,7 @@ export function EditorPane() {
                     {/* Render DB Hydrated Images */}
                     {msg.attachments && msg.attachments.length > 0 && (
                       <div className="mb-1 flex flex-wrap gap-2 max-w-[300px] justify-end">
-                        {msg.attachments.map((imgBase64, idx) => (
+                        {msg.attachments.map((imgBase64: string, idx: number) => (
                           <div key={idx} className="rounded-2xl overflow-hidden border border-gray-200 w-20 h-20 shadow-sm">
                             <img src={imgBase64} alt="Upload" className="w-full h-full object-cover" />
                           </div>
@@ -609,7 +615,7 @@ export function EditorPane() {
                         : 'text-gray-800 prose prose-sm max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-600 prose-pre:bg-[#0D1117] prose-pre:text-gray-100 prose-pre:rounded-xl prose-pre:border prose-pre:border-gray-800'
                     }`}>
                       {msg.role === 'user' ? (
-                        finalContent.replace(/\[Document Context: .*?\]\n[\s\S]*?\n\nUser Prompt: /g, '')
+                        finalContent.replace(/\[Document: .*?\]\n[\s\S]*?\n\nUser Prompt: /g, '')
                       ) : (
                         <ReactMarkdown 
                           // @ts-ignore
@@ -673,7 +679,7 @@ export function EditorPane() {
           {(attachments.length > 0 || docNames.length > 0) && (
             <div className="px-3 pt-2 pb-2 flex gap-2 flex-wrap max-h-32 overflow-y-auto custom-scrollbar">
               
-              {attachments.map((img, idx) => (
+              {attachments.map((img: string, idx: number) => (
                 <div key={`img-${idx}`} className="relative inline-block group shrink-0">
                   <div className="w-14 h-14 rounded-xl overflow-hidden shadow-sm border border-gray-200">
                     <img src={img} alt="Preview" className="w-full h-full object-cover" />
@@ -687,7 +693,7 @@ export function EditorPane() {
                 </div>
               ))}
 
-              {docNames.map((name, idx) => (
+              {docNames.map((name: string, idx: number) => (
                 <div key={`doc-${idx}`} className="relative inline-flex items-center gap-2 bg-white border border-gray-200 py-1.5 px-3 rounded-xl shadow-sm shrink-0 group">
                   <FileText className="w-4 h-4 text-blue-600" />
                   <span className="text-[12px] font-semibold text-gray-700 max-w-[120px] truncate">{name}</span>
@@ -776,7 +782,7 @@ export function EditorPane() {
 
               <button 
                 onClick={handleSend}
-                disabled={(!input.trim() && attachments.length === 0 && attachedDocsText.length === 0 && uploadedPdfs.length === 0) || isLoading}
+                disabled={(!input.trim() && attachments.length === 0 && attachedDocsText.length === 0) || isLoading}
                 className="p-2.5 bg-gray-900 text-white rounded-full hover:bg-gray-800 transition disabled:opacity-30 disabled:bg-gray-200 disabled:text-gray-400"
               >
                 <Send className="w-4 h-4" />

@@ -39,24 +39,66 @@ export function WarRoomPane() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [log, isSwarming]);
 
+  // SCORCHED EARTH SCRUBBER
+  // Removes full blocks, then hunts down any orphaned/unclosed tags
+  const stripArtifactTags = (text: string) => {
+    if (!text) return '';
+    return text
+      .replace(/<canvas_artifact[^>]*>[\s\S]*?<\/canvas_artifact>/gi, '') // Target 1: Perfect blocks
+      .replace(/<\/?canvas_artifact[^>]*>/gi, '')                         // Target 2: Orphaned/Unclosed tags
+      .trim();
+  };
+
   const handleDownload = (artifact: SwarmArtifact) => {
+    // Scrub the tags out of the file content before processing
+    const rawCleanContent = stripArtifactTags(artifact.content);
+
     if (artifact.extension === 'pdf') {
       const doc = new jsPDF();
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.text(artifact.title, 15, 20);
       
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(12);
-      const splitText = doc.splitTextToSize(artifact.content, 180);
-      doc.text(splitText, 15, 30);
-      doc.save(`${artifact.title.replace(/\s+/g, '_')}.pdf`);
+      const safeTitle = stripArtifactTags(artifact.title)
+        .replace(/[â€œâ€]/g, '"')
+        .replace(/[â€˜â€™]/g, "'")
+        .replace(/[â€“â€”]/g, '-')
+        .replace(/[^\x20-\x7E]/g, ''); // Keep only printable ASCII
+        
+      const safeContent = rawCleanContent
+        .replace(/[â€œâ€]/g, '"')
+        .replace(/[â€˜â€™]/g, "'")
+        .replace(/[â€“â€”]/g, '-')
+        .replace(/â€¢/g, '-') // Replace special bullets with standard dash
+        .replace(/[^\x20-\x7E\n\r\t]/g, ''); // Keep ASCII, newlines, tabs
+
+      // Title Header
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text(safeTitle, 15, 20);
+      
+      // Body Content: Use Courier (monospace) so markdown tables align perfectly
+      doc.setFont("courier", "normal");
+      doc.setFontSize(10);
+      
+      const splitText = doc.splitTextToSize(safeContent, 180); // 180mm width leaves 15mm margins
+      let y = 30; // Starting Y coordinate for content
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // Implement manual pagination
+      for (let i = 0; i < splitText.length; i++) {
+        if (y > pageHeight - 20) { // Bottom margin
+          doc.addPage();
+          y = 20; // Reset Y for new page
+        }
+        doc.text(splitText[i], 15, y);
+        y += 5; // Line height for Courier 10pt
+      }
+      
+      doc.save(`${safeTitle.replace(/\s+/g, '_')}.pdf`);
     } else {
-      const blob = new Blob([artifact.content], { type: 'text/plain' });
+      const blob = new Blob([rawCleanContent], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${artifact.title.replace(/\s+/g, '_')}.${artifact.extension}`;
+      a.download = `${stripArtifactTags(artifact.title).replace(/\s+/g, '_')}.${artifact.extension}`;
       a.click();
       URL.revokeObjectURL(url);
     }
@@ -91,14 +133,11 @@ export function WarRoomPane() {
         actions: data.actions
       }]);
 
-      // 🔥 THE BULLETPROOF FIX 🔥
-      // Instead of relying on the AI to type the HTML tags, we forcefully inject the 
-      // artifact content into the tag ourselves before passing it to the global store.
+      // ðŸ”¥ THE BULLETPROOF FIX ðŸ”¥
       let finalGlobalContent = data.reply;
       
       if (data.artifacts && data.artifacts.length > 0) {
         const primaryArtifact = data.artifacts[0];
-        // We append the hidden tags to the text so SwarmCanvas instantly catches it.
         finalGlobalContent += `\n\n<canvas_artifact type="swarm_output">\n# ${primaryArtifact.title}\n\n${primaryArtifact.content}\n</canvas_artifact>`;
       }
 
@@ -106,7 +145,6 @@ export function WarRoomPane() {
         store.setMessages([...newMessages, { role: 'assistant', content: finalGlobalContent }]);
       }
 
-      // Auto-open the canvas if an artifact was generated
       if (data.artifacts && data.artifacts.length > 0 && !store.isLiveRenderOpen && store.toggleLiveRender) {
         store.toggleLiveRender();
       }
@@ -118,9 +156,9 @@ export function WarRoomPane() {
     }
   };
 
-  // Hides the injected tags from the Chat UI so it stays clean
+  // Robustly removes the canvas_artifact tags (globally and case-insensitively)
   const renderCleanContent = (content: string) => {
-    const cleanText = content.replace(/<canvas_artifact[^>]*>([\s\S]*?)<\/canvas_artifact>/, '').trim();
+    const cleanText = stripArtifactTags(content);
     return (
       <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-slate-800 prose-pre:text-slate-100 text-inherit">
         <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>

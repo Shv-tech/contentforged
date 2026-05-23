@@ -1,14 +1,33 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 1. Disables the strict SWC compiler minification
-  swcMinify: false,
+  // 1. MUST BE TRUE: Enables the Rust-based SWC compiler
+  swcMinify: true,
   
-  // 2. Forcefully overrides Webpack's Terser plugin which is crashing on jsPDF
-  webpack: (config) => {
-    config.optimization.minimize = false;
+  webpack: (config, { isServer, dev }) => {
+    // 2. THE BUILD FIX: Tells Webpack to ignore the optional 'canvas' dependency
+    config.resolve.alias.canvas = false;
+    
+    // 3. THE jsPDF FIX: Prevent 'jsPDF' from crashing the server environment
+    if (isServer) {
+      config.externals.push('jspdf');
+    }
+
+    // 4. THE UNICODE FIX: Force ASCII-only output in minification
+    if (!dev) {
+      const TerserPlugin = require('terser-webpack-plugin');
+      config.optimization.minimizer = [
+        new TerserPlugin({
+          terserOptions: {
+            format: {
+              ascii_only: true, // This prevents unicode errors during build
+            },
+          },
+        }),
+      ];
+    }
+
     return config;
   },
 };
 
-export default nextConfig; 
-// Note: If your file is named .js instead of .mjs, use: module.exports = nextConfig;
+module.exports = nextConfig;

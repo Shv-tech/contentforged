@@ -68,7 +68,7 @@ export function HookGrader({ text }: { text: string }) {
       <ul className="space-y-1.5">
         {feedback.map((item, i) => (
           <li key={i} className={`text-[12px] flex items-start gap-1.5 ${item.includes('Perfect') || item.includes('Excellent') || item.includes('Strong') ? 'text-green-400' : 'text-white/60'}`}>
-            <span className="mt-[2px]">•</span> {item}
+            <span className="mt-[2px]">â€¢</span> {item}
           </li>
         ))}
       </ul>

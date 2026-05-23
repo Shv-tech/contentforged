@@ -153,7 +153,7 @@ export default function DashboardController() {
                   className="w-full bg-white border border-gray-200 rounded-lg p-3 text-[14px] text-gray-900 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 transition-shadow"
                 >
                   <option value="openai">OpenAI (GPT-4o)</option>
-                  <option value="anthropic">Anthropic (Claude 3.5)</option>
+                  <option value="anthropic">Anthropic (Claude haiku 4.5)</option>
                 </select>
               </div>
               

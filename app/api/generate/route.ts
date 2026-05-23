@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { TOOL_PROMPTS } from '@/lib/promt';
+import { TOOL_PROMPTS } from '@/lib/prompt';
 
 export async function POST(req: Request) {
   try {
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
           'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify({
-          model: 'claude-3-5-sonnet-20240620',
+          model: 'claude-haiku-4-5@20251001',
           system: systemPrompt,
           messages: [
             { role: 'user', content: inputContent }

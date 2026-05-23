@@ -409,7 +409,7 @@ export default function AccountPage() {
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-[13px] font-medium text-gray-900">
-                {isUnlimited ? '∞ credits remaining' : `${safeCreditsRemaining.toLocaleString()} / ${maxCredits.toLocaleString()} remaining`}
+                {isUnlimited ? 'âˆž credits remaining' : `${safeCreditsRemaining.toLocaleString()} / ${maxCredits.toLocaleString()} remaining`}
               </span>
               <span className="text-[13px] text-gray-500 font-medium">
                 {isUnlimited ? '0%' : `${usagePercentage}%`} used

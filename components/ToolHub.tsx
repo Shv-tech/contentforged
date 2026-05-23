@@ -27,7 +27,6 @@ const TOOLS = [
 
   // ENTERPRISE (Tier 3)
   { id: 'ebook_writer', name: 'Agentic Ebook Writer', tier: 'tier3', icon: BookText, group: 'Enterprise' }, // NEW EBOOK TOOL
-  { id: 'war_room', name: 'Multi-Agent War Room', tier: 'tier3', icon: Users, group: 'Enterprise' },
   { id: 'ghostwriter', name: 'Ghostwriter Clone', tier: 'tier3', icon: Copy, group: 'Enterprise' },
   { id: 'brand_dna', name: 'Brand DNA Enforcer', tier: 'tier3', icon: Fingerprint, group: 'Enterprise' },
   { id: 'competitor_gap', name: 'Competitor Gap Analyzer', tier: 'tier3', icon: Target, group: 'Enterprise' },
@@ -50,7 +49,7 @@ export function ToolHub() {
   const { activeTool, setActiveTool, plan } = useAppStore();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // 🔥 DEV MODE OVERRIDE FOR THE DEMO: Forces weight to 99 so it bypasses all locks 🔥
+  // ðŸ”¥ DEV MODE OVERRIDE FOR THE DEMO: Forces weight to 99 so it bypasses all locks ðŸ”¥
   // Change '99' to 'TIER_WEIGHTS[plan || 'free']' before going to production
   const currentTierWeight = 99; 
 

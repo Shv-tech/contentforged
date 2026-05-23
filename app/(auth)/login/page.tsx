@@ -107,7 +107,7 @@ export default function LoginPage() {
                 required
                 autoComplete="current-password"
                 className="w-full border border-black/10 rounded-xl bg-gray-50 px-4 py-[10px] text-[14px] text-apple-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               />
             </div>
 
@@ -121,7 +121,7 @@ export default function LoginPage() {
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="60 20" />
                   </svg>
-                  Signing in…
+                  Signing inâ€¦
                 </span>
               ) : (
                 'Sign in'
