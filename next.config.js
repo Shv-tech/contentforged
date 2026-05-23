@@ -1,30 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 1. MUST BE TRUE: Enables the Rust-based SWC compiler
   swcMinify: true,
   
-  webpack: (config, { isServer, dev }) => {
-    // 2. THE BUILD FIX: Tells Webpack to ignore the optional 'canvas' dependency
+  webpack: (config, { isServer }) => {
     config.resolve.alias.canvas = false;
     
-    // 3. THE jsPDF FIX: Prevent 'jsPDF' from crashing the server environment
     if (isServer) {
-      config.externals.push('jspdf');
+      config.externals.push('jspdf', 'pdfjs-dist');
     }
 
-    // 4. THE UNICODE FIX: Force ASCII-only output in minification
-    if (!dev) {
-      const TerserPlugin = require('terser-webpack-plugin');
-      config.optimization.minimizer = [
-        new TerserPlugin({
-          terserOptions: {
-            format: {
-              ascii_only: true, // This prevents unicode errors during build
-            },
-          },
-        }),
-      ];
-    }
+    // THIS IS THE FIX: Explicitly set the minimizer to an empty array
+    // to bypass the Terser/Webpack collision during the production build.
+    config.optimization.minimize = true;
+    config.optimization.minimizer = []; 
 
     return config;
   },
