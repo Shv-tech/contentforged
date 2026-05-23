@@ -1,11 +1,11 @@
 import OpenAI from 'openai';
 import { createClient } from '@/lib/supabase/server';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 export async function processRagThreshold(userInput: string, userId: string) {
   try {
-    const supabase = createClient(); // Uses secure cookies to pass RLS
+    // Moved inside: Only runs when the function is actually called
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const supabase = createClient(); 
     
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
@@ -13,7 +13,6 @@ export async function processRagThreshold(userInput: string, userId: string) {
     });
     const inputVector = embeddingResponse.data[0].embedding;
 
-    // The threshold is 0.60 to allow for subtle cognitive associations
     const { data: contextMatches, error } = await supabase.rpc('match_user_context', {
       query_embedding: inputVector,
       match_threshold: 0.60, 
@@ -23,7 +22,6 @@ export async function processRagThreshold(userInput: string, userId: string) {
 
     if (error) throw error;
 
-    // Filter out Brand DNA so we don't duplicate it (handled by Core Identity)
     const episodicMatches = contextMatches?.filter((match: any) => match.context_type !== 'brand_dna');
 
     if (!episodicMatches || episodicMatches.length === 0) {
