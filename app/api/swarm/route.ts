@@ -1,4 +1,5 @@
 // app/api/swarm/route.ts
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { swarmTools, scrapeWebsite, dispatchWebhook, buildArtifact, searchInternet } from '@/lib/swarm-tools';
