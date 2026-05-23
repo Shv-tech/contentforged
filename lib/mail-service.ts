@@ -1,6 +1,5 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = 'ContentForge <billing@forged.shvgroups.com>';
 
 const getBaseTemplate = (name: string, body: string, actionText: string, actionUrl: string, badge?: string) => `
@@ -43,7 +42,7 @@ const getBaseTemplate = (name: string, body: string, actionText: string, actionU
           </tr>
         </table>
         <p style="margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center;">
-          Â© 2026 SHV Groups Pvt Ltd. <br> 
+          © 2026 SHV Groups Pvt Ltd. <br> 
           You are receiving this because of your active subscription to ContentForge.
         </p>
       </td>
@@ -59,6 +58,9 @@ export const sendBillingEmail = async (
   name: string,
   data?: { amount?: string; planName?: string; pdfUrl?: string }
 ) => {
+  // THE FIX: Move Resend initialization inside the function so it only runs when an email is actually sent!
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
   let subject = '';
   let body = '';
   let badge = 'OFFICIAL';
@@ -98,7 +100,7 @@ export const sendBillingEmail = async (
   }
 
   await resend.emails.send({
-    from: 'ContentForge Billing <billing@forged.shvgroups.com>',
+    from: FROM_EMAIL,
     to: email,
     subject: subject,
     html: getBaseTemplate(name, body, actionText, actionUrl, badge),
