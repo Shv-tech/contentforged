@@ -107,7 +107,7 @@ export default function LoginPage() {
                 required
                 autoComplete="current-password"
                 className="w-full border border-black/10 rounded-xl bg-gray-50 px-4 py-[10px] text-[14px] text-apple-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                placeholder="************"
               />
             </div>
 
