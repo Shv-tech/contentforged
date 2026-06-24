@@ -4,8 +4,8 @@
 
 @layer base {
   :root {
-    --bg-canvas: #faf9f5;
-    --text-main: #141413;
+    --bg-canvas: #000000;
+    --text-main: #ffffff;
   }
 
   html {
@@ -23,8 +23,8 @@
   }
 
   ::selection {
-    background: #e8e6dc; /* Warm selection color, not harsh blue */
-    color: #141413;
+    background: #000000; /* Warm selection color, not harsh blue */
+    color: #ffffff;
   }
 }
 
@@ -65,3 +65,12 @@
 .delay-100 { animation-delay: 100ms; }
 .delay-200 { animation-delay: 200ms; }
 .delay-300 { animation-delay: 300ms; }
+
+.custom-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-scrollbar {
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;    /* IE/Edge */
+} 

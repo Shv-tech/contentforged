@@ -5,25 +5,24 @@ import { SidebarPane } from './SidePane';
 import { EditorPane } from './EditorPane';
 import { LiveRender } from './LiveRender';
 import { WarRoomPane } from './WarRoomPane'; 
+import { SearchPane } from './SearchPane';
+import { MyEbooksPane } from './MyEbooksPane';
+import { CalendarPane } from './CalendarPane';
 import { useAppStore } from '@/lib/store';
 import { X, AlertTriangle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SwarmCanvas from './SwarmCanvas';
-import { createClient } from '@/lib/supabase/client'; // Adjust path to your client Supabase file
+import { createClient } from '@/lib/supabase/client';
 
 export default function DashboardController() {
   const store = useAppStore();
   const [mounted, setMounted] = useState(false);
 
-  // ==========================================
-  // SETTINGS MODAL & LIVE DATA STATE
-  // ==========================================
   const [showSettings, setShowSettings] = useState(false); 
   const [localKey, setLocalKey] = useState('');
   const [localProvider, setLocalProvider] = useState<'openai' | 'anthropic'>('openai');
   const [isCanceling, setIsCanceling] = useState(false);
   
-  // NEW: Live database states
   const [livePlanName, setLivePlanName] = useState<string>('Loading...');
   const [isFetchingPlan, setIsFetchingPlan] = useState(false);
 
@@ -31,11 +30,8 @@ export default function DashboardController() {
     setMounted(true);
     setLocalKey(store.apiKey);
     setLocalProvider(store.llmProvider);
-  }, []); 
+  }, [store.apiKey, store.llmProvider]); 
 
-  // ==========================================
-  // REAL-TIME SUPABASE SYNC
-  // ==========================================
   useEffect(() => {
     if (showSettings) {
       const fetchLiveSubscription = async () => {
@@ -45,16 +41,15 @@ export default function DashboardController() {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            // Assuming your profiles table tracks the plan name
             const { data: profile } = await supabase
               .from('profiles')
-              .select('plan_type') // Replace with your exact column name
+              .select('plan_type')
               .eq('id', user.id)
               .single();
               
             const currentPlan = profile?.plan_type || 'free';
             setLivePlanName(currentPlan);
-            store.setPlan(currentPlan); // Sync the global store with the live DB truth
+            store.setPlan(currentPlan);
           }
         } catch (error) {
           console.error("Failed to fetch live plan:", error);
@@ -66,7 +61,7 @@ export default function DashboardController() {
       
       fetchLiveSubscription();
     }
-  }, [showSettings]);
+  }, [showSettings, store]);
 
   const saveSettings = () => {
     store.setApiKey(localKey);
@@ -103,47 +98,46 @@ export default function DashboardController() {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-screen w-full bg-[#FAFAFA] text-gray-900 font-sans relative overflow-hidden">
+    <main className="flex h-screen w-screen bg-[#000000] text-gray-900 font-sans overflow-hidden">
       
-      {/* 1. SIDEBAR: Controls the activeTool state */}
-      <SidebarPane onOpenSettings={() => setShowSettings(true)} />
+      <SidebarPane />
 
-      {/* 2. LEFT PANEL: Switches between the War Room Terminal and the Editor */}
-      <div 
-        className={`flex-1 min-w-[500px] flex flex-col transition-all duration-300 ease-in-out ${
-          store.isLiveRenderOpen ? 'border-r border-gray-200' : ''
+      <section 
+        className={`flex-1 relative h-full min-w-[500px] bg-[#000000] transition-all duration-300 ease-in-out ${
+          store.isLiveRenderOpen && store.sidebarView === 'chat' ? 'border-r border-[#222]' : ''
         }`}
       >
-        {store.activeTool === 'war_room' ? <WarRoomPane /> : <EditorPane />}
-      </div>
+        {store.sidebarView === 'search' ? <SearchPane /> :
+         store.sidebarView === 'ebooks' ? <MyEbooksPane /> :
+         store.sidebarView === 'calendar' ? <CalendarPane /> :
+         store.activeTool === 'war_room' ? <WarRoomPane /> : <EditorPane />}
+      </section>
 
-      {/* 3. RIGHT PANEL (THE CANVAS): Switches between Swarm Mode and Standard Mode */}
-      <div 
-        className={`transition-all duration-300 ease-in-out overflow-hidden bg-[#F9FAFB] flex flex-col ${
-          store.isLiveRenderOpen ? 'w-[45%] opacity-100' : 'w-0 opacity-0 border-none'
+      <section 
+        className={`relative h-full bg-[#F9FAFB] transition-all duration-300 ease-in-out ${
+          store.isLiveRenderOpen && store.sidebarView === 'chat' ? 'w-[45%] opacity-100' : 'w-0 opacity-0 border-none'
         }`}
       >
-        <div className="w-full h-full min-w-[400px]">
-         
+        <div className="absolute inset-0 min-w-[400px]">
           {store.activeTool === 'war_room' ? (
             <SwarmCanvas />
           ) : (
             <LiveRender />
           )}
         </div>
-      </div>
+      </section>
 
       {showSettings && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-900/20 backdrop-blur-sm p-4">
-          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-[500px] shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-[500px] shadow-2xl animate-in zoom-in-95 max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-white shrink-0">
               <h3 className="text-[16px] font-semibold text-gray-900">Workspace Settings</h3>
               <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-900 transition bg-gray-50 hover:bg-gray-100 p-1.5 rounded-md">
                 <X className="w-4 h-4"/>
               </button>
             </div>
             
-            <div className="p-5 space-y-6">
+            <div className="p-5 space-y-6 overflow-y-auto">
               
               <div>
                 <label className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Provider</label>
@@ -178,7 +172,6 @@ export default function DashboardController() {
 
               <hr className="border-gray-100" />
 
-              {/* LIVE DATABASE DRIVEN BILLING SECTION */}
               <div>
                 <h3 className="text-[12px] font-bold text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                   <AlertTriangle className="w-3.5 h-3.5" /> Danger Zone
@@ -213,6 +206,6 @@ export default function DashboardController() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

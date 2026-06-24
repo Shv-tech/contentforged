@@ -9,6 +9,7 @@ interface AppState {
   creditsRemaining: number;
   apiKey: string;
   llmProvider: LLMProvider;
+  
   inputType: 'text' | 'url' | 'youtube';
   inputContent: string;
   tone: string;
@@ -22,6 +23,8 @@ interface AppState {
   setActiveSessionId: (id: string | null) => void;
   isSidebarOpen: boolean;
   toggleSidebar: () => void;
+  sidebarView: 'chat' | 'search' | 'ebooks' | 'calendar';
+  setSidebarView: (view: AppState['sidebarView']) => void;
   
   // State variables to hold the rendered canvas data
   renderContent: string | null;
@@ -33,7 +36,7 @@ interface AppState {
   messages: any[];
   setMessages: (messages: any[]) => void;
 
-  // ðŸ”¥ ADDED: Dictionary Memory for Sessions
+  //Dictionary Memory for Sessions
   chatHistory: Record<string, any[]>;
   setChatHistory: (sessionId: string, messages: any[]) => void;
   
@@ -84,6 +87,8 @@ export const useAppStore = create<AppState>()(
       setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
       isSidebarOpen: true, // Default to open
       toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+      sidebarView: 'chat',
+      setSidebarView: (sidebarView) => set({ sidebarView }),
       
       // Initial values for the render data
       renderContent: null,
@@ -93,11 +98,11 @@ export const useAppStore = create<AppState>()(
       // Initial value for war room
       warRoomStatus: 'idle',
 
-      // ðŸ”¥ ADDED: GLOBAL MEMORY INITIALIZATION
+      // GLOBAL MEMORY INITIALIZATION
       messages: [],
       setMessages: (messages) => set({ messages }),
 
-      // ðŸ”¥ ADDED: Dictionary Implementation
+      // Dictionary Implementation
       chatHistory: {},
       setChatHistory: (sessionId, messages) => set((state) => ({
         chatHistory: { ...state.chatHistory, [sessionId]: messages }
@@ -136,7 +141,7 @@ export const useAppStore = create<AppState>()(
         isLiveRenderOpen: isOpen !== undefined ? isOpen : !state.isLiveRenderOpen 
       })),
 
-      setLiveRenderOpen: (isOpen) => set({ isLiveRenderOpen: isOpen }), // ðŸ”¥ ADDED: Fixes the TS error in WarRoomPane
+      setLiveRenderOpen: (isOpen) => set({ isLiveRenderOpen: isOpen }), // 🔥 ADDED: Fixes the TS error in WarRoomPane
       
       // Update war room state
       setWarRoomStatus: (status) => set({ warRoomStatus: status }),
@@ -154,7 +159,7 @@ export const useAppStore = create<AppState>()(
         renderPlatform: state.renderPlatform,
         isLiveRenderOpen: state.isLiveRenderOpen,
         messages: state.messages, 
-        chatHistory: state.chatHistory // ðŸ”¥ THIS SAVES YOUR CHATS ACROSS SESSIONS & REFRESHES
+        chatHistory: state.chatHistory // THIS SAVES YOUR CHATS ACROSS SESSIONS & REFRESHES
       }),
     }
   )

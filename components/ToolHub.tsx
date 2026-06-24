@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { useAppStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 import { 
   Zap, Type, Hash, FileText, BarChart, Image as ImgIcon, Mail, Copy, 
   LayoutTemplate, Mic, LineChart, Target, Building, Users, BookOpen, 
   Presentation, Video, Search, ShieldAlert, Workflow, Fingerprint, 
-  Newspaper, Headphones, Layers, Repeat2, ChevronDown, Wrench, Lock, BookText
+  Newspaper, Headphones, Layers, Repeat2, Lock, BookText
 } from 'lucide-react';
 
 // THE 26-TOOL ENTERPRISE ARSENAL
@@ -44,25 +44,16 @@ const TOOLS = [
 const TIER_WEIGHTS: Record<string, number> = { free: 0, basic: 1, tier1: 2, tier2: 3, tier3: 4 };
 const GROUPS = ['Essentials', 'Pro Creator', 'Enterprise'];
 
-export function ToolHub() {
-  const [isOpen, setIsOpen] = useState(false);
-  const { activeTool, setActiveTool, plan } = useAppStore();
-  const dropdownRef = useRef<HTMLDivElement>(null);
+interface ToolHubProps {
+  onClose?: () => void; // Optional callback to close the parent menu if needed
+}
 
-  // ðŸ”¥ DEV MODE OVERRIDE FOR THE DEMO: Forces weight to 99 so it bypasses all locks ðŸ”¥
+export function ToolHub({ onClose }: ToolHubProps = {}) {
+  const { activeTool, setActiveTool, plan } = useAppStore();
+
+  // 🔥 DEV MODE OVERRIDE FOR THE DEMO: Forces weight to 99 so it bypasses all locks 🔥
   // Change '99' to 'TIER_WEIGHTS[plan || 'free']' before going to production
   const currentTierWeight = 99; 
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const handleToolClick = (toolId: string, toolTier: string, toolName: string) => {
     if (currentTierWeight < TIER_WEIGHTS[toolTier]) {
@@ -71,93 +62,57 @@ export function ToolHub() {
       return;
     }
     setActiveTool(activeTool === toolId ? null : toolId);
-    setIsOpen(false);
+    onClose?.(); // Optionally trigger a close event to the parent
   };
 
-  const activeToolData = TOOLS.find(t => t.id === activeTool);
-
   return (
-    <div className="relative z-50" ref={dropdownRef}>
-      {/* TRIGGER BUTTON */}
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2.5 px-4 py-2 bg-white border border-gray-200 rounded-xl shadow-[0_2px_8px_rgb(0,0,0,0.04)] text-sm font-medium text-gray-800 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200"
-      >
-        <div className={`p-1 rounded-md ${activeToolData ? 'bg-orange-50 text-orange-600' : 'bg-gray-100 text-gray-600'}`}>
-          {activeToolData ? <activeToolData.icon className="w-4 h-4" /> : <Wrench className="w-4 h-4" />}
-        </div>
-        {activeToolData ? activeToolData.name : 'Select Strategic Tool'}
-        <ChevronDown className={`w-4 h-4 text-gray-400 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
+    <div className="w-[520px] p-5 max-h-[65vh] overflow-y-auto custom-scrollbar font-sans">
+      {GROUPS.map((group) => {
+        const groupTools = TOOLS.filter(t => t.group === group);
+        if (groupTools.length === 0) return null;
 
-      {/* DROPDOWN MEGA-MENU (Now opening UPWARDS) */}
-      {isOpen && (
-        <div className="absolute bottom-full left-0 mb-3 w-[520px] bg-white border border-gray-200 shadow-[0_-12px_40px_rgb(0,0,0,0.12)] rounded-2xl overflow-hidden flex flex-col transform origin-bottom-left animate-in fade-in zoom-in-95 duration-200">
-          
-          {/* Header */}
-          <div className="px-5 py-3.5 bg-[#FAFAFA] border-b border-gray-100 flex justify-between items-center shrink-0">
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">ContentForge Tool Arsenal</span>
-            {activeTool && (
-              <button 
-                onClick={() => { setActiveTool(null); setIsOpen(false); }} 
-                className="text-xs font-medium text-gray-500 hover:text-gray-900 transition"
-              >
-                Clear Selection
-              </button>
-            )}
+        return (
+          <div key={group} className="mb-6 last:mb-2">
+            <h4 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-3 px-3">
+              {group}
+            </h4>
+            <div className="grid grid-cols-2 gap-1.5">
+              {groupTools.map(tool => {
+                const isLocked = currentTierWeight < TIER_WEIGHTS[tool.tier];
+                const isActive = activeTool === tool.id;
+
+                return (
+                  <button
+                    key={tool.id}
+                    onClick={() => handleToolClick(tool.id, tool.tier, tool.name)}
+                    className={`flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 group w-full ${
+                      isActive 
+                        ? 'bg-[#2a2a2a] text-white shadow-sm' 
+                        : 'bg-transparent text-[#999] hover:bg-[#2a2a2a] hover:text-white'
+                    }`}
+                  >
+                    <div className={`flex-shrink-0 transition-colors ${
+                      isActive 
+                        ? 'text-white' 
+                        : isLocked
+                          ? 'text-[#444]'
+                          : 'text-[#666] group-hover:text-[#aaa]'
+                    }`}>
+                      <tool.icon className="w-[18px] h-[18px]" strokeWidth={1.5} />
+                    </div>
+                    
+                    <span className={`text-[13px] font-medium truncate ${isLocked ? 'text-[#555]' : ''}`}>
+                      {tool.name}
+                    </span>
+
+                    {isLocked && <Lock className="w-[14px] h-[14px] text-[#444] ml-auto flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-
-          {/* Tools Grid */}
-          <div className="p-3 overflow-y-auto max-h-[60vh] custom-scrollbar">
-            {GROUPS.map((group) => {
-              const groupTools = TOOLS.filter(t => t.group === group);
-              if (groupTools.length === 0) return null;
-
-              return (
-                <div key={group} className="mb-5 last:mb-1">
-                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">
-                    {group}
-                  </h4>
-                  <div className="grid grid-cols-2 gap-1">
-                    {groupTools.map(tool => {
-                      const isLocked = currentTierWeight < TIER_WEIGHTS[tool.tier];
-                      const isActive = activeTool === tool.id;
-
-                      return (
-                        <button
-                          key={tool.id}
-                          onClick={() => handleToolClick(tool.id, tool.tier, tool.name)}
-                          className={`flex items-center gap-3 p-2.5 rounded-xl text-left transition-all duration-200 group ${
-                            isActive 
-                              ? 'bg-gray-900 text-white shadow-md' 
-                              : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                          }`}
-                        >
-                          <div className={`p-1.5 rounded-lg flex-shrink-0 transition-colors ${
-                            isActive 
-                              ? 'bg-gray-800 text-white' 
-                              : isLocked
-                                ? 'bg-gray-50 text-gray-300'
-                                : 'bg-white border border-gray-200 text-gray-700 shadow-sm group-hover:border-gray-300'
-                          }`}>
-                            <tool.icon className="w-4 h-4" />
-                          </div>
-                          
-                          <span className={`text-[13px] font-medium truncate ${isLocked ? 'text-gray-400' : ''}`}>
-                            {tool.name}
-                          </span>
-
-                          {isLocked && <Lock className="w-3 h-3 text-gray-300 ml-auto flex-shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }

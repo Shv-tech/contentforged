@@ -1,32 +1,68 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Command, BrainCircuit, TrendingUp, GitBranch, AlertCircle, Sparkles, Star, XCircle, CheckCircle2, Cpu, Network, ExternalLink, Bot, User, LayoutDashboard, Type, Hash, FileText, BarChart, Mail, Image as ImgIcon, Zap } from 'lucide-react';
+import { motion, useScroll, useTransform, Variants } from 'framer-motion';
+import { 
+  Command, BrainCircuit, TrendingUp, GitBranch, AlertCircle, Sparkles, 
+  Star, XCircle, CheckCircle2, LayoutDashboard, Type, Hash, FileText, 
+  BarChart, Mail, Image as ImgIcon, Zap, Bot, User, Fingerprint, ArrowUp
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import Script from 'next/script';
 import { useAppStore } from '@/lib/store';
 import { PRICING } from '@/types';
 
+// --- ANIMATION VARIANTS ---
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.15, delayChildren: 0.1 }
+  }
+};
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { 
+    opacity: 1, 
+    y: 0, 
+    transition: { type: "spring", stiffness: 100, damping: 20 } 
+  }
+};
+
+const pulseRing: Variants = {
+  hidden: { opacity: 0, scale: 0.5 },
+  visible: { 
+    opacity: [0, 0.5, 0], 
+    scale: [0.8, 1.5, 2.5],
+    transition: { repeat: Infinity, duration: 3, ease: "easeOut" }
+  }
+};
 
 export default function LandingPage() {
   const router = useRouter();
   const [checkoutPlan, setCheckoutPlan] = useState<{ id: string, name: string, price: number } | null>(null);
-  const TIER_WEIGHTS: Record<string, number> = { free: 0, basic: 1, tier1: 2, tier2: 3, tier3: 4 };
   const { user, plan, setPlan } = useAppStore();
-  const currentTierWeight = TIER_WEIGHTS[plan || 'free'];
-  // Pull the authenticated user and plan setter from your global store
+  const [mounted, setMounted] = useState(false);
   
+  const { scrollYProgress } = useScroll();
+  const heroY = useTransform(scrollYProgress, [0, 1], [0, 200]);
+  const forgeOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   return (
-    <main className="min-h-screen bg-[#FAFAFA] text-gray-900 font-sans selection:bg-gray-200 overflow-x-hidden">
+    <main className="min-h-screen bg-[#000000] text-[#a3a3a3] font-sans selection:bg-[#d18a5e]/30 overflow-x-hidden relative">
       
-      {/* LOAD RAZORPAY SECURELY */}
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
-      {/* SECURE CHECKOUT MODAL OVERLAY */}
       {checkoutPlan && (
         <CheckoutModal 
           planId={checkoutPlan.id}
@@ -34,8 +70,8 @@ export default function LandingPage() {
           basePrice={checkoutPlan.price}
           onClose={() => setCheckoutPlan(null)}
           onSuccess={() => {
-            setPlan(checkoutPlan.id as any); // Optimistically upgrade user in local state
-            setCheckoutPlan(null); // Close modal
+            setPlan(checkoutPlan.id as any);
+            setCheckoutPlan(null);
           }}
         />
       )}
@@ -44,505 +80,463 @@ export default function LandingPage() {
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-marquee { display: flex; animation: marquee 30s linear infinite; white-space: nowrap; }
-        @keyframes float { 0% { transform: translateY(0px) rotate(var(--r)); } 50% { transform: translateY(-10px) rotate(var(--r)); } 100% { transform: translateY(0px) rotate(var(--r)); } }
-        .animate-float-1 { animation: float 6s ease-in-out infinite; --r: -3deg; }
-        .animate-float-2 { animation: float 7s ease-in-out infinite reverse; --r: 2deg; }
-        .animate-float-3 { animation: float 8s ease-in-out infinite; --r: -1deg; }
       `}} />
 
-      {/* NAVIGATION */}
-      <nav className="fixed top-0 w-full h-[72px] flex items-center justify-between px-6 md:px-12 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
+      {/* --- NAVIGATION --- */}
+      <nav className="fixed top-0 w-full h-[72px] flex items-center justify-between px-6 md:px-12 z-50 bg-[#000000]/70 backdrop-blur-xl border-b border-[#222222]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-gray-900 flex items-center justify-center">
-            <Command className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-[6px] bg-[#111111] border border-[#333333] flex items-center justify-center shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]">
+            <Command className="w-4 h-4 text-[#d18a5e]" />
           </div>
-          <span className="font-semibold text-[16px] tracking-tight text-gray-900 uppercase tracking-widest">
+          <span className="font-semibold text-[15px] text-[#ffffff] uppercase tracking-[0.15em]">
             ContentForge
           </span>
         </div>
         <div className="flex items-center gap-8">
-          <a href="#how" className="text-[13px] font-medium text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">Methodology</a>
-          <a href="#pricing" className="text-[13px] font-medium text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">Pricing</a>
+          <a href="#how" className="text-[13px] font-medium text-[#888888] hover:text-[#ffffff] transition-colors hidden sm:block">Methodology</a>
+          <a href="#pricing" className="text-[13px] font-medium text-[#888888] hover:text-[#ffffff] transition-colors hidden sm:block">Pricing</a>
           <div className="flex items-center gap-4">
             {user ? (
-              // DYNAMIC AUTH STATE: User is logged in
-              <div className="flex items-center gap-4">
-            {user ? (
-              // DYNAMIC AUTH STATE: User is logged in
               <>
-                <Link href="/account" className="text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                <Link href="/account" className="text-[13px] font-medium text-[#a3a3a3] px-4 py-2 rounded-[4px] hover:bg-[#111111] hover:text-white transition-colors">
                   Account
                 </Link>
-                <Link href="/dashboard" className="bg-gray-900 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
-                  Go to Workspace
+                <Link href="/dashboard" className="bg-[#d18a5e] text-[#000000] text-[13px] font-bold px-5 py-2.5 rounded-[4px] hover:bg-[#e39a6e] transition-all shadow-[0_0_15px_rgba(209,138,94,0.3)]">
+                  Workspace
                 </Link>
               </>
             ) : (
-              // User is NOT logged in
               <>
-                <Link href="/login" className="text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                <Link href="/login" className="text-[13px] font-medium text-[#a3a3a3] px-4 py-2 rounded-[4px] hover:bg-[#111111] hover:text-white transition-colors">
                   Log in
                 </Link>
-                <Link href="/signup" className="bg-gray-900 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
-                  Unlock Workspace
-                </Link>
-              </>
-            )}
-          </div>
-            ) : (
-              // User is NOT logged in
-              <>
-                <Link href="/login" className="text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors">
-                  Log in
-                </Link>
-                <Link href="/signup" className="bg-gray-900 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
-                  Unlock Workspace
+                <Link href="/signup" className="bg-[#d18a5e] text-[#000000] text-[13px] font-bold px-5 py-2.5 rounded-[4px] hover:bg-[#e39a6e] transition-all shadow-[0_0_15px_rgba(209,138,94,0.3)]">
+                  Start Forging
                 </Link>
               </>
             )}
           </div>
         </div>
+        {/* Navigation Bottom Light Leak */}
+        <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#333333] to-transparent opacity-50" />
       </nav>
 
-      {/* ANNOUNCEMENT TICKER */}
-      <div className="mt-[72px] bg-gray-100 border-b border-gray-200 overflow-hidden h-[36px] flex items-center">
-        <div className="animate-marquee">
-          {[...Array(6)].map((_, i) => (
-            <span key={i} className="text-[11px] font-medium text-gray-500 uppercase tracking-widest px-8 flex items-center gap-8">
-              The AI that disagrees with you <span className="w-1 h-1 bg-gray-300 rounded-full" /> 
-              Stop-Scroll Grader <span className="w-1 h-1 bg-gray-300 rounded-full" />
-              Content Tree Architecture <span className="w-1 h-1 bg-gray-300 rounded-full" />
-              Your ideas deserve better
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* HERO SECTION */}
-      <section className="pt-24 pb-20 px-6 flex flex-col items-center text-center max-w-[1200px] mx-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-orange-50 border border-orange-100 text-orange-600 text-[11px] font-bold uppercase tracking-widest mb-8">
-          <Sparkles className="w-3 h-3" />
-          The 1% Creator Command Center
-        </div>
+      {/* --- HERO SECTION --- */}
+      <section className="relative pt-32 pb-24 px-6 flex flex-col items-center text-center max-w-[1200px] mx-auto z-10 min-h-[90vh] justify-center">
         
-        <h1 className="font-semibold text-[56px] md:text-[80px] tracking-tight text-gray-900 leading-[1.05] mb-6 max-w-[900px]">
-          Your content is losing. <br />
-          <span className="text-gray-400">Fix it.</span>
-        </h1>
-        
-        <p className="text-[18px] text-gray-500 max-w-[600px] leading-relaxed mb-12">
-          Every other AI tool applauds your mediocre ideas. <strong>ContentForge is the first one that won't.</strong> It diagnoses. It disagrees. It delivers.
-        </p>
+        {/* Ambient "Forge" Glowing Background */}
+        <motion.div 
+          style={{ y: heroY, opacity: forgeOpacity }}
+          className="absolute inset-0 pointer-events-none -z-10 flex justify-center items-center"
+        >
+          {/* Deep Core */}
+          <motion.div 
+            animate={{ scale: [1, 1.05, 1], opacity: [0.6, 0.8, 0.6] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            className="w-[600px] h-[600px] rounded-full"
+            style={{ background: 'radial-gradient(circle, rgba(209,138,94,0.15) 0%, rgba(0,0,0,0) 70%)', filter: 'blur(60px)' }}
+          />
+          {/* Blueprint Grid */}
+          <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)', backgroundSize: '40px 40px', backgroundPosition: 'center top' }} />
+        </motion.div>
 
-        <div className="flex justify-center gap-4 relative z-10">
-          <Link href={user ? "/dashboard" : "/signup"} className="bg-gray-900 text-white font-medium px-8 py-3.5 rounded-lg hover:bg-gray-800 transition-colors shadow-lg">
-            {user ? "Enter Workspace" : "Start"}
-          </Link>
-        </div>
-      </section>
-       
-      {/* THE CONSULTANT POSITIONING */}
-      <section id="consultant" className="py-24 bg-white border-t border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6 text-center">
-          <div className="text-[11px] font-bold text-orange-600 uppercase tracking-widest mb-6">
-            The Paradigm Shift
-          </div>
-          <h2 className="font-semibold text-[40px] md:text-[56px] tracking-tight text-gray-900 leading-[1.1] mb-8 max-w-[800px] mx-auto">
-            Stop paying $5,000/mo for a strategist. <br/>
-            <span className="text-gray-400">Stop using $20/mo bots that agree with you.</span>
-          </h2>
-          <p className="text-[18px] text-gray-500 max-w-[700px] mx-auto leading-relaxed mb-0">
-            ChatGPT is designed to be a polite, helpful assistant. It will take your worst, most generic ideas and happily turn them into a 5-paragraph essay. <strong className="text-gray-900">ContentForge is not an assistant. It is a weapons-grade consultant.</strong> It enforces brevity, rejects bad hooks, and engineers virality directly in your browser.
-          </p>
-        </div>
-      </section>
-
-      {/* HIGH-FIDELITY DASHBOARD SHOWCASE */}
-      <section className="pb-32 bg-white relative overflow-hidden">
-        <div className="max-w-[1300px] mx-auto px-6 relative">
+        <motion.div 
+          initial="hidden" animate="visible" variants={staggerContainer}
+          className="flex flex-col items-center"
+        >
+          <motion.div variants={fadeUp} className="flex items-center gap-4 mb-8">
+            <span className="w-12 h-[1px] bg-gradient-to-r from-transparent to-[#d18a5e]/50"></span>
+            <div className="text-[#d18a5e] text-[12px] font-mono tracking-[0.2em] uppercase font-bold">
+              The 1% Creator Command Center
+            </div>
+            <span className="w-12 h-[1px] bg-gradient-to-l from-transparent to-[#d18a5e]/50"></span>
+          </motion.div>
           
-          {/* Dashboard Window Wrapper */}
-          <div className="w-full h-[700px] bg-[#FAFAFA] border border-gray-200 rounded-2xl shadow-2xl flex overflow-hidden relative z-10">
+          <motion.h1 variants={fadeUp} className="font-semibold text-[56px] md:text-[88px] tracking-tight text-[#ffffff] leading-[1.05] mb-8 max-w-[900px]">
+            Your content is losing. <br />
+            <span className="text-[#d18a5e] drop-shadow-[0_0_20px_rgba(209,138,94,0.4)]">Fix it.</span>
+          </motion.h1>
+          
+          <motion.p variants={fadeUp} className="text-[18px] md:text-[20px] text-[#888888] max-w-[650px] leading-relaxed mb-12">
+            Every other AI tool applauds your mediocre ideas. <strong className="text-[#e0e0e0] font-medium">ContentForge is the first one that won't.</strong> It diagnoses. It disagrees. It engineers virality.
+          </motion.p>
+
+          <motion.div variants={fadeUp} className="flex justify-center gap-4 relative z-10">
+            <Link href={user ? "/dashboard" : "/signup"} className="group relative bg-[#d18a5e] text-[#000000] font-bold px-10 py-4 rounded-[4px] hover:bg-[#e39a6e] transition-all shadow-[0_0_30px_rgba(209,138,94,0.2)] text-[15px] overflow-hidden">
+              <span className="relative z-10">{user ? "Enter Workspace" : "Start Forging"}</span>
+              <div className="absolute inset-0 h-full w-full bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+            </Link>
+          </motion.div>
+        </motion.div>
+      </section>
+
+      {/* --- DASHBOARD SHOWCASE (Overlapping Hero) --- */}
+      <section className="relative pb-32 bg-transparent -mt-20 z-20">
+        <motion.div 
+          initial={{ opacity: 0, y: 100 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.8, type: "spring", bounce: 0.3 }}
+          className="max-w-[1300px] mx-auto px-6 relative"
+        >
+          {/* EXACT DASHBOARD MOCKUP MATCHING THE SCREENSHOT */}
+          <div className="w-full h-[750px] bg-[#050505] border border-[#222222] rounded-[16px] shadow-[0_40px_80px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.05)] flex overflow-hidden relative">
             
-            {/* Fake Sidebar */}
-            <div className="w-[260px] bg-[#FAFAFA] border-r border-gray-200 flex flex-col hidden md:flex">
-              <div className="h-16 flex items-center px-6 border-b border-gray-200">
-                <span className="font-semibold text-[15px] text-gray-900 tracking-tight">ContentForge</span>
-                <span className="ml-2 text-[9px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded font-bold tracking-widest">PRO</span>
-              </div>
-              <div className="p-4 flex-1 space-y-6">
-                <div>
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">Essentials</div>
-                  <div className="flex items-center gap-3 px-3 py-2 bg-gray-200 rounded-md text-[13px] font-medium text-gray-900"><Zap className="w-4 h-4"/> Strategist Desk</div>
-                  <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-gray-600"><Type className="w-4 h-4"/> Native Formatter</div>
-                  <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-gray-600"><Hash className="w-4 h-4"/> Shadowban Checker</div>
+            {/* Dark Sidebar */}
+            <div className="w-[280px] bg-[#000000] border-r border-[#1a1a1a] flex flex-col hidden md:flex z-10">
+              <div className="h-20 flex items-center px-8 gap-4 border-b border-transparent">
+                <div className="w-8 h-8 rounded-[6px] bg-[#111] border border-[#333] flex items-center justify-center shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]">
+                  <Command className="w-4 h-4 text-[#d18a5e]" />
                 </div>
-                <div>
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">Pro Creator</div>
-                  <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-gray-600"><FileText className="w-4 h-4"/> PDF Export</div>
-                  <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-gray-600"><BarChart className="w-4 h-4"/> Stop-Scroll Grader</div>
-                  <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-gray-600"><Mail className="w-4 h-4"/> Outreach Injector</div>
+                <span className="font-semibold text-[13px] text-[#ffffff] tracking-[0.15em] uppercase">ContentForge</span>
+              </div>
+              
+              <div className="px-5 py-6">
+                <div className="text-[10px] font-mono text-[#555] uppercase tracking-[0.2em] mb-4 pl-3">Pro Creator</div>
+                <div className="flex items-center gap-4 px-3 py-3 rounded-[8px] text-[13px] font-medium text-[#888] hover:text-[#e0e0e0] hover:bg-[#111] transition-all cursor-pointer">
+                  <BarChart className="w-4 h-4"/> Stop-Scroll Grader
+                </div>
+                <div className="flex items-center gap-4 px-3 py-3 rounded-[8px] text-[13px] font-medium text-[#888] hover:text-[#e0e0e0] hover:bg-[#111] transition-all cursor-pointer">
+                  <Hash className="w-4 h-4"/> Shadowban Check
                 </div>
               </div>
             </div>
 
-            {/* Fake Chat Area */}
-            <div className="flex-1 bg-white flex flex-col relative">
-              <div className="h-14 border-b border-gray-100 flex items-center justify-between px-6 bg-white/80 backdrop-blur-sm z-10">
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 bg-orange-100 text-orange-600 flex items-center justify-center rounded-md"><Sparkles className="w-4 h-4"/></div>
-                  <span className="text-[14px] font-semibold text-gray-900">Strategist Desk</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <LayoutDashboard className="w-5 h-5 text-gray-400" />
+            {/* Main Chat Area */}
+            <div className="flex-1 bg-[#050505] flex flex-col relative overflow-hidden">
+              
+              {/* Deep Ambient Center Glow */}
+              <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(209,138,94,0.07)_0%,transparent_60%)]" />
+
+              {/* Top Header */}
+              <div className="h-20 flex items-center px-8 z-10">
+                <div className="flex items-center gap-3 bg-[#111] border border-[#222] px-4 py-2 rounded-[8px] shadow-sm">
+                  <Sparkles className="w-4 h-4 text-[#d18a5e]"/>
+                  <span className="text-[13px] font-medium text-[#ffffff]">Active Workspace</span>
                 </div>
               </div>
 
-              <div className="flex-1 p-8 overflow-hidden relative">
+              {/* Chat Thread */}
+              <div className="flex-1 p-8 pt-4 relative z-10 flex flex-col gap-10">
+                
                 {/* User Message */}
-                <div className="flex gap-4 max-w-2xl mx-auto flex-row-reverse mb-8">
-                  <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center shrink-0"><User className="w-4 h-4 text-white"/></div>
-                  <div className="bg-gray-100 text-gray-900 p-4 rounded-2xl rounded-tr-sm text-[14px]">
-                    I want to announce my new AI model on LinkedIn. I want it to sound aggressive. Everyone is obsessed with scaling laws and compute, but I think they are dead wrong and building towards a wall. Make it 2000 words.
+                <div className="flex gap-4 max-w-3xl mx-auto w-full justify-end">
+                  <div className="bg-[#111111] border border-[#222] text-[#a3a3a3] p-5 rounded-[12px] rounded-tr-[4px] text-[14px] leading-relaxed shadow-sm max-w-[85%]">
+                    I want to announce my new AI model on LinkedIn. I want it to sound aggressive. Everyone is obsessed with scaling laws and compute, but I think they are dead wrong. Make it 2000 words.
+                  </div>
+                  <div className="w-9 h-9 rounded-full bg-[#111] border border-[#333] flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-[#666]"/>
                   </div>
                 </div>
 
                 {/* AI Message */}
-                <div className="flex gap-4 max-w-2xl mx-auto">
-                  <div className="w-8 h-8 rounded-full bg-white border border-gray-200 text-orange-500 flex items-center justify-center shrink-0"><Bot className="w-4 h-4"/></div>
-                  <div className="bg-white border border-gray-100 shadow-sm p-4 rounded-2xl rounded-tl-sm text-[14px] text-gray-800 leading-relaxed">
-                    <strong>Precision over verbosity.</strong> 2000 words is a manifesto, not a post. Start by refining your brand narrative. If you want to prove the maximalists wrong, you hit them with a sharp, information-theoretic hook. <br/><br/>
-                    âœ¨ *I've pushed the finalized 150-word draft to your Live Render canvas.*
+                <div className="flex gap-4 max-w-3xl mx-auto w-full">
+                  <div className="w-9 h-9 rounded-[8px] border border-[#d18a5e]/30 bg-[#d18a5e]/10 text-[#d18a5e] flex items-center justify-center shrink-0 mt-1">
+                    <Bot className="w-4 h-4"/>
+                  </div>
+                  <div className="bg-transparent text-[15px] text-[#a3a3a3] leading-[1.6] p-1">
+                    <strong className="text-[#ffffff] font-medium block mb-4 text-[16px]">Precision over verbosity.</strong>
+                    2000 words is a manifesto, not a post. Start by refining your brand narrative. If you want to prove the maximalists wrong, you hit them with a sharp, information-theoretic hook.
+                    
+                    <div className="mt-6">
+                      <span className="text-[#d18a5e] bg-[#d18a5e]/10 border border-[#d18a5e]/20 px-3 py-1.5 rounded-[6px] text-[12px] font-mono tracking-wide flex items-center gap-2 w-fit">
+                        <Sparkles className="w-3 h-3" /> *Draft pushed to Live Canvas*
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Fake Input */}
-              <div className="p-4 border-t border-transparent bg-white shrink-0">
-                <div className="max-w-3xl mx-auto bg-white border border-gray-200 rounded-xl p-3 flex flex-col shadow-sm">
-                  <div className="text-[14px] text-gray-400 mb-6">Pitch an idea, or ask for a critique...</div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex gap-2"><ImgIcon className="w-4 h-4 text-gray-400"/></div>
-                    <div className="bg-gray-900 text-white text-[12px] font-medium px-4 py-1.5 rounded-lg">Send</div>
+              {/* Fake Input Bar */}
+              <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-[700px] px-6 z-20">
+                <div className="bg-[#0a0a0a] border border-[#222] rounded-full p-2 pl-6 flex items-center shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
+                  <div className="flex-1 text-[15px] text-[#555] font-medium">Ask Forge...</div>
+                  <div className="flex items-center gap-4 pr-1">
+                    <button className="w-8 h-8 flex items-center justify-center text-[#666]"><ImgIcon className="w-5 h-5"/></button>
+                    <button className="w-10 h-10 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(209,138,94,0.3)]" style={{ background: 'radial-gradient(circle at center, #d18a5e 0%, #874e2b 100%)' }}>
+                       <ArrowUp className="w-5 h-5 text-white stroke-[2.5px]"/>
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* FLOATING CARD 1: Brutal Feedback */}
-          <div className="absolute top-20 -left-6 lg:-left-12 z-20 bg-white border border-gray-200 rounded-xl p-5 shadow-2xl w-[300px] animate-float-1">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Hook Analysis</span>
+          {/* FLOATING CARD 1: Hook Analysis */}
+          <motion.div 
+            animate={{ y: [0, -10, 0] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+            className="hidden lg:block absolute top-32 -left-10 z-20 bg-[#0a0a0a] border border-[#222] rounded-[12px] p-6 shadow-[0_30px_60px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.05)] w-[300px]"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
+              <span className="text-[10px] font-mono text-[#888] uppercase tracking-[0.2em]">Hook Analysis</span>
             </div>
-            <p className="text-[13px] text-gray-800 font-medium leading-relaxed">
+            <p className="text-[13px] text-[#e0e0e0] leading-relaxed font-medium">
               "That hook is weak. It takes too long to get to the point. Cut the first sentence entirely and start directly with the core conflict."
             </p>
-          </div>
+          </motion.div>
 
-          {/* FLOATING CARD 2: Performance Autopsy */}
-          <div className="absolute bottom-32 -right-6 lg:-right-12 z-20 bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-2xl w-[280px] animate-float-2">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-orange-400" />
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Performance Autopsy</span>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between text-[12px]">
-                <span className="text-gray-400">Reactions</span>
-                <span className="text-white font-bold">181</span>
-              </div>
-              <div className="flex justify-between text-[12px]">
-                <span className="text-gray-400">Psychology</span>
-                <span className="text-orange-400 font-bold">Identity Threat</span>
-              </div>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-800 text-[11px] text-gray-300 leading-relaxed">
-              Pattern isolated. Saved to your Brand DNA for future generation.
-            </div>
-          </div>
-
-          {/* FLOATING CARD 3: Formatting Warning */}
-          <div className="absolute top-10 right-10 lg:right-20 z-20 bg-white border border-orange-200 rounded-xl p-4 shadow-xl w-[240px] animate-float-3">
-             <div className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-2 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5"/> Standard Violated</div>
-             <p className="text-[12px] text-gray-700 leading-relaxed">
+          {/* FLOATING CARD 2: Rule Violated */}
+          <motion.div 
+            animate={{ y: [0, 10, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+            className="hidden lg:block absolute bottom-32 -right-10 z-20 bg-[#0a0a0a] border border-[#222] rounded-[12px] p-6 shadow-[0_30px_60px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.05)] w-[280px]"
+          >
+             <div className="text-[10px] font-mono text-[#d18a5e] uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+               <AlertCircle className="w-3.5 h-3.5"/> Rule Violated
+             </div>
+             <p className="text-[13px] text-[#a3a3a3] leading-relaxed">
                Using profanity as a gimmick signals weak content. Virality comes from tension, not cheap tricks.
              </p>
-          </div>
-
-        </div>
+          </motion.div>
+        </motion.div>
       </section>
 
-      {/* THE WALL OF BRUTALITY (Standard AI vs Forge) */}
-      <section className="py-24 bg-[#F9FAFB] border-y border-gray-200 overflow-hidden">
-        <div className="max-w-[1400px] mx-auto px-6">
-          <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-16 text-center">
-            Standard AI vs. ContentForge
-          </div>
-          
-          <div className="grid lg:grid-cols-3 gap-8">
-            {/* Showcase 1 */}
-            <div className="flex flex-col gap-4">
-              <div className="bg-white border border-red-100 rounded-2xl p-6 shadow-sm opacity-60">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-red-500 uppercase tracking-widest mb-4"><XCircle className="w-4 h-4"/> Standard AI</div>
-                <div className="text-[14px] text-gray-600 italic">"Write my brand narrative in 2000 words."</div>
-                <div className="mt-4 text-[13px] text-gray-500 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  "Certainly! Here is a comprehensive 2,000-word essay detailing your brand narrative..."
-                </div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] relative scale-105 z-10">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-green-600 uppercase tracking-widest mb-4"><CheckCircle2 className="w-4 h-4"/> Forge Strategist</div>
-                <div className="text-[14px] text-gray-900 font-medium mb-4">"Write my brand narrative in 2000 words."</div>
-                <div className="text-[14px] text-gray-800 leading-relaxed bg-orange-50/50 p-4 rounded-xl border border-orange-100">
-                  <strong>Precision over verbosity.</strong> Focus on executing the core principles effectively. Avoid over-explaining; your audience respects brevity.
-                </div>
-              </div>
-            </div>
-
-            {/* Showcase 2 */}
-            <div className="flex flex-col gap-4 mt-8 lg:mt-0">
-              <div className="bg-white border border-red-100 rounded-2xl p-6 shadow-sm opacity-60">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-red-500 uppercase tracking-widest mb-4"><XCircle className="w-4 h-4"/> Standard AI</div>
-                <div className="text-[14px] text-gray-600 italic">"I have an idea about a post where I talk about how bad AI is for the environment."</div>
-                <div className="mt-4 text-[13px] text-gray-500 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  "That sounds like a great idea! Here are 5 potential titles for your post..."
-                </div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] relative scale-105 z-10">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-green-600 uppercase tracking-widest mb-4"><CheckCircle2 className="w-4 h-4"/> Forge Strategist</div>
-                <div className="text-[14px] text-gray-900 font-medium mb-4">"I have an idea about a post where I talk about how bad AI is for the environment."</div>
-                <div className="text-[14px] text-gray-800 leading-relaxed bg-orange-50/50 p-4 rounded-xl border border-orange-100">
-                  <strong>That hook is weak.</strong> It takes too long to get to the point. Cut the first sentence entirely and start directly with the core conflict. Let's rewrite it.
-                </div>
-              </div>
-            </div>
-
-            {/* Showcase 3 */}
-            <div className="flex flex-col gap-4 mt-8 lg:mt-0">
-              <div className="bg-white border border-red-100 rounded-2xl p-6 shadow-sm opacity-60">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-red-500 uppercase tracking-widest mb-4"><XCircle className="w-4 h-4"/> Standard AI</div>
-                <div className="text-[14px] text-gray-600 italic">"Can I use profanity in my LinkedIn post to make it viral?"</div>
-                <div className="mt-4 text-[13px] text-gray-500 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  "As an AI, I advise against using unprofessional language on platforms like LinkedIn..."
-                </div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] relative scale-105 z-10">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-green-600 uppercase tracking-widest mb-4"><CheckCircle2 className="w-4 h-4"/> Forge Strategist</div>
-                <div className="text-[14px] text-gray-900 font-medium mb-4">"Can I use profanity in my LinkedIn post to make it viral?"</div>
-                <div className="text-[14px] text-gray-800 leading-relaxed bg-orange-50/50 p-4 rounded-xl border border-orange-100">
-                  Using profanity as a gimmick <strong>signals weak content.</strong> Virality comes from tension, insight, and emotional resonance. That's how you stop thumbs, not by cheap tricks.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* THE PROBLEM */}
-      <section className="py-24 bg-white border-b border-gray-200">
+      {/* --- THE PARADIGM --- */}
+      <section className="py-32 bg-[#000000] border-t border-[#111] relative">
         <div className="max-w-[1200px] mx-auto px-6">
-          <div className="text-[11px] font-bold text-orange-600 uppercase tracking-widest mb-4 flex items-center gap-4">
-            <span className="w-8 h-[1px] bg-orange-600"></span> The Problem
-          </div>
-          <h2 className="font-semibold text-[40px] md:text-[56px] tracking-tight text-gray-900 leading-[1.1] mb-16">
-            The internet is drowning <br/><span className="text-gray-400">in average.</span>
-          </h2>
-          
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              { num: '01', title: 'Your AI tells you what you want to hear.', desc: 'ChatGPT, Gemini, every other tool â€” trained to validate, agree, polish. They make your bad ideas sound better. They do not make them work.' },
-              { num: '02', title: 'Generic content is invisible content.', desc: 'When everyone uses the same AI, everyone produces the same content. Same hooks. Same structure. Same generic advice.' },
-              { num: '03', title: "Writing for all platforms. Reaching none.", desc: 'What works on LinkedIn kills on Twitter. What kills on Twitter gets ignored on Instagram. You need a platform-native brain.' },
-              { num: '04', title: 'Every session starts from zero.', desc: 'Every other AI forgets you after each conversation. It never learns what your audience responds to. ContentForge compounds.' }
-            ].map((prob, i) => (
-              <div key={i} className="p-10 bg-gray-50 rounded-2xl border border-gray-200 group hover:border-gray-300 transition-colors">
-                <div className="font-bold text-[48px] text-gray-200 leading-none mb-6 group-hover:text-gray-300 transition-colors">{prob.num}</div>
-                <h3 className="font-semibold text-[20px] text-gray-900 mb-3">{prob.title}</h3>
-                <p className="text-[15px] text-gray-500 leading-relaxed">{prob.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* THE ENGINE (FEATURES) */}
-      <section id="how" className="py-24 bg-[#FAFAFA] border-b border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6">
-          <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-4">
-            <span className="w-8 h-[1px] bg-gray-400"></span> The Architecture
-          </div>
-          <h2 className="font-semibold text-[40px] md:text-[56px] tracking-tight text-gray-900 leading-[1.1] mb-16">
-            Three systems. <br/><span className="text-gray-400">No other tool has.</span>
-          </h2>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { icon: BrainCircuit, title: 'Brand DNA Protocol', desc: 'On first interaction, FORGE extracts your entire content identity â€” your niche, your contrarian belief, your positioning target. Every future post is built around your specific strategic fingerprint.' },
-              { icon: TrendingUp, title: 'Performance Intelligence', desc: 'Paste your analytics. FORGE runs a full Performance Autopsy â€” why it worked, what psychological mechanism fired, and how to replicate it. Your 10th post is measurably better than your 1st.' },
-              { icon: GitBranch, title: 'Content Tree Architecture', desc: 'One idea becomes five. Every response from FORGE includes a full Content Tree â€” your LinkedIn post, Twitter thread, Instagram caption, and newsletter angle. All in one shot.' }
-            ].map((feat, i) => (
-              <div key={i} className="p-8 bg-white border border-gray-200 rounded-2xl hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all">
-                <div className="w-12 h-12 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center mb-8">
-                  <feat.icon className="w-6 h-6 text-gray-900" />
-                </div>
-                <h3 className="font-semibold text-[20px] text-gray-900 mb-4">{feat.title}</h3>
-                <p className="text-[15px] text-gray-500 leading-relaxed">{feat.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* PSYCHOLOGY MECHANISMS */}
-      <section className="py-24 bg-[#FAFAFA] border-b border-gray-200 overflow-hidden">
-        <div className="max-w-[1200px] mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <div className="text-[11px] font-bold text-orange-600 uppercase tracking-widest mb-4 flex items-center gap-4">
-              <span className="w-8 h-[1px] bg-orange-600"></span> The Psychology
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={staggerContainer}>
+            <motion.div variants={fadeUp} className="text-[12px] font-mono text-[#d18a5e] uppercase tracking-[0.2em] mb-6 flex items-center gap-4">
+              <span className="w-8 h-[1px] bg-gradient-to-r from-transparent to-[#d18a5e]"></span> The Problem
+            </motion.div>
+            <motion.h2 variants={fadeUp} className="font-semibold text-[48px] md:text-[64px] tracking-tight text-[#ffffff] leading-[1.05] mb-24">
+              The internet is drowning <br/><span className="text-[#444]">in average.</span>
+            </motion.h2>
+            
+            <div className="grid md:grid-cols-2 gap-x-16 gap-y-20">
+              {[
+                { num: '01', title: 'Your AI tells you what you want to hear.', desc: 'ChatGPT, Gemini, every other tool — trained to validate, agree, polish. They make your bad ideas sound better. They do not make them work.' },
+                { num: '02', title: 'Generic content is invisible content.', desc: 'When everyone uses the same AI, everyone produces the same content. Same hooks. Same structure. Same generic advice.' },
+                { num: '03', title: "Writing for all platforms. Reaching none.", desc: 'What works on LinkedIn kills on Twitter. What kills on Twitter gets ignored on Instagram. You need a platform-native brain.' },
+                { num: '04', title: 'Every session starts from zero.', desc: 'Every other AI forgets you after each conversation. It never learns what your audience responds to. ContentForge compounds.' }
+              ].map((prob, i) => (
+                <motion.div variants={fadeUp} key={i} className="relative group">
+                  <div className="absolute -inset-4 bg-gradient-to-r from-[#d18a5e]/0 via-[#d18a5e]/5 to-[#d18a5e]/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-[20px] blur-lg"></div>
+                  
+                  <div className="relative z-10">
+                    <div className="font-mono font-bold text-[64px] text-[#111] leading-none mb-6 group-hover:text-[#d18a5e]/20 transition-colors duration-500">{prob.num}</div>
+                    <h3 className="font-medium text-[22px] text-[#ffffff] mb-4">{prob.title}</h3>
+                    <p className="text-[16px] text-[#888] leading-relaxed">{prob.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
             </div>
-            <h2 className="font-semibold text-[40px] tracking-tight text-gray-900 leading-[1.1] mb-12">
+          </motion.div>
+        </div>
+      </section>
+
+      {/* --- THE ARCHITECTURE --- */}
+      <section id="how" className="py-32 bg-[#020202] border-y border-[#111] relative overflow-hidden">
+        <div className="max-w-[1200px] mx-auto px-6">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer}>
+            <motion.div variants={fadeUp} className="text-[12px] font-mono text-[#666] uppercase tracking-[0.2em] mb-6 flex items-center gap-4">
+              <span className="w-8 h-[1px] bg-gradient-to-r from-transparent to-[#666]"></span> The Architecture
+            </motion.div>
+            <motion.h2 variants={fadeUp} className="font-semibold text-[48px] md:text-[64px] tracking-tight text-[#ffffff] leading-[1.05] mb-24">
+              Three systems. <br/><span className="text-[#666]">No other tool has.</span>
+            </motion.h2>
+
+            <div className="grid lg:grid-cols-3 gap-8">
+              {/* Feature 1 */}
+              <motion.div variants={fadeUp} className="group relative p-8 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[16px] overflow-hidden">
+                <div className="absolute inset-0 opacity-10 font-mono text-[8px] leading-[10px] text-[#d18a5e] overflow-hidden flex flex-col justify-center select-none" style={{ maskImage: 'linear-gradient(to bottom, transparent, black 20%, black 80%, transparent)' }}>
+                  <motion.div animate={{ y: [0, -100] }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }}>
+                    {[...Array(20)].map((_, i) => <div key={i}>01100010 01110010 01100001 01101110 01100100 00100000 01100100 01101110 01100001</div>)}
+                  </motion.div>
+                </div>
+                <div className="relative z-10">
+                  <div className="w-12 h-12 rounded-[8px] bg-[#111] border border-[#333] flex items-center justify-center mb-8 shadow-[0_0_15px_rgba(0,0,0,0.5)] group-hover:border-[#d18a5e]/50 transition-colors">
+                    <Fingerprint className="w-6 h-6 text-[#d18a5e]" strokeWidth={1.5} />
+                  </div>
+                  <h3 className="font-medium text-[20px] text-[#ffffff] mb-4">Brand DNA Protocol</h3>
+                  <p className="text-[15px] text-[#888] leading-relaxed">On first interaction, FORGE extracts your entire content identity. Every future post is built around your specific strategic fingerprint.</p>
+                </div>
+              </motion.div>
+
+              {/* Feature 2 */}
+              <motion.div variants={fadeUp} className="group relative p-8 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[16px] overflow-hidden">
+                <div className="absolute top-12 right-12 flex items-center justify-center">
+                  <motion.div variants={pulseRing} animate="visible" className="absolute w-24 h-24 rounded-full border border-[#d18a5e]/40" />
+                  <motion.div variants={pulseRing} animate="visible" transition={{ delay: 1, repeat: Infinity, duration: 3 }} className="absolute w-24 h-24 rounded-full border border-[#d18a5e]/30" />
+                  <div className="w-2 h-2 bg-[#d18a5e] rounded-full shadow-[0_0_10px_#d18a5e]"></div>
+                </div>
+                <div className="relative z-10 mt-16">
+                  <h3 className="font-medium text-[20px] text-[#ffffff] mb-4">Performance Intelligence</h3>
+                  <p className="text-[15px] text-[#888] leading-relaxed">Paste your analytics. FORGE runs a full Performance Autopsy — isolating the psychological mechanism. Your 10th post is measurably better than your 1st.</p>
+                </div>
+              </motion.div>
+
+              {/* Feature 3 */}
+              <motion.div variants={fadeUp} className="group relative p-8 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[16px] overflow-hidden">
+                <div className="absolute top-10 right-10 w-24 h-24 opacity-30 group-hover:opacity-60 transition-opacity">
+                  <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <motion.path d="M20 50 C 40 50, 40 20, 80 20" stroke="#d18a5e" strokeWidth="2" initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }} transition={{ duration: 1.5 }} />
+                    <motion.path d="M20 50 C 40 50, 40 80, 80 80" stroke="#d18a5e" strokeWidth="2" initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }} transition={{ duration: 1.5 }} />
+                    <circle cx="20" cy="50" r="4" fill="#d18a5e" />
+                    <circle cx="80" cy="20" r="4" fill="#333" stroke="#d18a5e" strokeWidth="2" />
+                    <circle cx="80" cy="80" r="4" fill="#333" stroke="#d18a5e" strokeWidth="2" />
+                  </svg>
+                </div>
+                <div className="relative z-10 mt-16">
+                  <h3 className="font-medium text-[20px] text-[#ffffff] mb-4">Content Tree Architecture</h3>
+                  <p className="text-[15px] text-[#888] leading-relaxed">One idea becomes five. Every response includes a full Content Tree — your LinkedIn post, Twitter thread, and newsletter angle. All in one shot.</p>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* --- PSYCHOLOGY MECHANISMS --- */}
+      <section className="py-32 bg-[#000000] border-b border-[#111] overflow-hidden relative">
+        <div className="max-w-[1200px] mx-auto px-6 grid lg:grid-cols-2 gap-20 items-center">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer}>
+            <motion.div variants={fadeUp} className="text-[12px] font-mono text-[#d18a5e] uppercase tracking-[0.2em] mb-6 flex items-center gap-4">
+              <span className="w-8 h-[1px] bg-gradient-to-r from-transparent to-[#d18a5e]"></span> The Psychology
+            </motion.div>
+            <motion.h2 variants={fadeUp} className="font-semibold text-[40px] md:text-[52px] tracking-tight text-[#ffffff] leading-[1.1] mb-12">
               Your content moves people or it doesn't exist.
-            </h2>
-            <div className="space-y-6">
+            </motion.h2>
+            <div className="space-y-4">
               {[
                 { name: 'Zeigarnik Effect', desc: 'Open loops the brain is physiologically compelled to close. Deployed in every hook.' },
                 { name: 'Identity Threat', desc: 'Content that challenges who someone thinks they are stops the scroll completely.' },
                 { name: 'Social Proof Inversion', desc: 'Admitting failure publicly builds more trust than claiming success. Deployed strategically.' },
                 { name: 'Specificity Bias', desc: '"3 years, 2 months" is more credible than "a long time." FORGE eliminates vagueness.' }
               ].map((item, i) => (
-                <div key={i} className="flex gap-4 p-4 rounded-xl hover:bg-white hover:shadow-sm transition-all cursor-default border border-transparent hover:border-gray-200">
-                  <div className="text-[14px] font-bold text-gray-300">0{i+1}</div>
+                <motion.div variants={fadeUp} key={i} className="flex gap-6 p-5 rounded-[12px] hover:bg-[#050505] border border-transparent hover:border-[#1a1a1a] transition-all group">
+                  <div className="text-[12px] font-mono font-bold text-[#444] mt-1 group-hover:text-[#d18a5e] transition-colors">0{i+1}</div>
                   <div>
-                    <h4 className="font-semibold text-[16px] text-gray-900 mb-1">{item.name}</h4>
-                    <p className="text-[14px] text-gray-500 leading-relaxed">{item.desc}</p>
+                    <h4 className="font-medium text-[17px] text-[#e0e0e0] mb-2">{item.name}</h4>
+                    <p className="text-[15px] text-[#777] leading-relaxed">{item.desc}</p>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
-          </div>
+          </motion.div>
 
-          {/* VISUAL MOCKUP OF THE GRADER */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-8 relative shadow-lg">
-            <div className="absolute top-0 right-8 transform -translate-y-1/2 bg-gray-900 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}
+            className="bg-[#050505] border border-[#222] rounded-[16px] p-10 relative shadow-[0_20px_60px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.05)]"
+          >
+            <div className="absolute top-0 right-10 transform -translate-y-1/2 bg-[#111] border border-[#333] text-[#fff] text-[10px] font-mono uppercase tracking-[0.2em] px-4 py-2 rounded-[6px] shadow-sm">
               Stop-Scroll Grader
             </div>
-            <div className="font-serif italic text-[20px] text-gray-900 leading-relaxed mb-6">
+            <div className="font-serif italic text-[22px] text-[#e0e0e0] leading-relaxed mb-8">
               "The model scored 94% on the benchmark. The benchmark was designed by the same lab that built the model. I'll leave the rest to you."
             </div>
-            <div className="inline-block bg-orange-50 border border-orange-100 text-orange-600 text-[11px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-md mb-8">
+            <div className="inline-block bg-[#1a0f0a] border border-[#4a2107] text-[#d18a5e] text-[10px] font-mono uppercase tracking-[0.2em] px-3 py-1.5 rounded-[4px] mb-10">
               Identity Threat + Curiosity Gap
             </div>
             
-            <div className="space-y-4 border-t border-gray-200 pt-8">
+            <div className="space-y-6 border-t border-[#1a1a1a] pt-10">
               {[
                 { label: 'Pattern Interrupt', score: '9/10', width: '90%' },
                 { label: 'Curiosity Gap', score: '9.5/10', width: '95%' },
                 { label: 'Emotional Charge', score: '8/10', width: '80%' },
               ].map((stat, i) => (
                 <div key={i}>
-                  <div className="flex justify-between text-[12px] font-medium text-gray-500 mb-2">
+                  <div className="flex justify-between text-[13px] font-medium text-[#777] mb-3">
                     <span>{stat.label}</span>
-                    <span className="text-gray-900">{stat.score}</span>
+                    <span className="text-[#fff]">{stat.score}</span>
                   </div>
-                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-gray-900 rounded-full" style={{ width: stat.width }}></div>
+                  <div className="w-full h-1 bg-[#111] rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }} whileInView={{ width: stat.width }} transition={{ duration: 1, delay: 0.2 * i }}
+                      className="h-full bg-[#d18a5e] rounded-full shadow-[0_0_10px_rgba(209,138,94,0.5)]" 
+                    />
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* SOCIAL PROOF */}
-      <section className="py-24 bg-white border-b border-gray-200">
+      {/* --- SOCIAL PROOF --- */}
+      <section className="py-32 bg-[#000000] border-b border-[#111]">
         <div className="max-w-[1200px] mx-auto px-6">
-          <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-4 justify-center">
-            <span className="w-8 h-[1px] bg-gray-400"></span> Real Results <span className="w-8 h-[1px] bg-gray-400"></span>
-          </div>
-          <h2 className="font-semibold text-[40px] md:text-[48px] tracking-tight text-gray-900 leading-[1.1] mb-16 text-center">
-            They stopped asking for permission.
-          </h2>
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="text-center mb-20">
+            <motion.div variants={fadeUp} className="text-[12px] font-mono text-[#666] uppercase tracking-[0.2em] mb-6 flex items-center justify-center gap-4">
+              <span className="w-8 h-[1px] bg-gradient-to-r from-transparent to-[#666]"></span> Real Results <span className="w-8 h-[1px] bg-gradient-to-l from-transparent to-[#666]"></span>
+            </motion.div>
+            <motion.h2 variants={fadeUp} className="font-semibold text-[40px] md:text-[52px] tracking-tight text-[#ffffff] leading-[1.1]">
+              They stopped asking for permission.
+            </motion.h2>
+          </motion.div>
           
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-8">
             {[
               { metric: '22K', quote: "I gave it my last 3 posts. It told me why the second one flopped and built a replication pattern around the one that hit 22,000 impressions. My next post did 31K. It's learning.", name: 'Yuki Tanaka', title: 'No-Code Founder' },
               { metric: '44K', quote: "It told me my hook was going to get scrolled past before I even finished the sentence. The rewrite hit 44,000 impressions. No other tool has ever told me I was wrong.", name: 'Xi Lu', title: 'AI Researcher' },
               { metric: '3X', quote: "I'm a ghostwriter managing 8 clients. ContentForge tripled my output without adding a single hour to my week. The Brand DNA feature means every client sounds like themselves.", name: 'Mia Roth', title: 'Ghostwriter' }
             ].map((proof, i) => (
-              <div key={i} className="p-8 bg-[#FAFAFA] border border-gray-200 rounded-2xl relative shadow-sm hover:shadow-md transition-shadow">
-                <div className="absolute top-8 right-8 font-semibold text-[32px] text-gray-200 leading-none">{proof.metric}</div>
-                <div className="flex gap-1 mb-6">
-                  {[...Array(5)].map((_, j) => <Star key={j} className="w-4 h-4 fill-orange-400 text-orange-400" />)}
+              <motion.div variants={fadeUp} key={i} className="p-10 bg-[#050505] border border-[#1a1a1a] rounded-[16px] relative group hover:border-[#333] transition-colors">
+                <div className="absolute top-10 right-10 font-mono font-bold text-[36px] text-[#111] leading-none group-hover:text-[#222] transition-colors">{proof.metric}</div>
+                <div className="flex gap-1 mb-8 relative z-10">
+                  {[...Array(5)].map((_, j) => <Star key={j} className="w-4 h-4 fill-[#d18a5e] text-[#d18a5e]" />)}
                 </div>
-                <p className="text-[15px] text-gray-600 leading-relaxed mb-8 relative z-10">"{proof.quote}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center text-white font-bold text-[13px]">
+                <p className="text-[15px] text-[#a3a3a3] leading-relaxed mb-10 relative z-10">"{proof.quote}"</p>
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className="w-10 h-10 rounded-[6px] bg-[#111] border border-[#333] flex items-center justify-center text-[#d18a5e] font-bold text-[13px]">
                     {proof.name.split(' ').map(n => n[0]).join('')}
                   </div>
                   <div>
-                    <div className="font-semibold text-[14px] text-gray-900">{proof.name}</div>
-                    <div className="text-[12px] text-gray-500">{proof.title}</div>
+                    <div className="font-medium text-[14px] text-[#ffffff]">{proof.name}</div>
+                    <div className="text-[12px] text-[#666] mt-0.5">{proof.title}</div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
-{/* PRICING */}
-      <section id="pricing" className="py-24 bg-[#FAFAFA] border-b border-gray-200">
+
+      {/* --- PRICING --- */}
+      <section id="pricing" className="py-32 bg-[#000000] border-b border-[#111]">
         <div className="max-w-[1200px] mx-auto px-6">
-          <div className="text-center max-w-[600px] mx-auto mb-16">
-            <div className="text-[11px] font-bold text-orange-600 uppercase tracking-widest mb-4 flex items-center gap-4 justify-center animate-pulse">
-              <span className="w-8 h-[1px] bg-orange-600"></span><h3>MASSIVE LAUNCH WEEK DISCOUNT</h3><span className="w-8 h-[1px] bg-orange-600"></span>
+          <div className="text-center max-w-[600px] mx-auto mb-20">
+            <div className="text-[12px] font-mono text-[#d18a5e] uppercase tracking-[0.2em] mb-4 flex items-center gap-4 justify-center animate-pulse">
+              <span className="w-8 h-[1px] bg-gradient-to-r from-transparent to-[#d18a5e]"></span><h3>MASSIVE LAUNCH WEEK DISCOUNT</h3><span className="w-8 h-[1px] bg-gradient-to-l from-transparent to-[#d18a5e]"></span>
             </div>
-            
-           
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-[1000px] mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-[1050px] mx-auto">
             {PRICING.map((tier) => (
-              <div key={tier.id} className={`bg-white border border-gray-200 rounded-2xl p-8 flex flex-col relative ${tier.highlighted ? 'ring-2 ring-gray-900 shadow-xl scale-105 z-10' : 'shadow-sm'}`}>
+              <div key={tier.id} className={`bg-[#050505] rounded-[16px] p-10 flex flex-col relative transition-all duration-300 ${tier.highlighted ? 'border border-[#d18a5e]/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_0_40px_rgba(209,138,94,0.1)] scale-105 z-10' : 'border border-[#222] shadow-sm hover:border-[#444]'}`}>
                 {tier.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-sm">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#d18a5e] text-[#000] text-[10px] font-mono font-bold uppercase tracking-[0.2em] px-4 py-1.5 rounded-[4px] shadow-[0_0_15px_rgba(209,138,94,0.4)]">
                     Most Popular
                   </div>
                 )}
                 
-                <h3 className="font-semibold text-[20px] text-gray-900 uppercase tracking-widest text-[12px] mb-2">{tier.name}</h3>
+                <h3 className="font-semibold text-[13px] text-[#fff] uppercase tracking-[0.15em] mb-4">{tier.name}</h3>
                 
-                {/* UPGRADED PRICE BLOCK WITH DISCOUNTS */}
-                <div className="mb-8 flex flex-col">
-                  {/* ORIGINAL PRICE & DISCOUNT BADGE */}
+                <div className="mb-10 flex flex-col">
                   {(tier.originalPrice && tier.discount) && (
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-[16px] text-gray-400 line-through font-medium decoration-gray-300">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-[16px] text-[#555] line-through font-medium decoration-[#333]">
                         ${tier.originalPrice}
                       </span>
-                      <span className="text-[10px] font-bold bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                      <span className="text-[10px] font-mono font-bold bg-[#1a0f0a] border border-[#4a2107] text-[#d18a5e] px-2 py-0.5 rounded-[4px] uppercase tracking-[0.1em]">
                         Save {tier.discount}
                       </span>
                     </div>
                   )}
-                  
-                  {/* NEW PRICE */}
                   <div className="flex items-baseline">
-                    <span className="font-semibold text-[48px] tracking-tight text-gray-900">${tier.price}</span>
-                    <span className="text-[14px] text-gray-500 ml-1">/ mo</span>
+                    <span className="font-semibold text-[56px] tracking-tight text-[#ffffff] leading-none">${tier.price}</span>
+                    <span className="text-[14px] text-[#666] ml-2">/ mo</span>
                   </div>
                 </div>
                 
-                <ul className="space-y-4 flex-1 mb-8">
+                <ul className="space-y-5 flex-1 mb-10">
                   {tier.features.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-3 text-[14px] text-gray-600">
-                      <Zap className="w-4 h-4 text-gray-900 mt-[2px] flex-shrink-0" />
+                    <li key={i} className="flex items-start gap-4 text-[14px] text-[#a3a3a3] leading-relaxed">
+                      <Zap className="w-4 h-4 text-[#d18a5e] mt-[2px] flex-shrink-0" />
                       {feature}
                     </li>
                   ))}
                 </ul>
                 
-                {/* UNIFIED CHECKOUT BUTTON */}
                 <button 
                   onClick={() => {
                     if (!user) {
@@ -550,11 +544,10 @@ export default function LandingPage() {
                       router.push("/signup");
                       return;
                     }
-                    // Triggers the checkout modal instantly
                     setCheckoutPlan({ id: tier.id, name: tier.name, price: Number(tier.price) });
                   }}
-                  className={`text-center py-3 px-6 rounded-lg font-medium text-[14px] transition-colors w-full mt-auto ${
-                    tier.highlighted ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-50 border border-gray-200 text-gray-900 hover:bg-gray-100'
+                  className={`text-center py-4 px-6 rounded-[4px] font-bold text-[14px] transition-all w-full mt-auto ${
+                    tier.highlighted ? 'bg-[#d18a5e] text-[#000] hover:bg-[#e39a6e] shadow-[0_0_20px_rgba(209,138,94,0.2)]' : 'bg-[#111] border border-[#333] text-[#fff] hover:bg-[#1a1a1a]'
                   }`}
                 >
                   Unlock {tier.name}
@@ -565,33 +558,40 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* FINAL CTA */}
-      <section className="py-32 bg-gray-900 text-center px-6 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_100%,rgba(255,255,255,0.05)_0%,transparent_70%)]"></div>
-        <h2 className="font-semibold text-[48px] md:text-[72px] tracking-tight text-white leading-[1.05] mb-6 relative z-10">
-          Stop writing <span className="text-gray-400">forgettable</span><br/>content.
-        </h2>
-        <p className="text-[18px] text-gray-400 max-w-[500px] mx-auto mb-10 relative z-10">
-          Your ideas are better than your current output. ContentForge closes that gap today.
-        </p>
-    
+      {/* --- FINAL CTA --- */}
+      <section className="py-40 bg-[#000000] text-center px-6 relative overflow-hidden flex flex-col justify-center min-h-[60vh]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_100%,rgba(209,138,94,0.15)_0%,transparent_70%)] pointer-events-none"></div>
+        
+        <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="relative z-10">
+          <motion.h2 variants={fadeUp} className="font-semibold text-[56px] md:text-[80px] tracking-tight text-[#ffffff] leading-[1.05] mb-8">
+            Stop writing <span className="text-[#444]">forgettable</span><br/>content.
+          </motion.h2>
+          <motion.p variants={fadeUp} className="text-[18px] md:text-[20px] text-[#888] max-w-[550px] mx-auto mb-12">
+            Your ideas are better than your current output. ContentForge closes that gap today.
+          </motion.p>
+          <motion.div variants={fadeUp}>
+             <Link href={user ? "/dashboard" : "/signup"} className="inline-block bg-[#d18a5e] text-[#000000] font-bold px-12 py-4 rounded-[4px] hover:bg-[#e39a6e] transition-all shadow-[0_0_30px_rgba(209,138,94,0.25)] text-[16px]">
+               Start Forging
+             </Link>
+          </motion.div>
+        </motion.div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="py-8 bg-white border-t border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="font-semibold text-[16px] tracking-tight text-gray-900 uppercase tracking-widest">
+      {/* --- FOOTER --- */}
+      <footer className="py-12 bg-[#000000] border-t border-[#111]">
+        <div className="max-w-[1200px] mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="font-semibold text-[14px] tracking-[0.15em] text-[#ffffff] uppercase font-sans">
             ContentForge
           </div>
           <div className="flex gap-8">
-            <a href="/privacy" className="text-[13px] text-gray-500 hover:text-gray-900 font-medium">Privacy</a>
-            <a href="/terms" className="text-[13px] text-gray-500 hover:text-gray-900 font-medium">Terms</a>
-            <a href="mailto:contact@shvgroups.com" className="text-[13px] text-gray-500 hover:text-gray-900 font-medium">
+            <a href="/privacy" className="text-[13px] text-[#666] hover:text-[#fff] font-medium transition-colors">Privacy</a>
+            <a href="/terms" className="text-[13px] text-[#666] hover:text-[#fff] font-medium transition-colors">Terms</a>
+            <a href="mailto:contact@shvgroups.com" className="text-[13px] text-[#666] hover:text-[#fff] font-medium transition-colors">
               Support
             </a>
           </div>
-          <p className="text-[12px] text-gray-400 font-medium">
-            Â© 2026 ContentForge by SHV Groups.
+          <p className="text-[12px] text-[#444] font-medium">
+            © 2026 ContentForge by SHV Groups.
           </p>
         </div>
       </footer>

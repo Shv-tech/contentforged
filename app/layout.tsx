@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+// @ts-ignore: allow side-effect CSS import in Next.js app directory
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/components/AuthProvider';
+// @ts-ignore: allow side-effect CSS import in Next.js app directory
 import 'katex/dist/katex.min.css';
 const inter = Inter({ subsets: ['latin'] });
 
