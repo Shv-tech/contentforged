@@ -17,7 +17,6 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // This is where Supabase will redirect the user after they click the link in their email
       redirectTo: `${window.location.origin}/update-password`,
     });
 
@@ -35,7 +34,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-white flex items-center justify-center px-6">
       <div className="w-full max-w-[360px]">
         
-        {/* Logo */}
+        
         <div className="text-center mb-10">
           <Link href="/" className="font-display text-[21px] font-semibold text-gray-900 tracking-tight">
             ContentForge
@@ -43,7 +42,7 @@ export default function ForgotPasswordPage() {
         </div>
 
         {isSubmitted ? (
-          // --- SUCCESS STATE ---
+         
           <div className="text-center animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-6 h-6 text-emerald-500" />
