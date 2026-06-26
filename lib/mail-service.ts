@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
-const FROM_EMAIL = 'ContentForge <billing@forged.shvgroups.com>';
-const FROM_CALENDAR = 'ContentForge <schedule@forged.shvgroups.com>';
+const FROM_EMAIL = 'ContentForge <billing@forge.theutopianspace.com>';
+const FROM_CALENDAR = 'ContentForge <schedule@forge.theutopianspace.com>';
 
 const getBaseTemplate = (name: string, body: string, actionText: string, actionUrl: string, badge?: string) => `
 <!DOCTYPE html>
