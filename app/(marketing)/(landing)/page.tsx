@@ -1,3 +1,4 @@
+// app/(marketing)/(landing)/landing-client.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,6 +8,8 @@ import { Command, ArrowUp, ArrowRight } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Image from 'next/image';
 
+// Structured Data
+import { JsonLd } from '../components/jsonLd';
 
 // Section components
 import HeroSection from '../components/landing/herosection';
@@ -28,7 +31,7 @@ const NAV_LINKS = [
   { label: 'Pricing', href: '#pricing' },
 ];
 
-export default function LandingPage() {
+export default function LandingClient() {
   const { user } = useAppStore();
   const [mounted, setMounted] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
@@ -62,8 +65,11 @@ export default function LandingPage() {
 
   return (
     <main className="min-h-screen bg-[#000000] text-[#a3a3a3] font-sans selection:bg-[#d18a5e]/30 overflow-x-hidden relative">
+      
+      {/* ─── STRUCTURED DATA (SEO) ─── */}
+      <JsonLd />
 
-      {/* ─── SCROLL PROGRESS BAR (Razor thin, top edge) ─── */}
+      {/* ─── SCROLL PROGRESS BAR ─── */}
       <motion.div
         className="fixed top-0 left-0 right-0 h-[1px] bg-[#d18a5e] origin-left z-[60] shadow-[0_0_10px_rgba(209,138,94,0.8)]"
         style={{ scaleX: scrollYProgress }}
@@ -83,23 +89,23 @@ export default function LandingPage() {
           }`}
         >
           {/* Logo */}
-<Link href="/" className="flex items-center gap-3 group">
-  <div className="w-10 h-10 rounded-[10px] bg-white/[0.02] flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]  transition-colors duration-500">
-    <Image 
-      src="/logos/forge.svg" 
-      alt="Forge" 
-      width={30} 
-      height={30} 
-      className="opacity-80 group-hover:opacity-100 transition-opacity"
-      priority
-    />
-  </div>
-  <span className="font-medium text-[14px] text-white/90 tracking-wide">
-    Forge
-  </span>
-</Link>
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-[10px] bg-white/[0.02] flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]  transition-colors duration-500">
+              <Image 
+                src="/logos/forge.svg" 
+                alt="Forge" 
+                width={30} 
+                height={30} 
+                className="opacity-80 group-hover:opacity-100 transition-opacity"
+                priority
+              />
+            </div>
+            <span className="font-medium text-[14px] text-white/90 tracking-wide">
+              Forge
+            </span>
+          </Link>
 
-          {/* Center links - Hidden on mobile, sleek on desktop */}
+          {/* Center links */}
           <div className="hidden lg:flex items-center gap-8">
             {NAV_LINKS.map((link) => (
               <a
@@ -109,13 +115,12 @@ export default function LandingPage() {
                 className="group relative text-[13px] font-medium text-white/40 hover:text-white/90 transition-colors duration-300"
               >
                 {link.label}
-                {/* Subtle hover underline */}
                 <span className="absolute -bottom-1.5 left-0 w-0 h-[1px] bg-gradient-to-r from-transparent via-[#d18a5e]/50 to-transparent transition-all duration-500 group-hover:w-full" />
               </a>
             ))}
           </div>
 
-          {/* Right CTA (The Anti-Button) */}
+          {/* Right CTA */}
           <div className="flex items-center gap-2 md:gap-4">
             {user ? (
               <>
@@ -148,7 +153,6 @@ export default function LandingPage() {
                 >
                   Start Forging
                   <ArrowRight className="w-3.5 h-3.5 text-white/40 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-white" />
-                  {/* The top-edge hover glow */}
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-[#d18a5e]/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 </Link>
               </>
@@ -157,44 +161,18 @@ export default function LandingPage() {
         </nav>
       </header>
 
-      {/* ─── SECTIONS ─── */}
-
-      {/* 1. Hero + dashboard showcase */}
       <HeroSection />
-
-      {/* 2. Problem — "The tool you're using is making you generic" */}
       <ProblemSection />
-
-      {/* 3. Architecture — three systems (id="how" lives here for nav) */}
       <ArchitectureSection />
-
-      {/* 4. Tool Arsenal — 26 tools with interactive category filter */}
       <ToolArsenal />
-
-      {/* 5. Psychology — 9 mechanisms + Stop-Scroll Grader demo */}
-      <section id="methodology">
-        <PsychologySection />
-      </section>
-
-      {/* 6. Use Cases — tabbed audience selector */}
+      <section id="methodology"><PsychologySection /></section>
       <UseCases />
-
-      {/* 7. How It Works — 3-step timeline */}
       <HowItWorks />
-
-      {/* 8. Testimonials — sliding carousel */}
       <Testimonials />
-
-      {/* 9. Pricing — $5 / $20 / $39 with checkout wiring */}
       <PricingSection />
-
-      {/* 10. FAQ — single-open accordion */}
       <FAQSection />
-
-      {/* 11. Final CTA + Footer */}
       <FinalCTA />
 
-      {/* ─── BACK TO TOP ─── */}
       <AnimatePresence>
         {showBackToTop && (
           <motion.button
