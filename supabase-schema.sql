@@ -1,34 +1,15 @@
 -- =========================================
--- CONTENTFORGE — DATABASE SCHEMA
--- Run this in Supabase SQL Editor
+-- CONTENTFORGE — UNIFIED DATABASE SCHEMA
+-- Contains: Core App (RAG/Chat/Tokens/Devices) + Marketing Tools (Leads)
 -- =========================================
 
--- Users (extends auth.users)
-CREATE TABLE public.users (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  email TEXT NOT NULL,
-  llm_provider TEXT DEFAULT 'anthropic',
-  credits_remaining INTEGER DEFAULT 5,
-  plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'tier1', 'tier2', 'tier3')),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+-- =========================================
+-- 1. EXTENSIONS & UTILITY FUNCTIONS
+-- =========================================
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Auto-create user row on signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.users (id, email, credits_remaining, plan)
-  VALUES (NEW.id, NEW.email, 5, 'free');
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- Auto-update updated_at
+-- Used by the Leads table to auto-update timestamps
 CREATE OR REPLACE FUNCTION public.update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -37,54 +18,211 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER users_updated_at
-  BEFORE UPDATE ON public.users
+
+-- =========================================
+-- 2. CORE APP TABLES (Authenticated)
+-- =========================================
+
+-- PROFILES (Replaces 'users', links directly to auth.users)
+CREATE TABLE public.profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  subscription_status TEXT DEFAULT 'free',
+  monthly_token_limit INTEGER DEFAULT 100000,
+  tokens_used_this_month INTEGER DEFAULT 0,
+  tokens_used_today INTEGER DEFAULT 0,
+  last_token_reset TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  razorpay_customer_id TEXT,
+  razorpay_subscription_id TEXT,
+  current_period_end TIMESTAMP WITH TIME ZONE
+);
+
+-- CHAT SESSIONS (Sidebar titles)
+CREATE TABLE public.chat_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) NOT NULL,
+  title TEXT NOT NULL DEFAULT 'New Workspace',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- CHAT MESSAGES
+CREATE TABLE public.chat_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  session_id UUID REFERENCES public.chat_sessions(id) ON DELETE CASCADE NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  attachments JSONB DEFAULT NULL,
+  pdfs JSONB DEFAULT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- USER CONTEXT (RAG / Brand DNA / Vectors)
+CREATE TABLE public.user_context (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) NOT NULL,
+  context_type TEXT NOT NULL,
+  content TEXT NOT NULL,
+  embedding vector(1536),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- DEVICE SESSIONS
+CREATE TABLE public.device_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) NOT NULL,
+  device_type TEXT NOT NULL,
+  location TEXT NOT NULL,
+  ip_address TEXT NOT NULL,
+  is_current_session BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  last_active TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+
+-- =========================================
+-- 3. MARKETING / FREE TOOLS TABLES
+-- =========================================
+
+-- LEADS (Unauthenticated capture from free tools)
+CREATE TABLE public.leads (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  source TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+
+-- =========================================
+-- 4. TRIGGERS & AUTO-FUNCTIONS
+-- =========================================
+
+-- Auto-update Leads updated_at timestamp
+CREATE TRIGGER leads_updated_at
+  BEFORE UPDATE ON public.leads
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
--- Generations
-CREATE TABLE public.generations (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-  input_content TEXT,
-  input_type TEXT CHECK (input_type IN ('text', 'url', 'youtube')),
-  tone TEXT,
-  outputs JSONB NOT NULL DEFAULT '[]',
-  credits_used INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
+-- Auto-create Profile row when a new user signs up
+CREATE OR REPLACE FUNCTION public.handle_new_user() 
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id)
+  VALUES (new.id);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+
+-- =========================================
+-- 5. VECTOR INDEXES & BUSINESS LOGIC
+-- =========================================
+
+-- IVFFlat Index for lightning-fast retrieval
+CREATE INDEX ON public.user_context USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- RAG Retrieval Function
+CREATE OR REPLACE FUNCTION public.match_user_context (
+  query_embedding vector(1536),
+  match_threshold float,
+  match_count int,
+  p_user_id uuid
+)
+RETURNS TABLE (
+  id uuid,
+  content text,
+  similarity float
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    user_context.id,
+    user_context.content,
+    1 - (user_context.embedding <=> query_embedding) as similarity
+  FROM user_context
+  WHERE user_context.user_id = p_user_id
+    AND 1 - (user_context.embedding <=> query_embedding) > match_threshold
+  ORDER BY user_context.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+
+-- Token Increment Logic
+CREATE OR REPLACE FUNCTION public.increment_token_usage(p_user_id UUID, p_tokens INTEGER, p_is_new_day BOOLEAN)
+RETURNS VOID AS $$
+BEGIN
+  IF p_is_new_day THEN
+    UPDATE public.profiles
+    SET tokens_used_this_month = tokens_used_this_month + p_tokens,
+        tokens_used_today = p_tokens,
+        last_token_reset = NOW()
+    WHERE id = p_user_id;
+  ELSE
+    UPDATE public.profiles
+    SET tokens_used_this_month = tokens_used_this_month + p_tokens,
+        tokens_used_today = tokens_used_today + p_tokens
+    WHERE id = p_user_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- =========================================
+-- 6. ROW LEVEL SECURITY (RLS) POLICIES
+-- =========================================
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_context ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.device_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
+
+-- PROFILES
+CREATE POLICY "Users can view own profile" 
+ON public.profiles FOR SELECT TO authenticated USING (auth.uid() = id);
+
+-- CHAT SESSIONS
+CREATE POLICY "Enable insert for users based on user_id" 
+ON public.chat_sessions FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable read for users based on user_id" 
+ON public.chat_sessions FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "Enable update for users based on user_id" 
+ON public.chat_sessions FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable delete for users based on user_id" 
+ON public.chat_sessions FOR DELETE TO authenticated USING (auth.uid() = user_id);
+
+-- CHAT MESSAGES (Enterprise Relationship Policies)
+CREATE POLICY "Users can read own messages" 
+ON public.chat_messages FOR SELECT TO authenticated USING (
+  session_id IN (SELECT id FROM public.chat_sessions WHERE user_id = auth.uid())
+);
+CREATE POLICY "Users can insert own messages" 
+ON public.chat_messages FOR INSERT TO authenticated WITH CHECK (
+  session_id IN (SELECT id FROM public.chat_sessions WHERE user_id = auth.uid())
+);
+CREATE POLICY "Users can delete own messages" 
+ON public.chat_messages FOR DELETE TO authenticated USING (
+  session_id IN (SELECT id FROM public.chat_sessions WHERE user_id = auth.uid())
 );
 
--- Payments
-CREATE TABLE public.payments (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-  razorpay_order_id TEXT NOT NULL,
-  razorpay_payment_id TEXT NOT NULL,
-  tier_id TEXT NOT NULL,
-  amount INTEGER NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+-- USER CONTEXT (RAG)
+CREATE POLICY "Enable insert context for users" 
+ON public.user_context FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable read context for users" 
+ON public.user_context FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "Enable update context for users" 
+ON public.user_context FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Enable delete context for users" 
+ON public.user_context FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- Row Level Security
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.generations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+-- DEVICE SESSIONS
+CREATE POLICY "Users can view own devices" 
+ON public.device_sessions FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage own devices" 
+ON public.device_sessions FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Users: own data only
-CREATE POLICY "users_select_own" ON public.users FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "users_update_own" ON public.users FOR UPDATE USING (auth.uid() = id);
-
--- Generations: own data only
-CREATE POLICY "gen_select_own" ON public.generations FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "gen_insert_own" ON public.generations FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- Payments: own data only
-CREATE POLICY "pay_select_own" ON public.payments FOR SELECT USING (auth.uid() = user_id);
-
--- Service role bypass for API routes
-CREATE POLICY "service_users" ON public.users FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_gen" ON public.generations FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_pay" ON public.payments FOR ALL USING (true) WITH CHECK (true);
-
--- Indexes
-CREATE INDEX idx_gen_user_date ON public.generations (user_id, created_at DESC);
-CREATE INDEX idx_pay_user ON public.payments (user_id, created_at DESC);
+-- LEADS
+-- Locked down to public. ONLY accessible via Backend API (Service Role Key)
+CREATE POLICY "leads_no_public_access" ON public.leads FOR ALL USING (false);

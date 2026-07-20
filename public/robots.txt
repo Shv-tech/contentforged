@@ -1,0 +1,115 @@
+# https://forge.theutopianspace.com/robots.txt
+# Generated for Forge — reviewed for SEO + AI/LLM discoverability (Jul 2026)
+#
+# IMPORTANT robots.txt fact: a crawler that has its OWN named group below
+# uses ONLY that group — it does NOT also inherit the "*" group's rules.
+# That's why every bot group repeats the same Disallow lines: without that,
+# naming a bot explicitly would accidentally expose /dashboard/, /account/,
+# and /api/ to it.
+
+# ── Default rule for all crawlers ──────────────────────────────────────────
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+# ── Core search engines ─────────────────────────────────────────────────────
+User-agent: Googlebot
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+# ── AI answer/search (citation) engines ─────────────────────────────────────
+# Allowing these is what makes Forge eligible to be cited in ChatGPT Search,
+# Claude's web search, Perplexity answers, and Google AI Overviews.
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: Claude-User
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: Perplexity-User
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: Amazonbot
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+# ── AI training crawlers ─────────────────────────────────────────────────────
+# Allowing these means Forge's content can end up in a model's baseline
+# knowledge (slower, but durable — this is separate from live citations above).
+User-agent: GPTBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: anthropic-ai
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+User-agent: CCBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://forge.theutopianspace.com/sitemap.xml

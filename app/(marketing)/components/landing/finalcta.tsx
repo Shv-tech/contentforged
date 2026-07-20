@@ -39,7 +39,7 @@ const FOOTER_COLUMNS = [
     links: [
       { label: 'About', href: '/about' },
       { label: 'Blog', href: '/blog' },
-      { label: 'SHV Groups', href: 'https://shvgroups.com' },
+      { label: 'SHV Groups', href: 'https://shvgroups.in' },
     ],
   },
   {

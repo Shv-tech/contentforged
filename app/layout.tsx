@@ -9,6 +9,7 @@ import 'katex/dist/katex.min.css';
 
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/components/AuthProvider';
+import StructuredData from '@/components/StructuredData';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -48,6 +49,11 @@ export const metadata: Metadata = {
   creator: 'Forge by SHV Groups',
   publisher: 'SHV Groups Pvt Ltd',
 
+  // ⚠️ These hreflang alternates only help SEO if /en-US and /en-IN are
+  // real, distinct routes in this app. If they're not (i.e. this is a
+  // single-locale site), remove this block — a hreflang pointing at a
+  // page that doesn't exist gets flagged as an error in Search Console
+  // and can hurt more than having no hreflang at all.
   alternates: {
     canonical: '/',
     languages: {
@@ -124,7 +130,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={inter.className}>
-        
+
+        {/* Site-wide JSON-LD for SEO + AI answer engines (ChatGPT, Claude,
+            Gemini/AI Overviews, Perplexity) — see components/StructuredData.tsx */}
+        <StructuredData />
+
         {/* AuthProvider guarantees the Supabase session is hydrated instantly */}
         <AuthProvider>
           {children}

@@ -1,0 +1,69 @@
+// components/StructuredData.tsx
+//
+// Site-wide JSON-LD. Google, Bing, and AI answer engines (ChatGPT Search,
+// Claude web search, Perplexity, Gemini/AI Overviews) all parse schema.org
+// markup far more reliably than they parse prose — this is one of the
+// highest-leverage, lowest-effort things you can do for both classic SEO
+// and "GEO/AEO" (being described/recommended correctly by an AI).
+//
+// Rendered once from the root layout so it's present on every page.
+// Keep the `offers` block in sync with your real /pricing page — stale
+// structured data (wrong price, dead URL) is worse than no structured data,
+// since it can get you a manual "misleading markup" flag from Google.
+
+const BASE_URL = 'https://forge.theutopianspace.com';
+
+export default function StructuredData() {
+  const data = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: 'Forge',
+      alternateName: 'ContentForge',
+      url: BASE_URL,
+      logo: `${BASE_URL}/icon.svg`,
+      parentOrganization: {
+        '@type': 'Organization',
+        name: 'SHV Groups Pvt Ltd',
+      },
+      // Add your real social/profile URLs here — this is what lets Google
+      // (and AI models) confidently link "Forge/ContentForge" to a single
+      // verified entity instead of guessing among the many unrelated
+      // products also named "Forge".
+      // sameAs: [
+      //   'https://x.com/yourhandle',
+      //   'https://www.linkedin.com/company/yourcompany',
+      //   'https://github.com/yourorg',
+      // ],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'Forge',
+      url: BASE_URL,
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'ContentForge',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      url: BASE_URL,
+      description:
+        'AI content operating system that remembers your Brand DNA, scores every post before you publish, and plans a 90-day LinkedIn/Instagram content calendar.',
+      offers: {
+        '@type': 'Offer',
+        url: `${BASE_URL}/pricing`,
+        // priceCurrency / price: fill in from your actual pricing tiers.
+      },
+    },
+  ];
+
+  return (
+    <script
+      type="application/ld+json"
+      // eslint-disable-next-line react/no-danger
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+    />
+  );
+}

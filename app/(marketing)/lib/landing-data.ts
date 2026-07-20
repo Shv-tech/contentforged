@@ -640,8 +640,8 @@ export const PRICING_SECTION = {
   subheading: 'No hidden limits. No surprise usage caps. No "contact sales" for the features you actually need.',
   saleBanner: 'LAUNCH WEEK PRICING · LOCKED IN FOR LIFE ON ANNUAL PLANS',
   guarantee: {
-    title: '14-day money-back guarantee.',
-    body: 'If Forge does not produce something meaningfully better than your current workflow in the first 14 days, email us. We refund without questions. We would rather lose the revenue than keep a user who is not getting value.',
+    title: '.',
+    body: '.',
   },
 };
 
