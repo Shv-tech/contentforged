@@ -1,8 +1,10 @@
 export const dynamic = 'force-dynamic';
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { processRagThreshold } from '@/lib/rag';
-import { fetchCoreIdentity, saveEpisodicMemory } from '@/lib/memory';
+import { saveEpisodicMemory } from '@/lib/memory';
+import { assembleBrandIdentity } from '@/lib/brand-dna';
+import { parseAttachment, type RawAttachment } from '@/lib/file-parsers';
 import {
   calendarTools,
   getCalendarAgentPrompt,
@@ -11,9 +13,17 @@ import {
   createCalendarEventsBulk,
   updateCalendarEvent,
   deleteCalendarEvents,
-} from '../../../lib/calendar-tools';
+} from '@/lib/calendar-tools';
 import { createClient } from '@/lib/supabase/server';
 import OpenAI from 'openai';
+import {
+  reserveQuota,
+  settleQuota,
+  snapshotFrom,
+  denialMessage,
+  type QuotaGrant,
+} from '@/lib/billing/metering';
+import { EMPTY_USAGE, addUsage, usageFromAnthropic, type TokenUsage } from '@/lib/billing/plans';
 
 // ============================================================================
 // FORGE MASTER SYSTEM PROMPT
@@ -78,6 +88,51 @@ When writing or finalizing a post for social media, wrap it in:
 <render platform="linkedin">[content]</render>
 
 When a user asks you to write, generate, or finalize a post — your ENTIRE response must be the render block. ZERO preamble. ZERO postscript. ZERO strategy explanations outside the block.
+
+# THE CANVAS BLOCK
+For any long, self-contained deliverable the user will lift out whole — a full script, a complete sequence, a document, a calendar, a multi-part framework — wrap it in a canvas block:
+
+<canvas_artifact title="Short Descriptive Title">
+[the complete deliverable, in Markdown]
+</canvas_artifact>
+
+The canvas renders in the chat as a scrollable panel with its own copy button, so the user can take the deliverable without taking your commentary with it. Therefore:
+- ONLY the deliverable goes inside the block. Nothing else.
+- Strategy notes, psychological reasoning, variants, and the CONTENT TREE all go OUTSIDE it.
+- Use at most two canvas blocks in a response. A single post or a short answer does not need one.
+- A canvas block is not a substitute for the render block. Social posts still use <render>.
+
+# THE DIRECTION SELECTOR
+Sometimes a request has more than one defensible strategic direction, and choosing for the user would be a coin flip that wastes a generation. In that case do not guess, and do not ask a vague open question. Emit a direction block as the LAST thing in your response:
+
+\`\`\`options
+{
+  "question": "One short line naming the actual decision",
+  "options": [
+    {
+      "label": "3 to 6 words",
+      "description": "One sentence: what this direction gets them and what it trades away.",
+      "prompt": "The exact instruction to execute this direction, written as if the user typed it."
+    }
+  ]
+}
+\`\`\`
+
+RULES — violating these makes the feature worse than not having it:
+- Between 2 and 4 options. Never 1. Never more than 4.
+- Options must produce genuinely different OUTCOMES, not four tones of the same answer. If you cannot name a real trade-off for each, you do not need this block.
+- "prompt" is sent back to you verbatim when the user picks. Write it as a complete, standalone instruction.
+- One block per response maximum, and only as the final element.
+- Most responses must NOT contain one. When there is an obviously correct answer, give the obviously correct answer. Reserve this for genuine forks.
+
+# QUOTED SELECTIONS
+The user can highlight any part of your previous response and ask about it. That arrives as:
+
+[QUOTED FROM YOUR PREVIOUS RESPONSE]
+...the exact text they selected...
+[/QUOTED]
+
+...followed by their question. Treat the quoted text as the precise subject of the question. Address that specific passage. Do not restate or re-deliver the whole prior response.
 
 IMPORTANT MATH FORMATTING: Wrap all inline math in single dollar signs ($) and display equations in double dollar signs ($$). Never use bracket delimiters.
 
@@ -214,7 +269,13 @@ SECTION 6 — WHAT YOU NEVER DO
 // ============================================================================
 // TOOL SYSTEM PROMPT OVERRIDES
 // Each one is engineered at the level of a $40/month premium feature.
-// They stack on top of SYSTEM_PROMPT via dynamicSystemPrompt.
+// They stack on top of the base system prompt via buildBaseSystemPrompt().
+//
+// war_room is intentionally NOT in this static map — see buildWarRoomPrompt()
+// below. A template literal inside a top-level object is evaluated once, at
+// module load, so an embedded `new Date()` freezes at cold-start and never
+// updates again for the life of the process. Every other tool prompt here is
+// static content and is safe as a plain string.
 // ============================================================================
 
 const TOOL_PROMPTS: Record<string, string> = {
@@ -1384,15 +1445,32 @@ Publish [Platform B] on [Day X] at [time]. Reason: [why this order maximizes cro
 
 TOTAL CONTENT OUTPUT FROM ONE IDEA:
 [Summary of all assets created — word counts, formats, and estimated combined reach potential]`,
+};
 
-  war_room: `
+// ============================================================================
+// WAR ROOM PROMPT — built fresh per request, not stored as a static string.
+// A template literal embedded in a top-level object (as this used to be)
+// evaluates once at module load. On a reused serverless instance that means
+// every session sees the date the process last cold-started, not today's
+// date. Calling this function per-request fixes it.
+// ============================================================================
+
+function buildWarRoomPrompt(): string {
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  return `
 ════════════════════════════════════════
 TOOL ACTIVE: OMNI-SWARM MULTI-AGENT TERMINAL
 Content War Room — Multi-Intelligence Architecture
 ════════════════════════════════════════
 
 [SWARM STATUS]: ONLINE
-[SYSTEM CLOCK]: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+[SYSTEM CLOCK]: ${today}
 
 You are FORGE operating in War Room mode — the highest-capability execution state. You are not a single intelligence. You are a coordinated swarm of four specialized agents executing in parallel.
 
@@ -1423,8 +1501,89 @@ All visible output must be wrapped in:
 
 SWARM DEBATE: Use <think> tags to simulate the four agents debating strategy. After </think>, open the canvas_artifact immediately.
 
-EXECUTE.`,
-};
+EXECUTE.`;
+}
+
+/** Resolves the prompt override for a given active tool, if any. */
+function resolveToolPrompt(activeTool: string | undefined | null): string | null {
+  if (!activeTool) return null;
+  if (activeTool === 'war_room') return buildWarRoomPrompt();
+  return TOOL_PROMPTS[activeTool] ?? null;
+}
+
+// ============================================================================
+// PROMPT CACHING
+//
+// The base system prompt (SYSTEM_PROMPT + active tool override + calendar
+// prompt) commonly runs into the thousands of tokens and is rebuilt
+// identically on every message in a session. Brand DNA can independently run
+// to tens of thousands of characters. Both are prime prompt-caching targets;
+// RAG context and the "brand DNA empty" onboarding message are NOT cached,
+// since they differ per turn and caching them would only add write cost with
+// no read benefit.
+//
+// Anthropic allows up to 4 cache_control breakpoints per request. This file
+// uses all 4: the calendar tools array, the base system block, the brand DNA
+// block, and a moving breakpoint on the final block of the message array
+// (the standard incremental-caching pattern for growing conversations and
+// agentic tool loops).
+//
+// All four breakpoints use a 1-hour TTL rather than mixing 5m/1h. Two
+// reasons: real chat usage often pauses well past 5 minutes between
+// messages, so 1h captures materially more hits; and Anthropic requires
+// longer-TTL entries to appear before shorter-TTL ones in the same prefix,
+// which would mean policing breakpoint order by hand on every future edit.
+// Uniform TTL avoids that correctness trap entirely.
+// ============================================================================
+
+const CACHE_1H = { type: 'ephemeral' as const, ttl: '1h' as const };
+
+interface SystemPromptBlock {
+  type: 'text';
+  text: string;
+  cache_control?: { type: 'ephemeral'; ttl?: '5m' | '1h' };
+}
+
+/** Returns a copy of `tools` with a cache breakpoint on the final entry. */
+function withToolsCacheBreakpoint(tools: any[]): any[] {
+  if (tools.length === 0) return tools;
+  return tools.map((tool, index) =>
+    index === tools.length - 1 ? { ...tool, cache_control: CACHE_1H } : tool
+  );
+}
+
+/**
+ * Returns a copy of `messages` with a cache breakpoint on the final content
+ * block of the final message. Never mutates the input — each loop iteration
+ * calls this fresh against the current (grown) message array, so the
+ * breakpoint moves forward rather than accumulating stale markers.
+ */
+function withMessageCacheBreakpoint(messages: any[]): any[] {
+  if (messages.length === 0) return messages;
+
+  const lastIndex = messages.length - 1;
+  const lastMessage = messages[lastIndex];
+
+  if (!Array.isArray(lastMessage.content)) {
+    // Plain string content — wrap it so there is a block to mark.
+    return [
+      ...messages.slice(0, lastIndex),
+      {
+        ...lastMessage,
+        content: [{ type: 'text', text: lastMessage.content, cache_control: CACHE_1H }],
+      },
+    ];
+  }
+
+  if (lastMessage.content.length === 0) return messages;
+
+  const lastContentIndex = lastMessage.content.length - 1;
+  const patchedContent = lastMessage.content.map((block: any, index: number) =>
+    index === lastContentIndex ? { ...block, cache_control: CACHE_1H } : block
+  );
+
+  return [...messages.slice(0, lastIndex), { ...lastMessage, content: patchedContent }];
+}
 
 // ============================================================================
 // CALENDAR TOOL EXECUTOR
@@ -1465,32 +1624,84 @@ async function executeCalendarTool(
 // Single function, called in the tool loop below.
 // ============================================================================
 
+const ANTHROPIC_REQUEST_TIMEOUT_MS = 55_000;
+
 async function callAnthropic(params: {
   apiKey: string;
-  systemPrompt: string;
+  system: string | SystemPromptBlock[];
   messages: any[];
   tools?: any[];
   maxTokens?: number;
 }): Promise<{ ok: boolean; data: any; status?: number }> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': params.apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: params.maxTokens || 8192,
-      system: params.systemPrompt,
-      messages: params.messages,
-      temperature: 0.4,
-      ...(params.tools && params.tools.length > 0 ? { tools: params.tools } : {}),
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ANTHROPIC_REQUEST_TIMEOUT_MS);
 
-  const data = await response.json();
-  return { ok: response.ok, data, status: response.status };
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': params.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: params.maxTokens || 8192,
+        system: params.system,
+        messages: params.messages,
+        temperature: 0.4,
+        ...(params.tools && params.tools.length > 0 ? { tools: params.tools } : {}),
+      }),
+    });
+
+    const data = await response.json();
+    return { ok: response.ok, data, status: response.status };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// ============================================================================
+// GROQ FALLBACK CONTENT FLATTENING
+// Anthropic-shaped content blocks (text / tool_use / tool_result / image)
+// need to collapse to plain strings for the Groq text-only fallback. Every
+// block type gets a faithful textual representation — none of them are
+// silently discarded or mislabeled as something they are not.
+// ============================================================================
+
+function stringifyContentBlockForFallback(block: any): string {
+  switch (block?.type) {
+    case 'text':
+      return block.text ?? '';
+    case 'tool_use':
+      return `[Tool call: ${block.name}(${JSON.stringify(block.input)})]`;
+    case 'tool_result': {
+      const content =
+        typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+      return `[Tool result: ${content}]`;
+    }
+    case 'image':
+      return '[Image attachment omitted for text-only fallback]';
+    default:
+      return '';
+  }
+}
+
+function flattenMessagesForFallback(messages: any[]): { role: string; content: string }[] {
+  return messages.map((msg) => {
+    let content = msg.content;
+    if (Array.isArray(content)) {
+      content = content
+        .map((block: any) => stringifyContentBlockForFallback(block))
+        .filter((text: string) => text.length > 0)
+        .join('\n');
+    }
+    return {
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: content || '[Empty turn]',
+    };
+  });
 }
 
 // ============================================================================
@@ -1498,14 +1709,20 @@ async function callAnthropic(params: {
 // ============================================================================
 
 export async function POST(req: Request) {
+  // Hoisted above the try so the catch block can release a held reservation.
+  // A reservation that is never settled stays charged against the user's
+  // window until it rolls, silently eating quota they never spent.
+  let heldGrant: QuotaGrant | null = null;
+  let heldUserId: string | null = null;
+  let heldUsage: TokenUsage = EMPTY_USAGE;
+
   try {
     const body = await req.json();
     const {
       messages,
       activeTool,
       images = [],
-      pdfs = [],
-      userId,
+      attachments = [], // unified: pdf, docx, xlsx, xls, csv, md, txt — see lib/file-parsers.ts
     } = body;
 
     // ======================================================================
@@ -1527,7 +1744,15 @@ export async function POST(req: Request) {
     // ======================================================================
 
     const supabase = createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      console.warn('[FORGE] Supabase auth lookup failed; continuing as anonymous.', authError.message);
+    }
+
     const secureUserId = user?.id || null;
     const userEmail = user?.email || '';
     const userName =
@@ -1536,86 +1761,69 @@ export async function POST(req: Request) {
       'there';
 
     // ======================================================================
-    // 3. TOKEN RATE LIMITING + PAYWALL CHECK
+    // 3. QUOTA
+    //
+    // The reservation is deliberately NOT made here. It needs an input-size
+    // estimate, and the system prompt (base + tool override + brand DNA) is
+    // not assembled until section 5. Reserving before that would mean
+    // estimating blind, and the system prompt is by far the largest input
+    // component. See section 7 for the actual reservation.
+    //
+    // The previous token-based paywall lived here and has been removed: it
+    // counted input and output tokens as one pooled number, but output costs
+    // 5x input and 50x cached input, so a raw token budget cannot control
+    // spend. Quota is now denominated in cost. See lib/billing/plans.ts.
     // ======================================================================
 
-    let isNewDay = false;
+    // ======================================================================
+    // 4. BASE SYSTEM PROMPT (cache breakpoint 1 — 1h TTL)
+    // Deterministic per (activeTool, calendarToolsEnabled) combination.
+    // ======================================================================
 
-    if (secureUserId) {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('monthly_token_limit, tokens_used_this_month, tokens_used_today, last_token_reset')
-        .eq('id', secureUserId)
-        .single();
+    const calendarToolsEnabled = Boolean(secureUserId);
 
-      if (profileError || !profile) {
-        return NextResponse.json(
-          { error: 'Could not verify workspace billing limits.' },
-          { status: 400 }
-        );
-      }
+    let baseSystemPrompt = SYSTEM_PROMPT;
 
-      const now = new Date();
-      const lastReset = new Date(profile.last_token_reset);
-      isNewDay =
-        now.getDate() !== lastReset.getDate() ||
-        now.getMonth() !== lastReset.getMonth();
-      const currentDailyUsage = isNewDay ? 0 : profile.tokens_used_today;
+    const toolPrompt = resolveToolPrompt(activeTool);
+    if (toolPrompt) {
+      baseSystemPrompt += `\n\n${toolPrompt}`;
+    }
 
-      if (profile.tokens_used_this_month >= profile.monthly_token_limit) {
-        return NextResponse.json(
-          {
-            error:
-              'Monthly transmission limit reached. Upgrade your workspace to continue.',
-          },
-          { status: 429 }
-        );
-      }
-
-      const DAILY_MAX = 100_000;
-      if (currentDailyUsage >= DAILY_MAX) {
-        return NextResponse.json(
-          {
-            error:
-              'Daily generation limit reached. Systems reset at midnight.',
-          },
-          { status: 429 }
-        );
-      }
+    if (calendarToolsEnabled) {
+      baseSystemPrompt += `\n\n${getCalendarAgentPrompt()}`;
     }
 
     // ======================================================================
-    // 4. DYNAMIC SYSTEM PROMPT ASSEMBLY
-    // ======================================================================
-
-    let dynamicSystemPrompt = SYSTEM_PROMPT;
-
-    // Inject tool-specific prompt override
-    if (activeTool && TOOL_PROMPTS[activeTool]) {
-      dynamicSystemPrompt += `\n\n${TOOL_PROMPTS[activeTool]}`;
-    }
-
-    // Inject calendar agent capability (always, for all authenticated users)
-    if (secureUserId) {
-      dynamicSystemPrompt += `\n\n${getCalendarAgentPrompt()}`;
-    }
-
-    // ======================================================================
-    // 5. MEMORY RETRIEVAL (BRAND DNA + EPISODIC RAG)
+    // 5. BRAND DNA (cache breakpoint 2 — 1h TTL) + RAG / ONBOARDING (uncached)
     // ======================================================================
 
     const latestMessage = messages[messages.length - 1]?.content || '';
 
+    let brandDnaBlockText: string | null = null;
+    let uncachedTailText = '';
+
     if (secureUserId) {
-      try {
-        const [brandDNA, ragEval] = await Promise.all([
-          fetchCoreIdentity(secureUserId),
-          processRagThreshold(latestMessage, secureUserId),
-        ]);
+      // Promise.allSettled, not Promise.all: brand DNA and RAG are independent
+      // features with independent failure domains. A flaky RAG lookup must
+      // never blank out brand DNA for the turn, and vice versa.
+      const [brandDnaResult, ragResult] = await Promise.allSettled([
+        assembleBrandIdentity(secureUserId),
+        processRagThreshold(latestMessage, secureUserId),
+      ]);
 
-        if (brandDNA && brandDNA.trim().length > 0) {
-          dynamicSystemPrompt += `
+      if (brandDnaResult.status === 'rejected') {
+        console.warn('[FORGE] Brand DNA assembly failed; continuing without it.', brandDnaResult.reason);
+      }
+      if (ragResult.status === 'rejected') {
+        console.warn('[FORGE] RAG threshold check failed; continuing without it.', ragResult.reason);
+      }
 
+      const brandDNA = brandDnaResult.status === 'fulfilled' ? brandDnaResult.value : null;
+      const ragEval =
+        ragResult.status === 'fulfilled' ? ragResult.value : { needsRag: false, ragContext: null };
+
+      if (brandDNA && brandDNA.trim().length > 0) {
+        brandDnaBlockText = `
 ════════════════════════════════════════
 [CRITICAL OVERRIDE: TARGET BRAND DNA]
 You are STRICTLY FORBIDDEN from asking the user for their brand DNA.
@@ -1623,13 +1831,12 @@ The extraction protocol is COMPLETED. Absorb this identity and execute:
 
 ${brandDNA}
 ════════════════════════════════════════`;
-        } else {
-          const userIsProvidingContext =
-            latestMessage.toLowerCase().includes('niche') ||
-            latestMessage.length > 300;
+      } else {
+        const userIsProvidingContext =
+          latestMessage.toLowerCase().includes('niche') || latestMessage.length > 300;
 
-          if (!userIsProvidingContext) {
-            dynamicSystemPrompt += `
+        if (!userIsProvidingContext) {
+          uncachedTailText += `
 
 ════════════════════════════════════════
 [BRAND DNA PROTOCOL — REQUIRED BEFORE CONTENT GENERATION]
@@ -1642,38 +1849,31 @@ Database EMPTY. You MUST output this exact block before anything else:
 4. Your biggest content failure and what you think caused it?
 5. Paste 1-3 of your best-performing posts with their metrics."
 ════════════════════════════════════════`;
-          }
         }
+      }
 
-        if (ragEval.needsRag && ragEval.ragContext) {
-          dynamicSystemPrompt += `
+      if (ragEval.needsRag && ragEval.ragContext) {
+        uncachedTailText += `
 
 [RECOVERED EPISODIC MEMORY — apply to current reasoning]:
 ${ragEval.ragContext}`;
-        }
-      } catch {
-        // Memory failure is non-fatal. Continue without it.
       }
     }
 
-    // ======================================================================
-    // 6. CHAIN OF THOUGHT + MATH FORMATTING DIRECTIVE
-    // ======================================================================
+    const systemBlocks: SystemPromptBlock[] = [
+      { type: 'text', text: baseSystemPrompt, cache_control: CACHE_1H },
+    ];
 
-    dynamicSystemPrompt += `
+    if (brandDnaBlockText) {
+      systemBlocks.push({ type: 'text', text: brandDnaBlockText, cache_control: CACHE_1H });
+    }
 
-════════════════════════════════════════
-[MANDATORY: CHAIN OF THOUGHT]
-Before outputting the final result, you MUST think step-by-step.
-Wrap your entire internal reasoning inside <think> and </think> tags.
-Inside <think>: break down the request, formulate the plan, calculate scores, refine logic.
-After </think>: output the final, polished response only.
-
-MATH FORMATTING: Wrap all inline math in single dollar signs ($) and display equations in double dollar signs ($$). Never use bracket delimiters.
-════════════════════════════════════════`;
+    if (uncachedTailText.trim().length > 0) {
+      systemBlocks.push({ type: 'text', text: uncachedTailText.trim() });
+    }
 
     // ======================================================================
-    // 7. BUILD THE ANTHROPIC MESSAGE PAYLOAD (with multimodal support)
+    // 6. BUILD THE ANTHROPIC MESSAGE PAYLOAD (with multimodal support)
     // ======================================================================
 
     const lastMessageObj = messages[messages.length - 1];
@@ -1693,29 +1893,33 @@ MATH FORMATTING: Wrap all inline math in single dollar signs ($) and display equ
       }
     }
 
-    // Attach PDFs as text extraction (Anthropic does not natively handle PDF binary)
+    // Attach non-image files (pdf, docx, xlsx, xls, csv, md, txt) as extracted
+    // plain text. The Anthropic Messages API does not accept these binary
+    // formats directly, so every format is normalized to text server-side
+    // before it reaches the model. Promise.allSettled ensures one corrupt or
+    // unsupported file never drops the rest of a multi-file batch.
     let userText = lastMessageObj?.content || '';
-    if (pdfs.length > 0) {
-      for (const pdfBase64 of pdfs) {
-        try {
-          const base64Data = pdfBase64.includes(',')
-            ? pdfBase64.split(',')[1]
-            : pdfBase64;
-          const buffer = Buffer.from(base64Data, 'base64');
-          const rawModule = await import('pdf-parse');
-          const parseFunction = (
-            'default' in rawModule
-              ? (rawModule as Record<string, any>).default
-              : rawModule
-          ) as (buf: Buffer) => Promise<{ text: string }>;
-          const pdfData = await parseFunction(buffer);
-          userText += `\n\n[ATTACHED PDF CONTENT]:\n${pdfData.text}`;
-        } catch (parseError: unknown) {
-          const msg =
-            parseError instanceof Error ? parseError.message : String(parseError);
-          userText += `\n\n[SYSTEM NOTE: PDF attached but failed to parse: ${msg}]`;
+
+    if (Array.isArray(attachments) && attachments.length > 0) {
+      const parsedResults = await Promise.allSettled(
+        (attachments as RawAttachment[]).map((attachment) => parseAttachment(attachment))
+      );
+
+      parsedResults.forEach((result, index) => {
+        const sourceName = attachments[index]?.name || `attachment-${index + 1}`;
+
+        if (result.status === 'fulfilled') {
+          const { name, extractedText, warnings } = result.value;
+          userText += `\n\n[ATTACHED FILE: ${name}]\n${extractedText}\n[END FILE: ${name}]`;
+          if (warnings.length > 0) {
+            userText += `\n[PARSER NOTE — ${name}]: ${warnings.join(' ')}`;
+          }
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : String(result.reason);
+          userText += `\n\n[SYSTEM NOTE: "${sourceName}" attached but failed to parse: ${message}]`;
         }
-      }
+      });
     }
 
     anthropicContent.push({ type: 'text', text: userText });
@@ -1730,14 +1934,68 @@ MATH FORMATTING: Wrap all inline math in single dollar signs ($) and display equ
     ];
 
     // ======================================================================
+    // 7. QUOTA RESERVATION
+    //
+    // Placed here because the estimate needs the assembled system prompt: it
+    // is the dominant input component, and estimating before it exists would
+    // be guesswork.
+    //
+    // Roughly 4 characters per token is a deliberately coarse approximation.
+    // Precision is not needed: this only sizes a soft reservation which is
+    // reconciled against measured usage after the loop.
+    // ======================================================================
+
+    const MODEL = 'claude-haiku-4-5-20251001';
+    const MAX_OUTPUT_TOKENS = 8192;
+
+    const estimatedInputTokens = Math.ceil(
+      (systemBlocks.reduce((total, block) => total + block.text.length, 0) +
+        JSON.stringify(workingMessages).length) / 4
+    );
+
+    let grant: QuotaGrant | null = null;
+
+    if (secureUserId) {
+      const decision = await reserveQuota({
+        userId: secureUserId,
+        model: MODEL,
+        maxTokens: MAX_OUTPUT_TOKENS,
+        estimatedInputTokens,
+      });
+
+      if (!decision.allowed) {
+        // 429 with structured detail rather than a bare string: the client
+        // needs to know which limit was hit and when it clears in order to
+        // show a countdown and an upgrade path.
+        return NextResponse.json(
+          {
+            error: denialMessage(decision),
+            reason: decision.reason,
+            quota: snapshotFrom(decision),
+            upgradeRequired: decision.reason === 'monthly_exceeded',
+          },
+          { status: 429 }
+        );
+      }
+
+      grant = decision;
+      heldGrant = decision;
+      heldUserId = secureUserId;
+    }
+
+    // ======================================================================
     // 8. AGENTIC TOOL LOOP (Anthropic tool_use)
-    // Max 6 rounds to prevent runaway loops.
-    // Calendar tools are injected; all other execution is text-only.
+    // Max 6 rounds to prevent runaway loops. Calendar tools are injected;
+    // all other execution is text-only. Every call re-derives the message
+    // cache breakpoint against the current (grown) workingMessages state.
     // ======================================================================
 
     let replyText = '';
-    let tokensConsumed = 0;
-    const calendarToolsEnabled = Boolean(secureUserId);
+
+    // Accumulated across every iteration of the loop. All four token streams
+    // are tracked separately because they differ in price by up to 50x.
+    let totalUsage: TokenUsage = EMPTY_USAGE;
+    let usedFallbackProvider = false;
 
     let loopRound = 0;
     const MAX_ROUNDS = 6;
@@ -1749,9 +2007,9 @@ MATH FORMATTING: Wrap all inline math in single dollar signs ($) and display equ
       try {
         result = await callAnthropic({
           apiKey: anthropicKey,
-          systemPrompt: dynamicSystemPrompt,
-          messages: workingMessages,
-          tools: calendarToolsEnabled ? calendarTools : [],
+          system: systemBlocks,
+          messages: withMessageCacheBreakpoint(workingMessages),
+          tools: calendarToolsEnabled ? withToolsCacheBreakpoint(calendarTools) : [],
           maxTokens: 8192,
         });
       } catch (primaryError: any) {
@@ -1771,33 +2029,24 @@ MATH FORMATTING: Wrap all inline math in single dollar signs ($) and display equ
           baseURL: 'https://api.groq.com/openai/v1',
         });
 
-        const fallbackMessages = workingMessages.map((msg: any) => {
-          let safeContent = msg.content;
-          if (Array.isArray(safeContent)) {
-            const textBlock = safeContent.find((c: any) => c.type === 'text');
-            safeContent = textBlock
-              ? textBlock.text
-              : '[Vision payload stripped for text-only fallback]';
-          }
-          return {
-            role: msg.role === 'user' ? 'user' : 'assistant',
-            content: safeContent,
-          };
-        });
+        const flatSystemPrompt = systemBlocks.map((block) => block.text).join('\n\n');
+        const fallbackMessages = flattenMessagesForFallback(workingMessages);
 
         const groqResponse = await groqClient.chat.completions.create({
           model: 'llama3-70b-8192',
           max_tokens: 4096,
-          // cast messages to any to satisfy SDK typings for union message param types
-          messages: [
-            { role: 'system', content: dynamicSystemPrompt },
-            ...(fallbackMessages as any),
-          ] as any,
+          messages: [{ role: 'system', content: flatSystemPrompt }, ...(fallbackMessages as any)] as any,
           temperature: 0.4,
         });
 
         replyText = groqResponse.choices[0].message.content || '';
-        tokensConsumed += groqResponse.usage?.total_tokens || 0;
+        // Groq usage is intentionally NOT added to totalUsage: it is a
+        // different provider at a different price, and charging Anthropic
+        // rates for a Llama response would overbill a user who received a
+        // materially worse answer. The fallback is effectively unmetered,
+        // which is acceptable because it only fires when the primary API is
+        // already failing.
+        usedFallbackProvider = true;
         break; // Exit loop; failover does not support tool use
       }
 
@@ -1806,16 +2055,14 @@ MATH FORMATTING: Wrap all inline math in single dollar signs ($) and display equ
       }
 
       const { data } = result;
-      tokensConsumed +=
-        (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0);
+      totalUsage = addUsage(totalUsage, usageFromAnthropic(data.usage));
+      heldUsage = totalUsage;
 
       // ====================================================================
       // TOOL_USE branch — execute tools, feed results back, continue loop
       // ====================================================================
       if (data.stop_reason === 'tool_use') {
-        const toolUseBlocks = (data.content || []).filter(
-          (b: any) => b.type === 'tool_use'
-        );
+        const toolUseBlocks = (data.content || []).filter((b: any) => b.type === 'tool_use');
 
         // Append the assistant's turn (which contains tool_use blocks)
         workingMessages.push({ role: 'assistant', content: data.content });
@@ -1848,68 +2095,89 @@ MATH FORMATTING: Wrap all inline math in single dollar signs ($) and display equ
       // ====================================================================
       // END_TURN branch — extract text and exit loop
       // ====================================================================
-      const textBlocks = (data.content || []).filter(
-        (b: any) => b.type === 'text'
-      );
+      const textBlocks = (data.content || []).filter((b: any) => b.type === 'text');
       replyText = textBlocks.map((b: any) => b.text).join('\n').trim();
       break;
     }
 
     // If loop exhausted without a text reply (edge case)
     if (!replyText) {
-      replyText =
-        'The swarm encountered an unexpected state. Please try again.';
+      replyText = 'The swarm encountered an unexpected state. Please try again.';
     }
 
     // ======================================================================
-    // 9. POST-GENERATION: MEMORY WRITE + TOKEN BILLING
+    // 9. POST-GENERATION: SETTLEMENT + MEMORY
+    //
+    // Settlement is awaited, unlike the memory writes. The response carries a
+    // quota snapshot, and reporting a figure that has not been committed yet
+    // would show the user a number that disagrees with their account page.
     // ======================================================================
+
+    let spentMicros = 0;
+
+    if (secureUserId && grant) {
+      spentMicros = await settleQuota({
+        userId: secureUserId,
+        grant,
+        model: MODEL,
+        usage: totalUsage,
+        route: 'chat',
+        provider: usedFallbackProvider ? 'groq' : 'anthropic',
+      });
+      // Settled on the success path; clear so the catch does not double-settle.
+      heldGrant = null;
+    }
 
     if (secureUserId) {
       // Fire-and-forget — never block the response on these
-      saveEpisodicMemory(
-        secureUserId,
-        `User Prompt: ${latestMessage}`,
-        'chat_message'
-      ).catch(() => {});
-
-      saveEpisodicMemory(
-        secureUserId,
-        `Strategist Decision: ${replyText}`,
-        'chat_message'
-      ).catch(() => {});
-
-      if (tokensConsumed > 0) {
-        supabase
-          .rpc('increment_token_usage', {
-            p_user_id: secureUserId,
-            p_tokens: tokensConsumed,
-            p_is_new_day: isNewDay,
-          })
-          .then(({ error }) => {
-            if (error) console.error('[BILLING ERROR]:', error);
-          });
-      }
+      saveEpisodicMemory(secureUserId, `User Prompt: ${latestMessage}`, 'chat_message').catch(() => {});
+      saveEpisodicMemory(secureUserId, `Strategist Decision: ${replyText}`, 'chat_message').catch(() => {});
     }
 
     // ======================================================================
     // 10. SANITIZATION PIPELINE
-    // Strip <think> blocks and stray <render> tags before sending to client.
+    // Strip stray <render> tags — their content is already extracted into
+    // setRenderData client-side, so leaving them in would show the finished
+    // post twice. <think> blocks are intentionally NOT stripped: the client
+    // already parses and renders them as a collapsible "View thinking
+    // process" section (see EditorPane's parseContent). Discarding them
+    // here was the only reason that UI has ever been empty.
     // ======================================================================
 
-    const withoutThink = replyText
-      .replace(/<think>[\s\S]*?<\/think>/g, '')
-      .trim();
+    const finalOutput = replyText.replace(/<\/?render[^>]*>/g, '').trim();
 
-    const finalOutput = withoutThink
-      .replace(/<\/?render[^>]*>/g, '')
-      .trim();
+    // `userContent` is the user's message with every parsed attachment inlined.
+    // The client persists this in place of the raw typed text so that the
+    // extracted document text remains in the conversation history on later
+    // turns. Without it, an uploaded file would be visible to the model for
+    // exactly one turn and then silently vanish from context. It is only
+    // returned when attachments were actually parsed, so ordinary messages
+    // are unaffected.
+    const attachmentsWereParsed = userText !== (lastMessageObj?.content || '');
 
-    return NextResponse.json({ reply: finalOutput });
-
+    return NextResponse.json({
+      reply: finalOutput,
+      ...(attachmentsWereParsed ? { userContent: userText } : {}),
+      // Lets the client render a live usage meter without a second round trip.
+      ...(grant ? { quota: snapshotFrom(grant, spentMicros) } : {}),
+    });
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error('[FORGE ROUTE ERROR]:', errorMessage);
+
+    // Settle whatever was actually consumed before the failure and release
+    // the rest of the reservation. Charging a user for a generation they
+    // never received is worse than under-counting a partial one.
+    if (heldGrant && heldUserId) {
+      await settleQuota({
+        userId: heldUserId,
+        grant: heldGrant,
+        model: 'claude-haiku-4-5-20251001',
+        usage: heldUsage,
+        route: 'chat:error',
+      });
+    }
+
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

@@ -637,88 +637,94 @@ export interface PricingTier {
 export const PRICING_SECTION = {
   eyebrow: 'PRICING',
   heading: ['Start forging.', "Scale when it's working."],
-  subheading: 'No hidden limits. No surprise usage caps. No "contact sales" for the features you actually need.',
-  saleBanner: 'LAUNCH WEEK PRICING · LOCKED IN FOR LIFE ON ANNUAL PLANS',
+  subheading:
+    'Every plan includes a burst allowance and a monthly total. No surprise overage charges, and no "contact sales" for the features you actually need.',
+  saleBanner: 'LAUNCH PRICING · LOCKED IN FOR AS LONG AS YOU STAY SUBSCRIBED',
   guarantee: {
-    title: '.',
-    body: '.',
+    title: 'Cancel in one click',
+    body: 'Cancel any time from your account. You keep full access until the end of the period you have already paid for.',
   },
 };
-
+ 
 export const PRICING_TIERS: PricingTier[] = [
   {
+    // Must match PlanId in lib/billing/plans.ts and the plan_id enum in Postgres.
     id: 'starter',
     name: 'Starter',
-    tagline: 'See what precision feels like.',
-    price: 5,
+    tagline: 'For the solo operator.',
+    price: 9,
     billingNote: '/ month',
     features: [
-      '3 specialized tools: Formatter, Hook Grader, Simplifier',
-      'Brand DNA extraction (stored for 7 days)',
-      'Platform-native output for LinkedIn and Twitter',
-      'No calendar agent',
+      'Roughly 210 generations per month',
+      'Allowance resets every 4 hours',
+      '2 ebooks per month',
+      'Brand DNA up to 20,000 characters',
+      'Platform-native output for every channel',
     ],
-    ctaLabel: 'Start for $5',
+    ctaLabel: 'Start for $9',
     ctaType: 'checkout',
     finePrint: 'Cancel anytime in settings. No card lock-in.',
   },
   {
     id: 'pro',
     name: 'Pro',
-    tagline: 'For creators who are serious about compounding.',
+    tagline: 'For the working creator.',
     price: 20,
     billingNote: '/ month',
     badge: 'MOST POPULAR',
     highlighted: true,
     features: [
-      'All 24 specialized tools, unlocked',
-      'Unlimited chat sessions',
-      'Brand DNA memory, permanent and compounding',
-      'Performance Intelligence and autopsy reports',
-      'Calendar agent up to 100 events per month',
-      'All platform outputs: LinkedIn, Twitter, Instagram, Newsletter, Video, TikTok',
-      'Priority generation speed',
+      'Roughly 1,050 generations per month',
+      'Allowance resets every 5 hours',
+      '12 ebooks per month',
+      'Full Brand DNA memory, permanent and compounding',
+      'Social profile sync and Performance Intelligence',
+      'War Room multi-agent mode',
+      'Calendar agent',
     ],
     ctaLabel: 'Start Pro — $20/mo',
     ctaType: 'checkout',
     finePrint: 'Cancel anytime in settings. One click. No email required.',
   },
   {
-    id: 'Pro Plus',
+    id: 'agency',
     name: 'Agency',
-    tagline: 'For teams and ghostwriters managing multiple clients.',
+    tagline: 'For teams shipping daily.',
     price: 39,
-    billingNote: '/ month per seat',
+    billingNote: '/ month',
     features: [
+      'Roughly 1,890 generations per month',
+      'Allowance resets every 5 hours',
+      '25 ebooks per month',
       'Everything in Pro',
-      'Separate Brand DNA per client up to 25 clients',
-      'Voice Clone tool with client fingerprint storage',
-      'Shared performance intelligence across team',
-      'Unlimited calendar events',
-      'Brand DNA Enforcer with legal and PR risk scanning',
-      'Team collaboration and session sharing',
-      'Priority support with guaranteed response time',
+      'Priority generation queue',
     ],
-    ctaLabel: 'Star Pro Plus',
-    ctaType: 'contact',
-    finePrint: 'Also available: Enterprise contracts, SLA, GDPR DPA, dedicated onboarding.',
+    // Was 'contact', which sent a self-serve customer to a sales form for a
+    // plan that is fully self-serve.
+    ctaLabel: 'Start Agency — $39/mo',
+    ctaType: 'checkout',
+    finePrint: 'Cancel anytime in settings. Volume and annual terms on request.',
   },
   {
+    // Deliberately has no `id` matching a PlanId: there is no Enterprise plan
+    // in Razorpay or in plan_limits, and it must never reach checkout. The
+    // 'contact' ctaType is what keeps it out of the subscription flow.
     id: 'enterprise',
     name: 'Enterprise',
     price: 'Custom',
     billingNote: 'Tailored to your scale',
-    tagline: 'For large organizations requiring custom models, high volume, and dedicated support.',
+    tagline: 'For organizations needing custom volume, deployment, or terms.',
     features: [
-      'Unlimited custom seats',
-      'Dedicated Account Manager',
+      'Custom generation volume',
+      'Dedicated account manager',
       'Custom Brand DNA models',
       'On-premise / VPC deployment',
-      'SLA & Priority Support'
+      'SLA and priority support',
     ],
     ctaLabel: 'Contact Sales',
     ctaType: 'contact',
     finePrint: 'Annual contracts only.',
     highlighted: false,
-  }
+  },
 ];
+ 

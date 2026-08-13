@@ -1,3 +1,5 @@
+// app/(auth)/signup/page.tsx
+
 'use client';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +11,9 @@ import { Command, Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
+
+// 1. IMPORT YOUR NEW SERVER ACTION HERE
+import { sendWelcomeEmail } from '../../../lib/email/action';
 
 // IMPORT YOUR NOISE BACKGROUND COMPONENT HERE
 // Adjust the path based on where you saved it (e.g., Aceternity UI / Magic UI folder)
@@ -40,6 +45,9 @@ export default function SignupPage() {
       return;
     }
 
+    // 2. CALL THE FUNCTION HERE (Don't await it, just let it fire in the background)
+    sendWelcomeEmail(email);
+
     toast.success('System initialized. Check your email to verify.', {
       style: { background: '#111', color: '#fff', border: '1px solid rgba(209,138,94,0.3)' }
     });
@@ -55,15 +63,14 @@ export default function SignupPage() {
       <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden bg-[#020202]">
         
         {/* The Video Element */}
-        {/* The Video Element */}
-<video 
-  autoPlay 
-  loop 
-  muted 
-  playsInline
-  className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-screen"
-  src="/assets/signupvideo.mp4" 
-/>
+        <video 
+          autoPlay 
+          loop 
+          muted 
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-screen"
+          src="/assets/signupvideo.mp4" 
+        />
 
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#000000] z-10" />
         <div className="absolute inset-0 bg-gradient-to-b from-[#000000]/40 via-transparent to-[#000000]/80 z-10" />
@@ -178,7 +185,7 @@ export default function SignupPage() {
                     <>
                       Start Forging
                       <ArrowRight className="w-4 h-4 opacity-70 transition-transform duration-300 group-hover:translate-x-1 group-hover:opacity-100" />
-                    </>
+                    </> 
                   )}
                 </button>
               </NoiseBackground>

@@ -1,15 +1,38 @@
+// app/(marketing)/components/landing/pricingsection.tsx
+
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, useMotionTemplate, useMotionValue, Variants } from 'framer-motion';
 import { MouseEvent } from 'react';
-import { Zap, ShieldCheck, ArrowRight } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Script from 'next/script';
-import { CheckoutModal } from '@/components/CheckoutModal';
 import { useAppStore } from '@/lib/store';
+import { useSubscriptionCheckout } from '@/lib/billing/use-subscription-checkout';
+import { isPlanId } from '@/lib/billing/plans';
 import { PRICING_SECTION, PRICING_TIERS, PricingTier } from '../../lib/landing-data';
+
+/**
+ * CHECKOUT WAS REWIRED. The visual design is unchanged.
+ *
+ * This section previously rendered <CheckoutModal>, which:
+ *   - posted to /api/razorpay/order, a one-time Orders endpoint that no longer
+ *     exists (hence "Unexpected token '<'": the 404 HTML page hitting .json())
+ *   - sent a hardcoded email and name to Razorpay for every customer
+ *   - granted the plan client-side via setPlan() with no server verification
+ *   - added 18% on top of the displayed price, which no longer matches what
+ *     Razorpay debits
+ *   - generated its own "TAX INVOICE" PDF with no GSTIN and no invoice
+ *     numbering
+ *
+ * All of it is replaced by useSubscriptionCheckout, which opens Razorpay's own
+ * Subscriptions checkout. Entitlement is granted only by the signature-verified
+ * subscription.charged webhook, and the invoice comes from Razorpay, who
+ * handle GST and invoice numbering properly.
+ *
+ * components/CheckoutModal.tsx is now unused and should be deleted, along with
+ * its jspdf and jspdf-autotable dependencies if nothing else imports them.
+ */
 
 const customEase = [0.16, 1, 0.3, 1] as any;
 
@@ -18,7 +41,15 @@ const fadeUp: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 1, ease: customEase } },
 };
 
-function PricingCard({ tier, onCta }: { tier: PricingTier; onCta: (t: PricingTier) => void }) {
+function PricingCard({
+  tier,
+  onCta,
+  isBusy,
+}: {
+  tier: PricingTier;
+  onCta: (t: PricingTier) => void;
+  isBusy: boolean;
+}) {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
@@ -28,7 +59,6 @@ function PricingCard({ tier, onCta }: { tier: PricingTier; onCta: (t: PricingTie
     mouseY.set(clientY - top);
   }
 
-  // Handle font sizing for text-based prices like "Custom"
   const isCustomPrice = typeof tier.price === 'string';
 
   return (
@@ -39,15 +69,12 @@ function PricingCard({ tier, onCta }: { tier: PricingTier; onCta: (t: PricingTie
         tier.highlighted ? 'md:-translate-y-4 z-10' : ''
       }`}
     >
-      {/* Background base */}
       <div className="absolute inset-0 bg-[#020202] border border-white/[0.03] rounded-[24px] pointer-events-none" />
 
-      {/* Persistent Glow for Highlighted Tier */}
       {tier.highlighted && (
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(209,138,94,0.06)_0%,transparent_70%)] pointer-events-none" />
       )}
 
-      {/* Mouse Spotlight (Border & Inner Glow) */}
       <motion.div
         className="pointer-events-none absolute inset-0 rounded-[24px] opacity-0 transition duration-500 group-hover:opacity-100"
         style={{
@@ -76,7 +103,7 @@ function PricingCard({ tier, onCta }: { tier: PricingTier; onCta: (t: PricingTie
         <h3 className="font-mono text-[11px] text-white/40 uppercase tracking-[0.2em] mb-3">
           {tier.name}
         </h3>
-        
+
         <div className="mb-8 flex items-baseline gap-2">
           <span className={`font-medium tracking-[-0.04em] text-white/95 leading-none ${isCustomPrice ? 'text-[36px]' : 'text-[48px]'}`}>
             {!isCustomPrice && '$'}{tier.price}
@@ -85,7 +112,7 @@ function PricingCard({ tier, onCta }: { tier: PricingTier; onCta: (t: PricingTie
             {tier.billingNote}
           </span>
         </div>
-        
+
         <p className="text-[13px] text-white/40 mb-10 leading-[1.6] font-light min-h-[60px]">{tier.tagline}</p>
 
         <ul className="space-y-4 flex-1 mb-12">
@@ -97,17 +124,23 @@ function PricingCard({ tier, onCta }: { tier: PricingTier; onCta: (t: PricingTie
           ))}
         </ul>
 
-        {/* Anti-Button CTA */}
         <button
           onClick={() => onCta(tier)}
-          className={`group/btn relative flex items-center justify-center gap-3 w-full py-4 rounded-full font-medium text-[13px] transition-all duration-500 backdrop-blur-md ${
+          disabled={isBusy}
+          className={`group/btn relative flex items-center justify-center gap-3 w-full py-4 rounded-full font-medium text-[13px] transition-all duration-500 backdrop-blur-md disabled:opacity-50 disabled:cursor-not-allowed ${
             tier.highlighted
               ? 'bg-white/[0.04] border border-white/[0.1] text-white hover:bg-white/[0.08]'
               : 'bg-transparent border border-white/[0.05] text-white/60 hover:text-white hover:bg-white/[0.03]'
           }`}
         >
-          {tier.ctaLabel}
-          <ArrowRight className="w-4 h-4 text-white/40 transition-transform group-hover/btn:translate-x-1 group-hover/btn:text-white" />
+          {isBusy ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <>
+              {tier.ctaLabel}
+              <ArrowRight className="w-4 h-4 text-white/40 transition-transform group-hover/btn:translate-x-1 group-hover/btn:text-white" />
+            </>
+          )}
           {tier.highlighted && (
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-[#d18a5e]/50 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity duration-500" />
           )}
@@ -121,42 +154,56 @@ function PricingCard({ tier, onCta }: { tier: PricingTier; onCta: (t: PricingTie
 
 export default function PricingSection() {
   const router = useRouter();
-  const { user, setPlan } = useAppStore();
-  const [checkoutPlan, setCheckoutPlan] = useState<{ id: string; name: string; price: number } | null>(null);
+  const { user } = useAppStore();
+  const { startCheckout, isStarting, isConfirming } = useSubscriptionCheckout();
+
+  const busy = isStarting || isConfirming;
 
   const handleCta = (tier: PricingTier) => {
     if (tier.ctaType === 'contact') {
       window.location.href = `mailto:contact@shvgroups.com?subject=Inquiry:%20ContentForge%20${tier.name}%20Plan`;
       return;
     }
-    
+
     if (!user) {
-      toast.error('Please create your account to upgrade.');
+      // Route to signup rather than opening checkout. A subscription must be
+      // attached to an account, since entitlement is granted against a user id
+      // by the webhook.
+      toast.error('Create your account first, then choose a plan.');
       router.push('/signup');
       return;
     }
-    
-    // Safety check: ensure price is a number before passing to checkout
-    const numericPrice = typeof tier.price === 'number' ? tier.price : 0;
-    setCheckoutPlan({ id: tier.id, name: tier.name, price: numericPrice });
+
+    if (!user.email) {
+      toast.error('Your account has no email address. Sign in again.');
+      return;
+    }
+
+    // Guards against a tier id that is not a real plan (Enterprise, or a typo
+    // in landing-data). Without this the request reaches the API and fails
+    // with a generic 400 the customer cannot act on.
+    if (!isPlanId(tier.id) || tier.id === 'free') {
+      toast.error('That plan is not available for self-serve checkout.');
+      return;
+    }
+
+    startCheckout({
+      planId: tier.id,
+      email: user.email,
+      // The plan is granted by the webhook, not here. This only refreshes the
+      // view once entitlement is confirmed server-side.
+      onActivated: () => router.push('/dashboard'),
+    });
   };
 
   return (
     <section id="pricing" className="py-40 bg-[#000000] border-t border-white/[0.02] relative">
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
-
-      {checkoutPlan && (
-        <CheckoutModal
-          planId={checkoutPlan.id}
-          planName={checkoutPlan.name}
-          basePrice={checkoutPlan.price}
-          onClose={() => setCheckoutPlan(null)}
-          onSuccess={() => {
-            setPlan(checkoutPlan.id as any);
-            setCheckoutPlan(null);
-          }}
-        />
-      )}
+      {/*
+        The Razorpay checkout script is loaded on demand by
+        useSubscriptionCheckout, so the <Script> tag that used to sit here is
+        no longer needed. Keeping both would race: two loaders can append the
+        tag twice before either finishes.
+      */}
 
       <div className="max-w-[1200px] mx-auto px-6">
         <motion.div
@@ -189,11 +236,10 @@ export default function PricingSection() {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 w-full"
         >
           {PRICING_TIERS.map((tier) => (
-            <PricingCard key={tier.id} tier={tier} onCta={handleCta} />
+            <PricingCard key={tier.id} tier={tier} onCta={handleCta} isBusy={busy} />
           ))}
         </motion.div>
 
-        {/* Guarantee Block */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}

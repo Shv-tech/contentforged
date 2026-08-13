@@ -1,9 +1,76 @@
+// ============================================================================
+// BILLING EMAIL — replace the existing FROM_EMAIL constant, getBaseTemplate,
+// and sendBillingEmail in lib/mail-service.ts with everything below.
+//
+// The calendar section of that file (TYPE_META, buildGoogleCalendarLink,
+// getCalendarEmailTemplate, sendCalendarEmail, sendCalendarDigestEmail) is
+// unaffected and should be left exactly as it is.
+// ============================================================================
+
 import { Resend } from 'resend';
 
 const FROM_EMAIL = 'ContentForge <billing@theutopianspace.com>';
-const FROM_CALENDAR = 'ContentForge <schedule@theutopianspace.com>';
+const FROM_CALENDAR = 'ContentForge <calendar@theutopianspace.com>';
 
-const getBaseTemplate = (name: string, body: string, actionText: string, actionUrl: string, badge?: string) => `
+/**
+ * Resolves the app base URL once, with a loud failure mode.
+ *
+ * A missing NEXT_PUBLIC_APP_URL previously produced links reading
+ * "undefined/dashboard", which render as valid-looking buttons that go
+ * nowhere. Falling back to a relative-safe empty string would be worse, so
+ * this logs instead of hiding the problem.
+ */
+function appUrl(path: string): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL;
+  if (!base) {
+    console.error('[mail] NEXT_PUBLIC_APP_URL is not set. Email links will be broken.');
+    return path;
+  }
+  return `${base.replace(/\/$/, '')}${path}`;
+}
+
+/**
+ * Billing UI lives at /account, not /settings/billing.
+ *
+ * The previous "payment overdue" email pointed at /settings/billing, which
+ * does not exist in this app. That is the single most important link in the
+ * entire billing flow: it is where a customer whose card failed goes to fix
+ * it, and a dead link there converts a recoverable payment problem into a
+ * cancellation.
+ */
+const BILLING_PATH = '/account';
+
+function getResendClient(): Resend | null {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  // The previous implementation substituted a dummy key when the real one was
+  // absent, so Resend rejected every send and nothing was delivered — with no
+  // error anywhere. Returning null and logging makes the failure visible in
+  // logs while still never throwing into the billing path.
+  if (!apiKey) {
+    console.error('[mail] RESEND_API_KEY is not set. Billing emails are disabled.');
+    return null;
+  }
+
+  return new Resend(apiKey);
+}
+
+function formatEmailDate(iso?: string | null): string {
+  if (!iso) return 'the end of your billing period';
+  return new Date(iso).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+const getBaseTemplate = (
+  name: string,
+  body: string,
+  actionText: string,
+  actionUrl: string,
+  badge?: string
+) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -43,7 +110,7 @@ const getBaseTemplate = (name: string, body: string, actionText: string, actionU
           </tr>
         </table>
         <p style="margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center;">
-          © 2026 SHV Groups Pvt Ltd. <br> 
+          © 2026 SHV Groups Pvt Ltd. <br>
           You are receiving this because of your active subscription to ContentForge.
         </p>
       </td>
@@ -53,58 +120,109 @@ const getBaseTemplate = (name: string, body: string, actionText: string, actionU
 </html>
 `;
 
+/**
+ * Widened from { amount, planName, pdfUrl }.
+ *
+ * The billing webhook passes grace-period and cancellation dates, which the
+ * old shape rejected at compile time and the old templates ignored at
+ * runtime. Those dates are the entire substance of the "payment failed" and
+ * "cancelled" emails: without them the customer is told something is wrong
+ * but not when it becomes a problem.
+ */
+export interface BillingEmailData {
+  amount?: string;
+  planName?: string;
+  /** Razorpay-hosted invoice, downloadable as PDF. */
+  pdfUrl?: string;
+  /** ISO date access continues to while a failed renewal is retried. */
+  graceUntil?: string | null;
+  graceDays?: number;
+  /** ISO date a cancelled subscription's access ends. */
+  accessUntil?: string | null;
+}
+
 export const sendBillingEmail = async (
   type: 'invoice' | 'welcome' | 'due' | 'paused' | 'canceled',
   email: string,
   name: string,
-  data?: { amount?: string; planName?: string; pdfUrl?: string }
+  data?: BillingEmailData
 ) => {
-  // THE FIX: The "Dummy Key Hack" bypasses Vercel's static compiler crash.
-  // In production, it will use your actual environment variable.
-  const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy_key_to_bypass_vercel_build");
+  const resend = getResendClient();
+  if (!resend) return;
 
   let subject = '';
   let body = '';
   let badge = 'OFFICIAL';
   let actionText = 'Access Dashboard';
-  let actionUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`;
+  let actionUrl = appUrl('/dashboard');
 
   switch (type) {
     case 'invoice':
-      subject = `Receipt: ${data?.amount} for ContentForge`;
-      body = `Your payment of <strong>${data?.amount}</strong> has been processed successfully. Your workspace is fully active.`;
+      subject = `Receipt: ${data?.amount ?? 'your payment'} for ContentForge`;
+      body = `Your payment of <strong>${data?.amount ?? ''}</strong> has been processed successfully. Your workspace is fully active.`;
       badge = 'PAID';
-      actionText = 'View Invoice PDF';
-      actionUrl = data?.pdfUrl || actionUrl;
+      // Razorpay generates the invoice itself, with the tax breakdown and
+      // invoice numbering that Indian compliance requires. Linking their
+      // hosted copy is correct; generating a PDF here would mean
+      // reimplementing GST logic.
+      if (data?.pdfUrl) {
+        actionText = 'View Invoice';
+        actionUrl = data.pdfUrl;
+      }
       break;
+
     case 'welcome':
-      subject = 'Welcome to ContentForge Pro';
-      body = `Your workspace has been successfully upgraded to the <strong>${data?.planName}</strong> tier. You now have unrestricted access to all strategic agents and deep-intelligence models.`;
+      // Subject was hardcoded to "Pro", so a Starter or Agency subscriber was
+      // told they had bought a plan they had not.
+      subject = data?.planName
+        ? `Welcome to Forge ${data.planName}`
+        : 'Welcome to Forge';
+      body = `Your workspace is now on the <strong>${data?.planName ?? 'paid'}</strong> tier. Every strategic agent and the full generation allowance are unlocked.`;
       actionText = 'Enter Command Center';
       break;
+
     case 'due':
-      subject = 'Action Required: Payment Overdue';
-      body = `Our attempt to process your subscription payment failed. Please update your payment method to keep your strategic tools active and avoid service pause.`;
-      badge = 'IMPORTANT';
+      subject = 'Action needed: your ContentForge payment failed';
+      body = `
+        We could not process your subscription renewal, and we are retrying it automatically.
+        <br><br>
+        Your workspace stays fully active until <strong>${formatEmailDate(data?.graceUntil)}</strong>.
+        Updating your payment method before then keeps everything running without interruption.
+        <br><br>
+        The most common cause is an expired or replaced card.
+      `;
+      badge = 'ACTION NEEDED';
       actionText = 'Update Payment Method';
-      actionUrl = `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing`;
+      actionUrl = appUrl(BILLING_PATH);
       break;
+
     case 'paused':
-      subject = 'Strategic Access Paused';
-      body = `Your ContentForge workspace has been paused due to an outstanding balance. Once the payment is cleared, your data and access will be instantly restored.`;
+      subject = 'Your ContentForge workspace is paused';
+      body = `Your workspace is paused due to an outstanding balance. Your data and history are intact, and access is restored immediately once payment clears.`;
       badge = 'PAUSED';
       actionText = 'Settle Balance';
+      actionUrl = appUrl(BILLING_PATH);
       break;
+
     case 'canceled':
-      subject = 'Subscription Canceled';
-      body = `Your subscription has been canceled. Your workspace will remain active until the end of your current billing cycle, after which it will revert to the free tier.`;
+      subject = 'Your ContentForge subscription is cancelled';
+      body = `
+        Your subscription is cancelled and will not renew.
+        <br><br>
+        You keep full access until <strong>${formatEmailDate(data?.accessUntil)}</strong>.
+        After that your workspace moves to the free tier. Nothing is deleted, and you can
+        resubscribe at any time.
+      `;
+      badge = 'CANCELLED';
+      actionText = 'Manage Subscription';
+      actionUrl = appUrl(BILLING_PATH);
       break;
   }
 
   await resend.emails.send({
     from: FROM_EMAIL,
     to: email,
-    subject: subject,
+    subject,
     html: getBaseTemplate(name, body, actionText, actionUrl, badge),
   });
 };
