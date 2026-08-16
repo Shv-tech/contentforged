@@ -8,6 +8,45 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { createSubscription, cancelSubscription } from '@/lib/billing/razorpay';
 import { isPlanId, PLANS, planAmountMinor } from '@/lib/billing/plans';
+
+/**
+ * Serializes an unknown thrown value into something readable in logs.
+ *
+ * The Razorpay SDK rejects with plain objects, not Error instances:
+ *
+ *   { statusCode: 400, error: { code, description, field, reason } }
+ *
+ * so the usual `error instanceof Error ? error.message : String(error)`
+ * pattern renders them as "[object Object]", which is exactly as useful as no
+ * log at all. This pulls out the description Razorpay actually sends, which
+ * is the part that names the real problem.
+ */
+function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+
+  if (error && typeof error === 'object') {
+    const candidate = error as Record<string, any>;
+
+    // Razorpay's shape.
+    const nested = candidate.error;
+    if (nested && typeof nested === 'object') {
+      const parts = [nested.code, nested.description, nested.field, nested.reason]
+        .filter(Boolean)
+        .join(' | ');
+      if (parts) return `${candidate.statusCode ?? ''} ${parts}`.trim();
+    }
+
+    if (typeof candidate.message === 'string') return candidate.message;
+
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return 'Unserializable error object';
+    }
+  }
+
+  return String(error);
+}
 import { resolveBillingCurrency, reconcileCurrencyPreference, availableMethods, formatMinor } from '@/lib/billing/currency';
 
 /**
@@ -96,6 +135,14 @@ export async function POST(req: Request) {
     .eq('status', 'created');
 
   try {
+    // Logged before the call so a failure inside Razorpay can be correlated
+    // with exactly which plan id was sent. A wrong or missing plan id is the
+    // most common cause of subscription creation failing, and without this
+    // the log says only that something went wrong.
+    console.log(
+      `[billing/subscription] Creating: user=${user.id} plan=${planId} currency=${currency}`
+    );
+
     const created = await createSubscription({
       planId,
       currency,
@@ -136,8 +183,10 @@ export async function POST(req: Request) {
       razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error('[billing/subscription] Creation failed:', message);
+    console.error(
+      `[billing/subscription] Creation failed for plan=${planId} currency=${currency}:`,
+      describeError(error)
+    );
     return NextResponse.json(
       { error: 'Could not start the subscription. Please try again.' },
       { status: 500 }
@@ -184,8 +233,7 @@ export async function DELETE() {
       accessUntil: subscription.current_period_end,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error('[billing/subscription] Cancel failed:', message);
+    console.error('[billing/subscription] Cancel failed:', describeError(error));
     return NextResponse.json({ error: 'Could not cancel. Please contact support.' }, { status: 500 });
   }
 }

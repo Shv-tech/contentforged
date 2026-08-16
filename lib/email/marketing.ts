@@ -38,10 +38,10 @@ export type EmailCategory = 'product' | 'newsletter' | 'promotional';
  * provide that isolation. It only helps recipients recognise what an email is.
  *
  * Configured via env so upgrading to a plan with multiple domains is a config
- * change rather than a code change. When mail.theutopianspace.com is verified
+ * change rather than a code change. When mail.forgeyourway.dev is verified
  * in Resend, set:
  *
- *   EMAIL_FROM_MARKETING="ContentForge <news@mail.theutopianspace.com>"
+ *   EMAIL_FROM_MARKETING="Forge <news@mail.forgeyourway.dev>"
  *
  * Until then, sharing the domain is workable at low volume PROVIDED every
  * recipient explicitly opted in and complaint rate stays near zero. The
@@ -49,10 +49,10 @@ export type EmailCategory = 'product' | 'newsletter' | 'promotional';
  * users to opted-in is what would break it.
  */
 const FROM_MARKETING =
-  process.env.EMAIL_FROM_MARKETING ?? 'ContentForge <news@theutopianspace.com>';
+  process.env.EMAIL_FROM_MARKETING ?? 'Forge <news@forgeyourway.dev>';
 
 /** Replies should reach a human, not an address nobody monitors. */
-const REPLY_TO = process.env.EMAIL_REPLY_TO ?? 'hello@theutopianspace.com';
+const REPLY_TO = process.env.EMAIL_REPLY_TO ?? 'hello@forgeyourway.dev';
 
 function appUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL;

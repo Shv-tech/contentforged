@@ -152,7 +152,7 @@ export async function createSubscription(
       user_id: args.userId,
       plan_id: args.planId,
       currency: args.currency,
-      app: 'contentforge',
+      app: 'forge',
     },
   } as any);
 

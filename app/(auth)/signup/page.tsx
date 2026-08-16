@@ -214,7 +214,7 @@ export default function SignupPage() {
               </div>
               <div className="space-y-3 text-[11px] text-white/30 leading-[1.6] font-light">
                 <p>
-                  By signing-up to forge, you acknowledge that ContentForge operates on East-Asian infrastructure (Tokyo, Japan) via Supabase. We do not harvest peripheral personal data; we ingest only the contextual intelligence (Brand DNA) explicitly required for systemic operation.
+                  By signing-up to forge, you acknowledge that Forge operates on East-Asian infrastructure (Tokyo, Japan) via Supabase. We do not harvest peripheral personal data; we ingest only the contextual intelligence (Brand DNA) explicitly required for systemic operation.
                 </p>
                 <p>
                   <strong>Zero Financial Storage:</strong> All subscription and payment processing is cryptographically isolated and delegated entirely to Razorpay. SHV Groups Pvt Ltd stores absolute zero local payment data.

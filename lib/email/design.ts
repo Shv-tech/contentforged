@@ -226,7 +226,7 @@ export function renderEmail(options: EmailShellOptions): string {
       <tr>
         <td style="padding-top:${email.space.md};border-top:1px solid ${email.color.hairline};">
           <p class="faint" style="margin:0 0 6px 0;font-family:${email.font.sans};font-size:${email.size.caption};line-height:1.6;color:${email.color.faint};">
-            ${footerReason ?? 'You are receiving this because you have a ContentForge account.'}
+            ${footerReason ?? 'You are receiving this because you have a Forge account.'}
           </p>
           <p class="faint" style="margin:0 0 6px 0;font-family:${email.font.sans};font-size:${email.size.caption};line-height:1.6;color:${email.color.faint};">
             SHV Groups Pvt Ltd &middot; New Delhi, India
@@ -299,7 +299,7 @@ export function renderEmail(options: EmailShellOptions): string {
           <tr>
             <td class="pad" style="padding:0 ${email.space.lg} ${email.space.md} ${email.space.lg};">
               <span style="font-family:${email.font.sans};font-size:${email.size.caption};font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:${email.color.accent};">
-                ContentForge
+                Forge
               </span>
             </td>
           </tr>

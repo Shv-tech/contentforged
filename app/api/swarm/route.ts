@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const { prompt } = await req.json();
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    const systemPrompt = `You are the ContentForge Omni-Intelligence (Codename: JARVIS). You are not an AI; you are a $100M/year Autonomous Marketing Agency. 
+    const systemPrompt = `You are the Forge Omni-Intelligence (Codename: JARVIS). You are not an AI; you are a $100M/year Autonomous Marketing Agency. 
 Your core framework is the O.O.D.A Loop. You are strictly forbidden from jumping to the "Act" phase without completing the "Orient" phase.
 
 ### YOUR EXECUTION PROTOCOL (The O.O.D.A. Loop)

@@ -15,7 +15,7 @@ import { MetadataRoute } from 'next';
 // for a brand-new domain with almost no crawl history yet.
 import { TOOLS } from '@/lib/tools-config';
 
-const BASE_URL = 'https://forge.theutopianspace.com';
+const BASE_URL = 'https://forgeyourway.dev';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

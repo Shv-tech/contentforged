@@ -11,7 +11,7 @@ interface SendWelcomeArgs {
 }
 
 export async function sendWelcomeEmail({ email, firstName, unsubscribeToken }: SendWelcomeArgs) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://theutopianspace.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://forgeyourway.dev';
   const unsubscribeUrl = `${appUrl}/unsubscribe?token=${unsubscribeToken}`;
 
   const html = getWelcomeEmailHtml({
@@ -22,7 +22,7 @@ export async function sendWelcomeEmail({ email, firstName, unsubscribeToken }: S
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'ContentForge <hello@theutopianspace.com>', // The transactional address
+      from: 'Forge <hello@forgeyourway.dev>', // The transactional address
       to: email,
       subject: 'Welcome to Forge',
       html: html,

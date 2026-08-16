@@ -8,7 +8,7 @@ export default function PdfToImageTool() {
     <main className="min-h-screen bg-apple-gray flex flex-col items-center pt-32 px-6">
       <nav className="fixed top-0 w-full nav-glass h-[60px] flex items-center justify-between px-8 z-50">
         <Link href="/" className="font-display font-bold text-[18px] tracking-tight text-apple-black">
-          ContentForge
+          Forge
         </Link>
         <Link href="/signup" className="btn-primary !py-2 !px-4 !text-caption">
           Get Started
@@ -37,7 +37,7 @@ export default function PdfToImageTool() {
           Available in the Enterprise Workspace
         </h3>
         <p className="text-body text-secondary mb-8">
-          This tool requires advanced client-side processing included in the ContentForge Pro Command Center. Upgrade to unlock this and 24 other creator utilities.
+          This tool requires advanced client-side processing included in the Forge Pro Command Center. Upgrade to unlock this and 24 other creator utilities.
         </p>
 
         <Link href="/signup" className="btn-primary inline-flex items-center gap-2 !px-8 !py-3 w-full justify-center">

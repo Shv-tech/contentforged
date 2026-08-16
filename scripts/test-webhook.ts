@@ -161,7 +161,7 @@ async function main() {
       user_id: userId,
       plan_id: planArg,
       currency: currencyArg.toUpperCase(),
-      app: 'contentforge',
+      app: 'forge',
     },
   };
 

@@ -294,7 +294,7 @@ async function safeFetchHtml(startUrl: string): Promise<{ html: string; finalUrl
         signal: controller.signal,
         headers: {
           'User-Agent':
-            'Mozilla/5.0 (compatible; ContentForgeProfileBot/1.0; +https://forge.theutopianspace.com)',
+            'Mozilla/5.0 (compatible; ForgeProfileBot/1.0; +https://forgeyourway.dev)',
           Accept: 'text/html,application/xhtml+xml',
         },
       });

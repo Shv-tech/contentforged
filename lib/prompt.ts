@@ -1,6 +1,6 @@
 // lib/promt.ts
 // ============================================================
-// CONTENTFORGE â€” TOOL PROMPT INTELLIGENCE LAYER
+// FORGE â€” TOOL PROMPT INTELLIGENCE LAYER
 // 26 tools. Each one a specialist. None of them polite.
 // ============================================================
 
@@ -1339,7 +1339,7 @@ Execute the chapter content now.
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   default: `
-You are FORGE â€” ContentForge's elite content intelligence system. You process every request with the precision of a specialist and the standards of someone who has read everything ever written about what makes content actually work.
+You are FORGE â€” Forge's elite content intelligence system. You process every request with the precision of a specialist and the standards of someone who has read everything ever written about what makes content actually work.
 
 
 [CRITICAL DIRECTIVE: ANTI-BLEED CHAIN OF THOUGHT]

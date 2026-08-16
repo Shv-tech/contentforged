@@ -1,5 +1,5 @@
 // lib/landing-data.ts
-// Static copy + content for the ContentForge landing page.
+// Static copy + content for the Forge landing page.
 // Pulled out of JSX so components stay focused on layout/motion, not strings.
 // Icon fields reference lucide-react export names — components resolve them
 // via the ICONS map pattern (see components/landing/icon-map.ts).
@@ -21,7 +21,7 @@ export const HERO: HeroData = {
   eyebrow: '',
   headlineLines: ['Your AI validates your ideas.', 'Forge fixes them.'],
   subheadline:
-    "ContentForge is content intelligence that remembers your Brand DNA, learns from your performance data, plans your next 90 days of content, and tells you when something is weak before you publish it.",
+    "Forge is content intelligence that remembers your Brand DNA, learns from your performance data, plans your next 90 days of content, and tells you when something is weak before you publish it.",
   ctaPrimary: 'Start Forging Free',
   ctaSecondary: 'See how it works',
   trustStrip: [
@@ -31,7 +31,7 @@ export const HERO: HeroData = {
     'Performance Intelligence',
     '40+ Countries',
   ],
-  socialProofLabel: 'Creators and teams from companies like these use ContentForge',
+  socialProofLabel: 'Creators and teams from companies like these use Forge',
    
   logos: [
     { name: 'Notion', src: '/logos/notion.svg', displayName: 'Notion' },
@@ -115,7 +115,7 @@ export interface ArchitecturePillar {
 
 export const ARCHITECTURE_SECTION = {
   eyebrow: 'THE DIFFERENCE',
-  heading: ['ContentForge is not an AI writer.', 'It is a content operating system.'],
+  heading: ['Forge is not an AI writer.', 'It is a content operating system.'],
   subheading:
     'Three architectural decisions that no other tool has made. Each one is the reason your 50th session with Forge is measurably better than your first.',
 };
@@ -468,7 +468,7 @@ export const TESTIMONIALS: Testimonial[] = [
   {
     metric: '3 tools replaced. 2 roles eliminated.',
     quote:
-      'Our agency runs content for 40 brands across six industries. ContentForge replaced three separate tools and two freelance roles. We brief Forge on a launch and receive a complete three-month plan the same day.',
+      'Our agency runs content for 40 brands across six industries. Forge replaced three separate tools and two freelance roles. We brief Forge on a launch and receive a complete three-month plan the same day.',
     name: 'Priya Sharma',
     title: 'Content Director, Webb Creative Agency',
   },
@@ -570,11 +570,11 @@ export const FAQ_SECTION = {
 export const FAQS: FAQItem[] = [
   {
     q: 'Is this just a system prompt on top of Claude or GPT?',
-    a: 'No. ContentForge is a content operating system with persistent cross-session memory, 26 purpose-built tools with specialized deep prompt architecture, a calendar agent with full database read/write access, RAG-powered Brand DNA recall, and a performance intelligence layer that updates with every analytics input. The model is the engine. The infrastructure around it is the product.',
+    a: 'No. Forge is a content operating system with persistent cross-session memory, 26 purpose-built tools with specialized deep prompt architecture, a calendar agent with full database read/write access, RAG-powered Brand DNA recall, and a performance intelligence layer that updates with every analytics input. The model is the engine. The infrastructure around it is the product.',
   },
   {
     q: 'How is this different from asking ChatGPT the same question?',
-    a: 'ChatGPT has no memory of who you are, your audience, your proven hook styles, your dead zones, or what happened to your analytics last month. ContentForge does. The model is identical. The context is everything.',
+    a: 'ChatGPT has no memory of who you are, your audience, your proven hook styles, your dead zones, or what happened to your analytics last month. Forge does. The model is identical. The context is everything.',
   },
   {
     q: 'Does the Brand DNA actually persist across sessions?',

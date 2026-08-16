@@ -66,7 +66,7 @@ export async function consumeRateLimit(
       allowed: false,
       requiresEmail: true,
       remaining: 0,
-      reason: "Daily limit reached for this tool. Try again tomorrow, or sign in to ContentForge for unlimited access.",
+      reason: "Daily limit reached for this tool. Try again tomorrow, or sign in to Forge for unlimited access.",
     };
   }
 

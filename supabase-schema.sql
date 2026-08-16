@@ -1,5 +1,5 @@
 -- =========================================
--- CONTENTFORGE — UNIFIED DATABASE SCHEMA
+-- FORGE — UNIFIED DATABASE SCHEMA
 -- Contains: Core App (RAG/Chat/Tokens/Devices) + Marketing Tools (Leads)
 -- =========================================
 

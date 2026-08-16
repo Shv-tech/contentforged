@@ -2,7 +2,7 @@
 // Drop this inside your landing page <head> or directly in the page body.
 // Next.js will inline it as a <script type="application/ld+json"> tag.
 
-const BASE_URL = 'https://forge.theutopianspace.com';
+const BASE_URL = 'https://forgeyourway.dev';
 
 // ── 1. SoftwareApplication ─────────────────────────────────────────────────
 const softwareApp = {

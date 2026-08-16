@@ -143,7 +143,7 @@ export function useSubscriptionCheckout() {
         const checkout = new window.Razorpay({
           key: subscription.razorpayKeyId,
           subscription_id: subscription.subscriptionId,
-          name: 'ContentForge',
+          name: 'Forge',
           description: `${subscription.planName} — ${subscription.displayAmount}/month`,
           prefill: { email, name: name || '' },
           theme: { color: '#d18a5e' },

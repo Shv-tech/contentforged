@@ -22,7 +22,7 @@ export function generateMetadata({ params }: Props): Metadata {
   const tool = getToolBySlug(params.slug);
   if (!tool) return {};
 
-  const url = `https://forge.theutopianspace.com/tools/${tool.slug}`;
+  const url = `https://forgeyourway.dev/tools/${tool.slug}`;
 
   return {
     title: tool.metaTitle,
@@ -32,7 +32,7 @@ export function generateMetadata({ params }: Props): Metadata {
       title: tool.metaTitle,
       description: tool.metaDescription,
       url,
-      siteName: "ContentForge",
+      siteName: "Forge",
       type: "website",
     },
     twitter: {

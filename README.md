@@ -1,8 +1,8 @@
-# ContentForge ⚡
+# Forge ⚡
 
 **Turn one piece of content into 30+ platform-ready posts. Instantly.**
 
-ContentForge is a BYOK (Bring Your Own Key) AI content repurposing engine. Paste a blog, YouTube link, or raw text — get LinkedIn posts, tweets, newsletters, threads, and Instagram captions. Your API key, your cost, zero markup.
+Forge is a BYOK (Bring Your Own Key) AI content repurposing engine. Paste a blog, YouTube link, or raw text — get LinkedIn posts, tweets, newsletters, threads, and Instagram captions. Your API key, your cost, zero markup.
 
 ## Stack
 

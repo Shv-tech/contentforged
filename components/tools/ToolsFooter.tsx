@@ -21,7 +21,7 @@ export default function ToolsFooter() {
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <div className="mb-12">
           <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">
-            ContentForge Free AI Tools Library
+            Forge Free AI Tools Library
           </h2>
           <p className="mt-2 text-sm text-neutral-500">
             Grow your audience across every platform with our suite of free, AI-powered generation tools. No login required.

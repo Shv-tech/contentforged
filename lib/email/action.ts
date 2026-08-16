@@ -115,7 +115,7 @@ export async function sendWelcomeEmail(email: string) {
 
                 Export at 1200px wide for retina, displayed at 600.
               -->
-              <img src="https://raw.githubusercontent.com/Shv-tech/contentforged/main/workspacesingularity.png"
+              <img src="https://raw.githubusercontent.com/Shv-tech/forged/main/workspacesingularity.png"
                    width="600" alt="Welcome to your workspace singularity"
                    style="width:100%;max-width:600px;height:auto;display:block;border:0;" />
             </td>
@@ -203,7 +203,7 @@ export async function sendWelcomeEmail(email: string) {
           <tr>
             <td style="padding:20px 0 0 0;">
               <!-- REPLACE with your hosted URL. -->
-              <img src="https://raw.githubusercontent.com/Shv-tech/contentforged/main/PAY%20FOR%20WHAT%20ACTTUALLY%20WORKS2.png"
+              <img src="https://raw.githubusercontent.com/Shv-tech/forged/main/PAY%20FOR%20WHAT%20ACTTUALLY%20WORKS2.png"
                    width="600" alt="AI, with continuity"
                    style="width:100%;max-width:600px;height:auto;display:block;border:0;" />
             </td>

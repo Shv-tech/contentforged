@@ -78,7 +78,7 @@ export default function JpgToPdfTool() {
         pdf.addImage(base64, 'JPEG', x, y, finalWidth, finalHeight);
       }
 
-      pdf.save(`ContentForge_Carousel_${Date.now()}.pdf`);
+      pdf.save(`Forge_Carousel_${Date.now()}.pdf`);
       toast.success('PDF Downloaded!', { id: 'pdf' });
     } catch (err) {
       toast.error('Failed to generate PDF.', { id: 'pdf' });
@@ -90,7 +90,7 @@ export default function JpgToPdfTool() {
   return (
     <main className="min-h-screen bg-[#faf9f5] flex flex-col items-center pt-24 px-6 pb-20 text-[#141413]">
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md h-[60px] flex items-center justify-between px-8 z-50 border-b border-black/5">
-        <Link href="/" className="font-bold text-[18px] tracking-tight">ContentForge Tools</Link>
+        <Link href="/" className="font-bold text-[18px] tracking-tight">Forge Tools</Link>
         <Link href="/signup" className="bg-[#141413] text-white px-4 py-2 rounded-lg text-[13px] font-medium">Unlock Pro</Link>
       </nav>
 

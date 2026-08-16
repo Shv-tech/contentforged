@@ -13,7 +13,7 @@ import StructuredData from '@/components/StructuredData';
 
 const inter = Inter({ subsets: ['latin'] });
 
-const BASE_URL = 'https://forge.theutopianspace.com';
+const BASE_URL = 'https://forgeyourway.dev';
 
 // ── Viewport ──────────────────────────────────────────────────────────────
 export const viewport: Viewport = {
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: '%s | Forge',
   },
   description:
-    'ContentForge is the AI content operating system that remembers your Brand DNA, scores every post before you publish, plans your LinkedIn and Instagram calendar 90 days out, and gets measurably smarter every session. 26 precision tools. Used by 10,000+ creators.',
+    'Forge is the AI content operating system that remembers your Brand DNA, scores every post before you publish, plans your LinkedIn and Instagram calendar 90 days out, and gets measurably smarter every session. 26 precision tools. Used by 10,000+ creators.',
 
   keywords: [
     'AI content tool', 'AI content strategy', 'LinkedIn AI writer',
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     'content marketing platform', 'AI for creators', 'content operating system',
     'best AI for LinkedIn', 'AI content planner', 'social media AI tool',
     'content repurposing AI', 'ghostwriter AI tool', 'agency content AI',
-    'AI hook writer', 'ContentForge'
+    'AI hook writer', 'Forge'
   ],
 
   authors: [{ name: 'Forge', url: BASE_URL }],
@@ -74,7 +74,7 @@ export const metadata: Metadata = {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'ContentForge — The Content Operating System',
+        alt: 'Forge — The Content Operating System',
         type: 'image/png',
       },
     ],
@@ -85,7 +85,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     site: '@forge',
     creator: '@forge',
-    title: 'ContentForge — The Content OS for Serious Creators',
+    title: 'Forge — The Content OS for Serious Creators',
     description:
       'Brand DNA memory. Calendar agent. Stop-Scroll Grader. 26 precision tools. The AI that tells you the truth about your content.',
     images: ['/og-image.png'],
@@ -109,7 +109,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'ContentForge',
+    title: 'Forge',
   },
 
   category: 'technology',

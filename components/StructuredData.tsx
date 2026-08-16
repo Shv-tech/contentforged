@@ -11,7 +11,7 @@
 // structured data (wrong price, dead URL) is worse than no structured data,
 // since it can get you a manual "misleading markup" flag from Google.
 
-const BASE_URL = 'https://forge.theutopianspace.com';
+const BASE_URL = 'https://forgeyourway.dev';
 
 export default function StructuredData() {
   const data = [
@@ -19,7 +19,7 @@ export default function StructuredData() {
       '@context': 'https://schema.org',
       '@type': 'Organization',
       name: 'Forge',
-      alternateName: 'ContentForge',
+      alternateName: 'Forge',
       url: BASE_URL,
       logo: `${BASE_URL}/icon.svg`,
       parentOrganization: {
@@ -27,7 +27,7 @@ export default function StructuredData() {
         name: 'SHV Groups Pvt Ltd',
       },
       // Add your real social/profile URLs here — this is what lets Google
-      // (and AI models) confidently link "Forge/ContentForge" to a single
+      // (and AI models) confidently link "Forge/Forge" to a single
       // verified entity instead of guessing among the many unrelated
       // products also named "Forge".
       // sameAs: [
@@ -45,7 +45,7 @@ export default function StructuredData() {
     {
       '@context': 'https://schema.org',
       '@type': 'SoftwareApplication',
-      name: 'ContentForge',
+      name: 'Forge',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       url: BASE_URL,

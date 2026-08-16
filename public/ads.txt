@@ -1,4 +1,4 @@
-# ads.txt — Authorized Digital Sellers for theutopianspace.com / forge.theutopianspace.com
+# ads.txt — Authorized Digital Sellers for forgeyourway.dev / forgeyourway.dev
 # https://iabtechlab.com/ads-txt/
 #
 # This line authorizes Google (AdSense/Ad Manager/AdMob) to sell/resell

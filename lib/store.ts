@@ -214,7 +214,7 @@ export const useAppStore = create<AppState>()(
       setWarRoomStatus: (status) => set({ warRoomStatus: status }),
     }),
     {
-      name: 'contentforge-production-storage',
+      name: 'forge-production-storage',
       // Only durable UI preferences and chat history are persisted.
       // `plan`, `quota`, and `subscription` are excluded on purpose: they are
       // entitlement state, and entitlement must never be writable by the

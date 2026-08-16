@@ -1,4 +1,4 @@
-# https://forge.theutopianspace.com/robots.txt
+# https://forgeyourway.dev/robots.txt
 # Generated for Forge — reviewed for SEO + AI/LLM discoverability (Jul 2026)
 #
 # IMPORTANT robots.txt fact: a crawler that has its OWN named group below
@@ -112,4 +112,4 @@ Disallow: /account/
 Disallow: /api/
 
 # Sitemap
-Sitemap: https://forge.theutopianspace.com/sitemap.xml
+Sitemap: https://forgeyourway.dev/sitemap.xml

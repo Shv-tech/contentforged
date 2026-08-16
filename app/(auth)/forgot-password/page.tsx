@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
         
         <div className="text-center mb-10">
           <Link href="/" className="font-display text-[21px] font-semibold text-gray-900 tracking-tight">
-            ContentForge
+            Forge
           </Link>
         </div>
 

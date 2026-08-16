@@ -3,7 +3,7 @@ import { Metadata } from 'next';
 import { Shield, Lock, Server, Cpu } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Security Posture | ContentForge',
+  title: 'Security Posture | Forge',
   description: 'Enterprise-grade security, isolation, and infrastructure resilience.',
 };
 
@@ -23,7 +23,7 @@ export default function SecurityCenter() {
             Security Posture
           </h1>
           <p className="text-white/40 text-sm font-mono max-w-xl leading-relaxed">
-            ContentForge is not a wrapper. It is a highly engineered operating system. We treat your Brand DNA as critical infrastructure, protected by multi-layered cryptographic isolation and world-class server architecture.
+            Forge is not a wrapper. It is a highly engineered operating system. We treat your Brand DNA as critical infrastructure, protected by multi-layered cryptographic isolation and world-class server architecture.
           </p>
         </header>
 
@@ -76,7 +76,7 @@ export default function SecurityCenter() {
           <section className="mb-12">
             <h2 className="text-2xl mb-4">Authentication & Authorization</h2>
             <p>
-              Access to the ContentForge backend is strictly regulated. We utilize JSON Web Tokens (JWT) for session management, coupled with Supabase Auth. Any attempt to modify data across tenant boundaries is rejected at the API gateway layer before it can even reach our logic processing nodes.
+              Access to the Forge backend is strictly regulated. We utilize JSON Web Tokens (JWT) for session management, coupled with Supabase Auth. Any attempt to modify data across tenant boundaries is rejected at the API gateway layer before it can even reach our logic processing nodes.
             </p>
           </section>
         </article>

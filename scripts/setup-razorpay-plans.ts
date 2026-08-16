@@ -203,7 +203,7 @@ async function main() {
       // name, changing a price and re-running would silently skip every plan
       // and create nothing, leaving the operator convinced the new price was
       // applied when it was not.
-      const itemName = `ContentForge ${plan.name} (${currency} ${pricing.amountMinor / 100})`;
+      const itemName = `Forge ${plan.name} (${currency} ${pricing.amountMinor / 100})`;
 
       const existingId = existingByName.get(itemName);
       if (existingId) {
@@ -230,7 +230,7 @@ async function main() {
             amount: pricing.amountMinor,
             currency,
           },
-          notes: { app: 'contentforge', plan_id: planId, currency },
+          notes: { app: 'forge', plan_id: planId, currency },
         });
 
         console.log(`OK    ${itemName} — ${pricing.displayPrice}/month`);

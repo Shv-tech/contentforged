@@ -161,7 +161,7 @@ export default function PricingSection() {
 
   const handleCta = (tier: PricingTier) => {
     if (tier.ctaType === 'contact') {
-      window.location.href = `mailto:contact@shvgroups.com?subject=Inquiry:%20ContentForge%20${tier.name}%20Plan`;
+      window.location.href = `mailto:contact@shvgroups.com?subject=Inquiry:%20Forge%20${tier.name}%20Plan`;
       return;
     }
 

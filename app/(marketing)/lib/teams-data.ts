@@ -14,7 +14,7 @@ export const TEAMS_DATA: Record<string, TeamData> = {
     id: 'solo-creators',
     eyebrow: 'Individual Scale',
     headline: 'Scale your mind. Not your headcount.',
-    subheadline: 'ContentForge acts as your localized content infrastructure, allowing a single creator to output at the volume of a media company without sacrificing structural integrity or brand DNA.',
+    subheadline: 'Forge acts as your localized content infrastructure, allowing a single creator to output at the volume of a media company without sacrificing structural integrity or brand DNA.',
     icon: User,
     features: [
       { title: 'Absolute Recall', description: 'The system remembers every post, hook, and framework you’ve ever used.' },
@@ -26,7 +26,7 @@ export const TEAMS_DATA: Record<string, TeamData> = {
     id: 'ghostwriters',
     eyebrow: 'Agency Infrastructure',
     headline: 'Absolute cognitive separation.',
-    subheadline: 'Manage distinct client voices with zero cross-contamination. ContentForge isolates each Brand DNA into secure, partitioned environments, allowing your agency to scale infinitely.',
+    subheadline: 'Manage distinct client voices with zero cross-contamination. Forge isolates each Brand DNA into secure, partitioned environments, allowing your agency to scale infinitely.',
     icon: Zap,
     features: [
       { title: 'Syntactic Cloning', description: 'Replicates cadence, tone, and specific vocabulary per client, never drifting toward a generic AI voice.' },
@@ -38,7 +38,7 @@ export const TEAMS_DATA: Record<string, TeamData> = {
     id: 'founders',
     eyebrow: 'Executive Authority',
     headline: 'Translate expertise into authority.',
-    subheadline: 'You have the domain knowledge; you lack the time for execution. ContentForge is a zero-friction pipeline that transforms your raw ideas into published market dominance.',
+    subheadline: 'You have the domain knowledge; you lack the time for execution. Forge is a zero-friction pipeline that transforms your raw ideas into published market dominance.',
     icon: Briefcase,
     features: [
       { title: 'Zero-Friction Input', description: 'Feed the system raw brain-dumps, audio transcripts, or internal memos. It handles the structural formatting.' },

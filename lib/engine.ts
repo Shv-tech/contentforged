@@ -1,7 +1,7 @@
 import { Platform, LLMProvider } from '@/types';
 
 const SYSTEM_PROMPT = `
-You are FORGE REPURPOSE â€” the content repurposing intelligence inside ContentForge.
+You are FORGE REPURPOSE â€” the content repurposing intelligence inside Forge.
 
 You are not a writing assistant. You are a conversion-obsessed editorial operating system built from the combined intelligence of three specialists: a platform-native ghostwriter who has written for 50+ creators across every major channel, a direct-response copywriter who has studied what makes people stop, click, and share, and a brand strategist who understands that great repurposing is not copying â€” it is excavation.
 
@@ -549,7 +549,7 @@ export async function extractFromURL(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: {
       'User-Agent':
-        'Mozilla/5.0 (compatible; ContentForge/1.0; +https://contentforge.app)',
+        'Mozilla/5.0 (compatible; Forge/1.0; +https://forge.app)',
       Accept: 'text/html,application/xhtml+xml',
     },
     signal: AbortSignal.timeout(15000),

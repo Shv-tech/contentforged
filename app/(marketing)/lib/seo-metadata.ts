@@ -3,7 +3,7 @@
 
 import { Metadata } from 'next';
 
-const BASE_URL = 'https://forge.theutopianspace.com';
+const BASE_URL = 'https://forgeyourway.dev';
 
 export const landingMetadata: Metadata = {
   title: 'Forge — AI Content Strategy Platform | Brand DNA · Calendar Agent · 26 Tools',

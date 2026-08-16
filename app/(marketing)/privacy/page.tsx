@@ -2,8 +2,8 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Privacy Architecture | ContentForge',
-  description: 'How ContentForge isolates, processes, and protects your proprietary data.',
+  title: 'Privacy Architecture | Forge',
+  description: 'How Forge isolates, processes, and protects your proprietary data.',
 };
 
 export default function PrivacyPolicy() {
@@ -30,7 +30,7 @@ export default function PrivacyPolicy() {
           <section className="mb-12">
             <h2 className="text-2xl mb-4">1. The Principle of Minimal Telemetry</h2>
             <p>
-              ContentForge, operated by SHV Groups Pvt Ltd, is engineered on the principle of data minimalism. We ingest only the exact data vectors required to execute systemic operations and compute your Brand DNA. We do not engage in surveillance capitalism, we do not sell your context to advertisers, and we do not harvest peripheral personal details. 
+              Forge, operated by SHV Groups Pvt Ltd, is engineered on the principle of data minimalism. We ingest only the exact data vectors required to execute systemic operations and compute your Brand DNA. We do not engage in surveillance capitalism, we do not sell your context to advertisers, and we do not harvest peripheral personal details. 
             </p>
             <p>
               Logging into our application serves as an explicit cryptographic handshake, acknowledging and consenting to the data practices defined in this document.
@@ -40,7 +40,7 @@ export default function PrivacyPolicy() {
           <section className="mb-12">
             <h2 className="text-2xl mb-4">2. The Data We Process</h2>
             <p>
-              To operate the ContentForge infrastructure, we process specific categories of data:
+              To operate the Forge infrastructure, we process specific categories of data:
             </p>
             <ul className="list-disc pl-6 space-y-2 text-white/60 mb-6 marker:text-[#d18a5e]">
               <li><strong>Authentication Data:</strong> OAuth tokens, email addresses, and encrypted password hashes required to secure your workspace.</li>
@@ -55,7 +55,7 @@ export default function PrivacyPolicy() {
           <section className="mb-12">
             <h2 className="text-2xl mb-4">3. Server Infrastructure and Global Routing</h2>
             <p>
-              ContentForge utilizes Supabase as our primary backend-as-a-service (BaaS) provider. To ensure optimal latency and stringent data protection, our core PostgreSQL databases and vector storage are physically housed in East Asia, specifically within highly secured server clusters located in <strong>Tokyo, Japan</strong>.
+              Forge utilizes Supabase as our primary backend-as-a-service (BaaS) provider. To ensure optimal latency and stringent data protection, our core PostgreSQL databases and vector storage are physically housed in East Asia, specifically within highly secured server clusters located in <strong>Tokyo, Japan</strong>.
             </p>
             <p>
               By utilizing the Service, you consent to the cross-border transfer, processing, and storage of your Brand DNA and contextual data in Tokyo, governed by international data protection protocols and Supabase's enterprise security architecture.
@@ -65,7 +65,7 @@ export default function PrivacyPolicy() {
           <section className="mb-12">
             <h2 className="text-2xl mb-4">4. Third-Party Intelligence Models</h2>
             <p>
-              ContentForge operates as a highly specialized intelligence layer. To generate the final output, portions of your Brand DNA and prompts are securely transmitted to Tier-1 foundational model providers (such as OpenAI or Anthropic) via Enterprise APIs. 
+              Forge operates as a highly specialized intelligence layer. To generate the final output, portions of your Brand DNA and prompts are securely transmitted to Tier-1 foundational model providers (such as OpenAI or Anthropic) via Enterprise APIs. 
             </p>
             <p>
               We maintain strict Data Processing Agreements (DPAs) with these providers, ensuring that your inputs and outputs are explicitly opted-out from being used to train their global foundational models. Your data remains your proprietary asset.

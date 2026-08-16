@@ -9,8 +9,8 @@
 
 import { Resend } from 'resend';
 
-const FROM_EMAIL = 'ContentForge <billing@theutopianspace.com>';
-const FROM_CALENDAR = 'ContentForge <calendar@theutopianspace.com>';
+const FROM_EMAIL = 'Forge <billing@forgeyourway.dev>';
+const FROM_CALENDAR = 'Forge <calendar@forgeyourway.dev>';
 
 /**
  * Resolves the app base URL once, with a loud failure mode.
@@ -94,7 +94,7 @@ const getBaseTemplate = (
           <tr>
             <td align="center" style="padding-bottom: 32px;">
               <div style="display: flex; justify-content: center; align-items: center; gap: 10px;">
-                <h1 style="font-size: 14px; font-weight: 800; letter-spacing: 0.1em; color: #0f172a; margin: 0; text-transform: uppercase;">CONTENTFORGE</h1>
+                <h1 style="font-size: 14px; font-weight: 800; letter-spacing: 0.1em; color: #0f172a; margin: 0; text-transform: uppercase;">FORGE</h1>
                 ${badge ? `<span class="badge" style="font-size: 10px; background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-weight: 700; margin-left: 10px;">${badge}</span>` : ''}
               </div>
             </td>
@@ -111,7 +111,7 @@ const getBaseTemplate = (
         </table>
         <p style="margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center;">
           © 2026 SHV Groups Pvt Ltd. <br>
-          You are receiving this because of your active subscription to ContentForge.
+          You are receiving this because of your active subscription to Forge.
         </p>
       </td>
     </tr>
@@ -158,7 +158,7 @@ export const sendBillingEmail = async (
 
   switch (type) {
     case 'invoice':
-      subject = `Receipt: ${data?.amount ?? 'your payment'} for ContentForge`;
+      subject = `Receipt: ${data?.amount ?? 'your payment'} for Forge`;
       body = `Your payment of <strong>${data?.amount ?? ''}</strong> has been processed successfully. Your workspace is fully active.`;
       badge = 'PAID';
       // Razorpay generates the invoice itself, with the tax breakdown and
@@ -182,7 +182,7 @@ export const sendBillingEmail = async (
       break;
 
     case 'due':
-      subject = 'Action needed: your ContentForge payment failed';
+      subject = 'Action needed: your Forge payment failed';
       body = `
         We could not process your subscription renewal, and we are retrying it automatically.
         <br><br>
@@ -197,7 +197,7 @@ export const sendBillingEmail = async (
       break;
 
     case 'paused':
-      subject = 'Your ContentForge workspace is paused';
+      subject = 'Your Forge workspace is paused';
       body = `Your workspace is paused due to an outstanding balance. Your data and history are intact, and access is restored immediately once payment clears.`;
       badge = 'PAUSED';
       actionText = 'Settle Balance';
@@ -205,7 +205,7 @@ export const sendBillingEmail = async (
       break;
 
     case 'canceled':
-      subject = 'Your ContentForge subscription is cancelled';
+      subject = 'Your Forge subscription is cancelled';
       body = `
         Your subscription is cancelled and will not renew.
         <br><br>
@@ -251,7 +251,7 @@ function buildGoogleCalendarLink(event: {
     action: 'TEMPLATE',
     text: event.title,
     dates: `${fmt(start)}/${fmt(end)}`,
-    details: event.description || `Scheduled via ContentForge`,
+    details: event.description || `Scheduled via Forge`,
   });
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
@@ -314,7 +314,7 @@ const getCalendarEmailTemplate = (
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td align="left">
-              <span style="font-family: 'DM Sans', Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 800; letter-spacing: 0.16em; color: #f5f5f5; text-transform: uppercase;">CONTENTFORGE</span>
+              <span style="font-family: 'DM Sans', Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 800; letter-spacing: 0.16em; color: #f5f5f5; text-transform: uppercase;">FORGE</span>
             </td>
             <td align="right">
               <span style="display:inline-block; font-family: 'DM Sans', Helvetica, Arial, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: ${meta.color}; background: ${meta.color}1A; border: 1px solid ${meta.color}40; padding: 5px 11px; border-radius: 20px; text-transform: uppercase;">${meta.label}</span>
@@ -409,7 +409,7 @@ const getCalendarEmailTemplate = (
     <tr>
       <td align="center">
         <p style="margin:0; font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #444444; line-height: 1.6;">
-          © 2026 SHV Groups Pvt Ltd · ContentForge<br>
+          © 2026 SHV Groups Pvt Ltd · Forge<br>
           You're receiving this because of an active workspace event notification.
         </p>
       </td>
@@ -510,7 +510,7 @@ export const sendCalendarEmail = async (
 
     <tr>
       <td class="px-pad" style="padding: 32px 40px 0 40px;">
-        <span style="font-family: 'DM Sans', Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 800; letter-spacing: 0.16em; color: #f5f5f5; text-transform: uppercase;">CONTENTFORGE</span>
+        <span style="font-family: 'DM Sans', Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 800; letter-spacing: 0.16em; color: #f5f5f5; text-transform: uppercase;">FORGE</span>
       </td>
     </tr>
 
@@ -557,7 +557,7 @@ export const sendCalendarEmail = async (
   <table role="presentation" class="container" width="560" cellpadding="0" cellspacing="0" style="width:560px; max-width:560px; margin-top: 24px;">
     <tr><td align="center">
       <p style="margin:0; font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #444444; line-height: 1.6;">
-        © 2026 SHV Groups Pvt Ltd · ContentForge<br>
+        © 2026 SHV Groups Pvt Ltd · Forge<br>
         You're receiving this because Forge scheduled a batch of events on your behalf.
       </p>
     </td></tr>

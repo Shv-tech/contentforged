@@ -150,7 +150,7 @@ export default function FinalCTA() {
             
             <div className="flex items-center gap-4">
               <span className="font-medium text-[13px] tracking-[-0.02em] text-white/90">
-                ContentForge
+                Forge
               </span>
               <span className="text-white/10">|</span>
               <span className="text-[12px] text-white/30 font-light">

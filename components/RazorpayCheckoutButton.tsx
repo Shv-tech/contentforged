@@ -39,7 +39,7 @@ export function RazorpayCheckoutButton({ planId, baseAmount, userId, email, name
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: orderData.amount, // from your backend (base + 18% tax in cents/paise)
         currency: orderData.currency,
-        name: 'ContentForge',
+        name: 'Forge',
         description: `${planId.toUpperCase()} Workspace Upgrade`,
         order_id: orderData.orderId,
         handler: async function (response: any) {
