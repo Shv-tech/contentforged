@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion, Variants } from 'framer-motion';
-import { ArrowRight, Twitter, Linkedin, Instagram, Command } from 'lucide-react';
+import { ArrowRight, Twitter, Linkedin, Instagram, Youtube, Command } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { FINAL_CTA } from '../../lib/landing-data';
 import Image from 'next/image';
@@ -48,6 +48,8 @@ const FOOTER_COLUMNS = [
       { label: 'Privacy', href: '/privacy' },
       { label: 'Terms', href: '/terms' },
       { label: 'Security', href: '/security' },
+      { label: 'support', href: 'mailto:support@forgeyourway.dev'}
+      
     ],
   },
 ];
@@ -159,14 +161,17 @@ export default function FinalCTA() {
             </div>
 
             <div className="flex items-center gap-6">
-              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-[#d18a5e] transition-colors">
+              <a href="https://x.com/forgeyourway" target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-[#d18a5e] transition-colors">
                 <Twitter className="w-4 h-4" />
               </a>
-              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-[#d18a5e] transition-colors">
+              <a href="https://www.linkedin.com/company/forgeyourway" target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-[#d18a5e] transition-colors">
                 <Linkedin className="w-4 h-4" />
               </a>
-              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-[#d18a5e] transition-colors">
+              <a href="https://www.instagram.com/forgedtheway?igsh=cWM4cnp3dGdyNW8z" target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-[#d18a5e] transition-colors">
                 <Instagram className="w-4 h-4" />
+              </a>
+              < a href="https://www.youtube.com/@Forgedyourway" target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-[#d18a5e] transition-colors">
+                <Youtube className="w-4 h-4" />
               </a>
             </div>
 
