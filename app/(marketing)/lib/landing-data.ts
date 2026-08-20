@@ -19,9 +19,9 @@ export interface HeroData {
 
 export const HERO: HeroData = {
   eyebrow: '',
-  headlineLines: ['Your AI validates your ideas.', 'Forge fixes them.'],
+  headlineLines: ['AI content that', 'actually sounds like you.'],
   subheadline:
-    "Forge is content intelligence that remembers your Brand DNA, learns from your performance data, plans your next 90 days of content, and tells you when something is weak before you publish it.",
+    "Forge learns your voice from your best-performing posts, writes in it, plans your calendar, and flags weak hooks before you publish.",
   ctaPrimary: 'Start Forging Free',
   ctaSecondary: 'See how it works',
   trustStrip: [

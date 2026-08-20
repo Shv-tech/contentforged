@@ -61,7 +61,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`, 
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
       },
     });
 
@@ -142,6 +142,53 @@ export default function LoginPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
           >
+            {/*
+              Google above the email form.
+
+              Placed first because it is the lower-friction path: one tap, no
+              password to invent or recall. Burying it under the form means
+              most people never see it, and the ones who do have already
+              started typing.
+            */}
+            {/* Google Login Button (Dark Glassy Aesthetic) */}
+            <button
+              onClick={handleGoogleLogin}
+              disabled={loading || googleLoading}
+              className="w-full bg-white/[0.02] border border-white/[0.08] text-white/80 rounded-[12px] py-3.5 text-[14px] font-medium hover:bg-white/[0.04] hover:text-white transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 backdrop-blur-sm"
+            >
+              {googleLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin opacity-70" />
+              ) : (
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                  <path d="M1 1h22v22H1z" fill="none" />
+                </svg>
+              )}
+              Continue with Google
+            </button>
+
+            {/*
+              Divider naming the alternative explicitly.
+
+              A bare "Or" leaves the reader to work out what the second option
+              is. Saying "or log in with email" makes both paths legible at a
+              glance, which matters most for returning users trying to
+              remember how they signed up last time.
+            */}
+            <div className="relative my-8">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/[0.05]"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-[#000000] px-4 text-[12px] text-white/30 font-mono uppercase tracking-widest">
+                  Or log in with email
+                </span>
+              </div>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-[13px] font-medium text-white/60 mb-2">
@@ -208,38 +255,6 @@ export default function LoginPage() {
                 </NoiseBackground>
               </div>
             </form>
-
-            {/* SSO Divider */}
-            <div className="relative my-8">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/[0.05]"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="bg-[#000000] px-4 text-[12px] text-white/30 font-mono uppercase tracking-widest">
-                  Or
-                </span>
-              </div>
-            </div>
-
-            {/* Google Login Button (Dark Glassy Aesthetic) */}
-            <button
-              onClick={handleGoogleLogin}
-              disabled={loading || googleLoading}
-              className="w-full bg-white/[0.02] border border-white/[0.08] text-white/80 rounded-[12px] py-3.5 text-[14px] font-medium hover:bg-white/[0.04] hover:text-white transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 backdrop-blur-sm"
-            >
-              {googleLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin opacity-70" />
-              ) : (
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                  <path d="M1 1h22v22H1z" fill="none" />
-                </svg>
-              )}
-              Continue with Google
-            </button>
 
             {/* Footer Link */}
             <p className="text-[13px] text-white/40 text-center mt-10">
