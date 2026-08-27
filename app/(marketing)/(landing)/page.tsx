@@ -23,6 +23,8 @@ import Testimonials from '../components/landing/testimonials';
 import PricingSection from '../components/landing/pricingsection';
 import FAQSection from '../components/landing/faqsection';
 import FinalCTA from '../components/landing/finalcta';
+import { LandingBlogSection } from '../components/landing/Blog';
+import { getAllPosts, formatPostDate } from '@/lib/blog/posts';
 
 const NAV_LINKS = [
   { label: 'How It Works', href: '#how' },
@@ -37,6 +39,13 @@ export default function LandingClient() {
   const [navScrolled, setNavScrolled] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const { scrollYProgress } = useScroll();
+
+  // Fetch posts on the server
+  const rawPosts = getAllPosts();
+  const posts = rawPosts.map((post) => ({
+    ...post,
+    publishedAt: formatPostDate(post.publishedAt),
+  }));
 
   useEffect(() => {
     setMounted(true);
@@ -166,6 +175,7 @@ export default function LandingClient() {
       <ArchitectureSection />
       <ToolArsenal />
       <section id="methodology"><PsychologySection /></section>
+      <LandingBlogSection posts={posts} />
       <UseCases />
       <HowItWorks />
       <Testimonials />
