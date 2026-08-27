@@ -27,7 +27,7 @@ export interface BlogPost {
  */
 export const BLOG_POSTS: BlogPost[] = [
   {
-    image: '/card-image/ai-content-paradox.png',
+    image: '/Card-image/ai-content-paradox.png',
     slug: 'ai-content-engagement-data',
     title: 'The AI content paradox: assisted wins, automated loses',
     excerpt:

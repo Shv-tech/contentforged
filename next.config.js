@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
+
 const nextConfig = {
   swcMinify: true,
+
+  images: {
+    unoptimized: true,
+  },
   
   webpack: (config, { isServer }) => {
     config.resolve.alias.canvas = false;
