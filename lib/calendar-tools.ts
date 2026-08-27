@@ -48,6 +48,8 @@ export async function createCalendarEvent(
   args: {
     title: string; description?: string; start_date: string;
     type?: string; platform?: string; reminder_minutes_before?: number;
+    post_content?: string;
+    hook_score?: number; hook_verdict?: string; hook_notes?: string;
   },
   userId: string
 ) {
@@ -66,6 +68,16 @@ export async function createCalendarEvent(
       color: TYPE_COLORS[type],
       ai_generated: true,
       reminder_minutes_before: args.reminder_minutes_before ?? 60,
+      // The publishable draft, stored on the event itself.
+      //
+      // Previously an event carried only a title and a one-line angle, so on
+      // the morning it was due the user had a label rather than something to
+      // post, and had to dig the actual draft out of the chat session it was
+      // planned in. The reminder email reads this field.
+      post_content: args.post_content || null,
+      hook_score: args.hook_score ?? null,
+      hook_verdict: args.hook_verdict || null,
+      hook_notes: args.hook_notes || null,
     })
     .select()
     .single();
@@ -80,6 +92,8 @@ export async function createCalendarEventsBulk(
     events: Array<{
       title: string; description?: string; start_date: string;
       type?: string; platform?: string;
+      post_content?: string;
+      hook_score?: number; hook_verdict?: string; hook_notes?: string;
     }>;
   },
   userId: string,
@@ -101,6 +115,14 @@ export async function createCalendarEventsBulk(
       ai_generated: true,
       notify_individually: false, // suppressed — digest sent below instead
       reminder_minutes_before: 60,
+      // Each event carries its own draft, so a seven day plan produces seven
+      // cards each holding the post that belongs to it. The reminder job then
+      // delivers the right draft at the right time without regenerating
+      // anything.
+      post_content: e.post_content || null,
+      hook_score: e.hook_score ?? null,
+      hook_verdict: e.hook_verdict || null,
+      hook_notes: e.hook_notes || null,
     };
   });
 
@@ -110,7 +132,7 @@ export async function createCalendarEventsBulk(
   try {
     await sendCalendarDigestEmail(userEmail, userName, {
       campaignName: args.campaign_name || 'Your new schedule',
-      events: data.map(e => ({ title: e.title, start_date: e.start_date, type: e.type })),
+      events: data.map((e: any) => ({ title: e.title, start_date: e.start_date, type: e.type })),
     });
   } catch (err) {
     console.error('[CALENDAR DIGEST] Failed to send:', err);
@@ -178,13 +200,64 @@ export async function deleteCalendarEvents(
 
 // lib/calendar-tools.ts (append) or wherever you assemble system prompts
 
-export function getCalendarAgentPrompt(): string {
+/**
+ * @param timezone IANA zone for the user, e.g. 'Asia/Kolkata'. Defaults to UTC.
+ *
+ * Both the date and the offset below are rendered IN THE USER'S ZONE. Without
+ * it the model computed "tomorrow" and "10 AM" against UTC, so an IST user
+ * asking for a 10 AM post got 10:00 UTC, which is 3:30pm to them, with
+ * nothing in the interface explaining why.
+ */
+export function getCalendarAgentPrompt(timezone: string = 'UTC'): string {
   const now = new Date();
-  const todayStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  // Validated before use, and falls back rather than throwing.
+  //
+  // Intl raises RangeError on an unknown zone. Since this prompt is built on
+  // the hot path of every chat request, an unrecognized value stored on a
+  // profile would take down the whole conversation rather than just degrade
+  // the calendar, and the error would point here instead of at the bad data.
+  // The write endpoint validates too; this is the second line of defence for
+  // values that predate it or arrive by some other route.
+  let zone = timezone;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+  } catch {
+    console.warn(`[calendar] Unrecognized timezone "${timezone}", falling back to UTC.`);
+    zone = 'UTC';
+  }
+
+  // Formatted in the user's zone so "today" means their today, not the
+  // server's. A user in Asia scheduling late at night is otherwise told the
+  // date is still yesterday.
+  const todayStr = now.toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    timeZone: zone,
+  });
+
+  // The literal UTC offset, computed rather than looked up, so it stays
+  // correct across daylight saving transitions in zones that observe them.
+  const offsetLabel = (() => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: zone, timeZoneName: 'longOffset',
+      }).formatToParts(now);
+      return parts.find((p) => p.type === 'timeZoneName')?.value ?? 'GMT+00:00';
+    } catch {
+      return 'GMT+00:00';
+    }
+  })();
 
   return `
 CALENDAR INTELLIGENCE — TODAY'S ACTUAL DATE IS ${todayStr}.
 Always compute relative dates ("next month", "in 3 months", "every Tuesday") from this real date, never from assumption.
+
+TIMEZONE — THE USER IS IN ${zone} (${offsetLabel}).
+Every time the user states is in THEIR local time. "10 AM" means 10 AM in ${zone}, not UTC.
+
+When you pass start_date to a tool, convert that local time to a UTC ISO 8601 datetime ending in Z. For example, if the user is in Asia/Kolkata (GMT+05:30) and asks for 10:00 AM on 12 September 2026, pass "2026-09-12T04:30:00Z".
+
+Getting this wrong is invisible to the user until their post fires at the wrong hour, so do the conversion carefully and state the local time back to them in your summary ("scheduled for 10:00 AM your time") so they can catch a mistake immediately.
 
 You have full read/write access to the user's content calendar. Use it proactively whenever a conversation implies scheduling — launches, campaigns, deadlines, recurring posts — even if the user doesn't explicitly say "add this to my calendar."
 
@@ -198,6 +271,19 @@ WORKFLOW FOR MULTI-EVENT PLANNING (launches, campaigns, content calendars):
 FOR SINGLE EVENTS: just use create_calendar_event directly, no need for the full workflow above.
 
 FOR DESTRUCTIVE ACTIONS (delete_calendar_events): always confirm with the user in plain language what you're about to remove before calling the tool, unless they were extremely explicit (e.g. "delete the meeting on July 4th" is explicit enough; "clean up my calendar" is not).
+
+WRITING THE ACTUAL POSTS (this is the part that matters most):
+When you schedule an event of type "post", you MUST write the full, publishable draft and pass it as post_content. Not an outline. Not a description of what the post should say. The finished text, ready to copy and publish.
+
+- title stays short: it is the label on the calendar card, e.g. "LinkedIn: pre-launch testing".
+- description stays short: the angle or hook in one line, for scanning the calendar.
+- post_content is the real deliverable: the complete post, in the user's voice, formatted for its platform, following every rule in your platform DNA library.
+
+Also grade your own hook and pass hook_score (0-50), hook_verdict (PUBLISH, REVISE or SCRAP) and hook_notes (one sentence naming the weakest thing about it). Grade honestly. A generous score you do not believe is worth nothing to the user and teaches them to ignore the number.
+
+Write every post in the batch. A seven day plan means seven finished drafts, not one draft and six titles. This is slower than writing headlines, and it is the difference between a calendar the user has to finish themselves and one that does the work.
+
+The user receives each draft by email at their reminder time, so a card with no post_content arrives as an empty reminder.
 
 Default event time is 9:00 AM in the absence of a stated preference. Default reminder is 60 minutes before. State these defaults when you use them so the user can correct you if they want something different.
 `;
@@ -229,13 +315,17 @@ export const calendarTools = [
         type: { type: 'string', enum: ['post', 'deadline', 'meeting', 'task'] },
         platform: { type: 'string', description: 'e.g. LinkedIn, Instagram, Twitter, Email' },
         reminder_minutes_before: { type: 'integer', description: 'Minutes before the event to send a reminder. Default 60.' },
+        post_content: { type: 'string', description: 'REQUIRED for type "post": the complete, publishable draft, ready to copy and post. Not an outline or a summary. This is what gets emailed to the user at reminder time.' },
+        hook_score: { type: 'integer', description: 'Your honest grade for the opening line, 0-50.' },
+        hook_verdict: { type: 'string', enum: ['PUBLISH', 'REVISE', 'SCRAP'] },
+        hook_notes: { type: 'string', description: 'One sentence naming the weakest thing about the hook.' },
       },
       required: ['title', 'start_date'],
     },
   },
   {
     name: 'create_calendar_events_bulk',
-    description: 'Creates many calendar events in one call. This is the primary tool for planning campaigns, launches, or any multi-event schedule spanning days, weeks, or months. ALWAYS use this instead of calling create_calendar_event in a loop — it sends the user one organized summary email instead of one per event.',
+    description: 'Creates many calendar events in one call. This is the primary tool for planning campaigns, launches, or any multi-event schedule spanning days, weeks, or months. ALWAYS use this instead of calling create_calendar_event in a loop. For every event of type "post", write the complete publishable draft into post_content: the user receives that draft by email at reminder time, and a card without one arrives empty.',
     input_schema: {
       type: 'object',
       properties: {
@@ -250,6 +340,10 @@ export const calendarTools = [
               start_date: { type: 'string', description: 'ISO 8601 datetime' },
               type: { type: 'string', enum: ['post', 'deadline', 'meeting', 'task'] },
               platform: { type: 'string' },
+              post_content: { type: 'string', description: 'REQUIRED for type "post": the complete, publishable draft, ready to copy and post. Not an outline or a summary. This is what gets emailed to the user at reminder time.' },
+              hook_score: { type: 'integer', description: 'Your honest grade for the opening line, 0-50.' },
+              hook_verdict: { type: 'string', enum: ['PUBLISH', 'REVISE', 'SCRAP'] },
+              hook_notes: { type: 'string', description: 'One sentence naming the weakest thing about the hook.' },
             },
             required: ['title', 'start_date'],
           },

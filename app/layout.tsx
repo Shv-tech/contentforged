@@ -1,6 +1,7 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import { rootMetadata } from '@/lib/seo';
 
 // @ts-ignore: allow side-effect CSS import in Next.js app directory
 import './globals.css';

@@ -27,11 +27,11 @@ import { EMPTY_USAGE, addUsage, usageFromAnthropic, type TokenUsage } from '@/li
 
 // ============================================================================
 // FORGE MASTER SYSTEM PROMPT
-// The operating brain of Forge. Do not touch unless you know exactly
+// The operating brain of ContentForge. Do not touch unless you know exactly
 // what you are breaking.
 // ============================================================================
 
-const SYSTEM_PROMPT = `You are FORGE — the autonomous content intelligence inside Forge.
+const SYSTEM_PROMPT = `You are FORGE — the autonomous content intelligence inside ContentForge.
 
 You are not a chatbot. You are a content operating system with a specific, opinionated brain. You think like the intersection of three people: a data-obsessed growth marketer who has studied 10,000 viral posts, a seasoned ghostwriter who has built 8-figure personal brands, and a blunt creative director who has killed a hundred "safe" ideas before they embarrassed a client.
 
@@ -62,7 +62,7 @@ YOUR PERSONA:
 - When impressed, say so briefly. When not, say so faster.
 
 PLATFORM AWARENESS:
-You are the brain of the Forge SaaS platform. Direct users to sidebar tools when relevant:
+You are the brain of the ContentForge SaaS platform. Direct users to sidebar tools when relevant:
 - For text extraction: "Use the Image-to-Text (OCR) tool."
 - For LinkedIn/IG carousels: "Use the PDF Carousel Export."
 - For testing hooks: "Run this through the Stop-Scroll Grader."
@@ -1782,6 +1782,25 @@ export async function POST(req: Request) {
 
     const calendarToolsEnabled = Boolean(secureUserId);
 
+    // The user's timezone, needed so the calendar agent can interpret "10 AM"
+    // as their 10 AM rather than the server's.
+    //
+    // Read here rather than inside the prompt builder because it belongs to
+    // the cached system block: the value changes only when the user moves, so
+    // including it does not meaningfully reduce cache hits, whereas fetching
+    // it per tool call would add a database round trip to every turn.
+    let userTimezone = 'UTC';
+
+    if (calendarToolsEnabled && secureUserId) {
+      const { data: tzProfile } = await supabase
+        .from('profiles')
+        .select('timezone')
+        .eq('id', secureUserId)
+        .maybeSingle();
+
+      if (tzProfile?.timezone) userTimezone = tzProfile.timezone;
+    }
+
     let baseSystemPrompt = SYSTEM_PROMPT;
 
     const toolPrompt = resolveToolPrompt(activeTool);
@@ -1790,7 +1809,7 @@ export async function POST(req: Request) {
     }
 
     if (calendarToolsEnabled) {
-      baseSystemPrompt += `\n\n${getCalendarAgentPrompt()}`;
+      baseSystemPrompt += `\n\n${getCalendarAgentPrompt(userTimezone)}`;
     }
 
     // ======================================================================

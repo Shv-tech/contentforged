@@ -55,7 +55,7 @@ export function getWelcomeEmailHtml({ firstName, appUrl, unsubscribeUrl }: Welco
           <tr>
             <td style="padding:0;">
               <!-- Note: Ensure this image is hosted publicly! -->
-              <img src="https://YOUR_DOMAIN/email/workspace-singularity.png"
+              <img src="https://raw.githubusercontent.com/Shv-tech/contentforged/main/workspacesingularity.png"
                    width="600" alt="Welcome to your workspace singularity"
                    style="width:100%;max-width:600px;height:auto;display:block;border:0;" />
             </td>
@@ -126,7 +126,7 @@ export function getWelcomeEmailHtml({ firstName, appUrl, unsubscribeUrl }: Welco
           <tr>
             <td style="padding:20px 0 0 0;">
               <!-- Note: Ensure this image is hosted publicly! -->
-              <img src="https://YOUR_DOMAIN/email/ai-with-continuity.png"
+              <img src="https://raw.githubusercontent.com/Shv-tech/contentforged/main/PAY%20FOR%20WHAT%20ACTTUALLY%20WORKS2.png"
                    width="600" alt="AI, with continuity"
                    style="width:100%;max-width:600px;height:auto;display:block;border:0;" />
             </td>

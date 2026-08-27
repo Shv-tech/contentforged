@@ -6,9 +6,8 @@ import { useAppStore } from '@/lib/store';
 import { toAppUser } from '@/lib/user-display';
 
 /**
- * Hydrates the client store from the session on load and on every auth change.
- *
- * WHAT CHANGED AND WHY
+ * 
+ * 
  *
  * 1. The user is mapped through toAppUser() instead of being reduced to
  *    { id, email }. The previous shape discarded the display name, so every
@@ -66,12 +65,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    /**
+     * Reports the browser's timezone once per session.
+     *
+     * Fire-and-forget and deliberately silent: this is a quality-of-life
+     * detail, and a user should never see an error about it. If it fails the
+     * profile keeps its previous value, or UTC for a new account.
+     *
+     * Sent on every session start rather than only at signup, so someone who
+     * moves or travels gets corrected without doing anything.
+     */
+    const reportTimezone = () => {
+      try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (!timezone) return;
+
+        void fetch('/api/user/timezone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ timezone }),
+        }).catch(() => {});
+      } catch {
+        // Intl is present in every browser this app supports, but a failure
+        // here must not interfere with signing in.
+      }
+    };
+
     const applySession = (session: { user?: any } | null) => {
       if (!active) return;
 
       if (session?.user) {
         setUser(toAppUser(session.user));
         void hydrateBilling();
+        reportTimezone();
       } else {
         // Full reset on sign-out. Leaving plan or quota behind would show the
         // next person to use this browser the previous user's tier.
