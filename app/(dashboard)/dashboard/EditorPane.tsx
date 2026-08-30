@@ -16,6 +16,7 @@ import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { ToolHub } from '@/components/ToolHub';
+import { LimitReachedModal, friendlyChatError, type QuotaSnapshot } from '@/components/LimitReachedModal';
 import {
   ACCEPT_ATTRIBUTE,
   sortAndEncodeFiles,
@@ -44,6 +45,19 @@ const TOOL_NAMES: Record<string, string> = {
   'hook_generator': 'Hook',
   'shadowban_checker': 'Shadowban',
 };
+
+/**
+ * Enter sends on a hardware keyboard; on a touch keyboard it inserts a
+ * newline and the send button is the only way to submit.
+ *
+ * Shift+Enter is the escape hatch on desktop, but a phone keyboard has no
+ * comfortable Shift, so binding Enter to send there makes multi-line input
+ * effectively impossible — every paragraph break fires a half-written message.
+ */
+function isHardwareKeyboard(): boolean {
+  if (typeof window === 'undefined') return true;
+  return window.matchMedia('(min-width: 768px)').matches;
+}
 
 // ============================================================================
 // MESSAGE CONTENT MARKERS
@@ -262,7 +276,7 @@ const GraderCard = ({ data }: { data: any }) => {
             </div>
           </div>
         </div>
-        <div className="mt-6 pt-4 border-t border-[#333] flex justify-between items-center">
+        <div className="mt-6 pt-4 border-t border-[#333] flex flex-wrap gap-3 justify-between items-center">
           <span className="text-[11px] text-[#777] uppercase tracking-widest font-semibold">Final Verdict</span>
           <span className={`text-[11px] font-bold tracking-widest uppercase px-3 py-1 rounded-md ${
             data.verdict?.toLowerCase().includes('publish')
@@ -303,7 +317,7 @@ const OptionsCard = ({
 }) => (
   <div className="w-full max-w-full md:max-w-2xl my-6">
     <div className="flex items-center gap-2 mb-3 text-[11px] font-bold text-[#777] uppercase tracking-wider">
-      <CornerDownRight className="w-3.5 h-3.5 text-[#d18a5e]" />
+      <CornerDownRight className="w-3.5 h-3.5 text-[#d18a5e] shrink-0" />
       {question || 'Choose a direction'}
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -358,7 +372,7 @@ const CanvasBlock = ({ title, content }: { title: string; content: string }) => 
   };
 
   return (
-    <div className="w-full my-5 rounded-2xl border border-[#2a2a2a] bg-[#0d0d0d] overflow-hidden shadow-sm">
+    <div className="w-full min-w-0 my-5 rounded-2xl border border-[#2a2a2a] bg-[#0d0d0d] overflow-hidden shadow-sm">
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#151515] border-b border-[#2a2a2a]">
         <span className="text-[11px] font-bold text-[#999] uppercase tracking-wider truncate">
           {title}
@@ -366,14 +380,14 @@ const CanvasBlock = ({ title, content }: { title: string; content: string }) => 
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1.5 text-[11px] font-medium text-[#888] hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-[#222] shrink-0"
+          className="flex items-center gap-1.5 text-[11px] font-medium text-[#888] hover:text-white transition-colors px-2 py-1.5 rounded-md hover:bg-[#222] shrink-0"
         >
           {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <div className="max-h-[420px] overflow-y-auto custom-scrollbar px-5 py-4">
-        <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-400 prose-pre:bg-[#111] prose-pre:border prose-pre:border-[#333] text-[#e0e0e0] text-[14px]">
+      <div className="max-h-[420px] overflow-y-auto custom-scrollbar px-4 sm:px-5 py-4">
+        <div className="prose prose-invert prose-sm max-w-none break-words prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-400 prose-a:break-all prose-pre:bg-[#111] prose-pre:border prose-pre:border-[#333] prose-pre:overflow-x-auto prose-table:block prose-table:overflow-x-auto text-[#e0e0e0] text-[14px]">
           <ReactMarkdown
             // @ts-ignore - plugin typing mismatch between remark and react-markdown versions
             remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
@@ -409,6 +423,15 @@ export function EditorPane() {
   const [quote, setQuote] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isEncoding, setIsEncoding] = useState(false);
+
+  // Quota denial state. Held separately from the transcript because hitting a
+  // limit is not a conversational event: it should not become a message in
+  // the history the model then sees on the next turn.
+  const [limitState, setLimitState] = useState<{
+    reason: 'window_exceeded' | 'monthly_exceeded' | 'no_profile';
+    quota: QuotaSnapshot | null;
+    upgradeRequired: boolean;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -766,6 +789,20 @@ export function EditorPane() {
       });
 
       const data = await res.json();
+
+      // 429 is a quota denial, which is a normal product state rather than a
+      // failure. Surfaced as a modal with a reset countdown instead of a red
+      // error in the transcript, and deliberately not appended to the chat
+      // history.
+      if (res.status === 429) {
+        setLimitState({
+          reason: data.reason ?? 'window_exceeded',
+          quota: data.quota ?? null,
+          upgradeRequired: Boolean(data.upgradeRequired),
+        });
+        return;
+      }
+
       if (!res.ok) throw new Error(data.error);
 
       // The server inlines parsed attachment text into the user's message.
@@ -823,7 +860,13 @@ export function EditorPane() {
         const currentMsgs = useAppStore.getState().chatHistory[currentSessionId] || [];
         useAppStore.getState().setChatHistory(currentSessionId, [
           ...currentMsgs,
-          { id: Date.now().toString(), role: 'assistant', content: `🚨 Error: ${error.message}` }
+          {
+            id: Date.now().toString(),
+            role: 'assistant',
+            // Translated before display. A raw provider error names the model
+            // vendor and gives the user nothing they can act on.
+            content: friendlyChatError(error?.message ?? ''),
+          }
         ]);
       }
     } finally {
@@ -969,6 +1012,20 @@ export function EditorPane() {
         signal: abortControllerRef.current.signal
       });
       const outlineData = await outRes.json();
+
+      // Ebook generation is quota-gated too. Without this branch a denial
+      // mid-book surfaces as a raw error string in the transcript, which is
+      // the exact behaviour the modal exists to replace.
+      if (outRes.status === 429) {
+        setLimitState({
+          reason: outlineData.reason ?? 'monthly_exceeded',
+          quota: outlineData.quota ?? null,
+          upgradeRequired: Boolean(outlineData.upgradeRequired),
+        });
+        setIsLoading(false);
+        return;
+      }
+
       if (!outRes.ok) throw new Error(outlineData.error || 'Could not architect the outline.');
 
       const chapters: string[] = Array.isArray(outlineData.chapters) ? outlineData.chapters : [];
@@ -986,6 +1043,17 @@ export function EditorPane() {
           signal: abortControllerRef.current.signal
         });
         const chapterData = await chapRes.json();
+
+        if (chapRes.status === 429) {
+          setLimitState({
+            reason: chapterData.reason ?? 'monthly_exceeded',
+            quota: chapterData.quota ?? null,
+            upgradeRequired: Boolean(chapterData.upgradeRequired),
+          });
+          setIsLoading(false);
+          return;
+        }
+
         if (!chapRes.ok) {
           throw new Error(chapterData.error || `Chapter ${i + 1} failed to generate.`);
         }
@@ -1016,9 +1084,9 @@ export function EditorPane() {
         ]);
         return;
       }
-      const reason = error?.message || 'Ebook generation failed.';
+      const reason = friendlyChatError(error?.message ?? '');
       toast.error(reason);
-      updateChat(`🚨 Error: ${reason}`);
+      updateChat(reason);
     } finally {
       setIsLoading(false);
     }
@@ -1056,7 +1124,7 @@ export function EditorPane() {
 
     if (isInline) {
       return (
-        <code className="bg-[#1e1e1e] border border-[#333] px-1.5 py-0.5 rounded text-[13px] text-[#ffc4a3]" {...rest}>
+        <code className="bg-[#1e1e1e] border border-[#333] px-1.5 py-0.5 rounded text-[13px] text-[#ffc4a3] break-words" {...rest}>
           {children}
         </code>
       );
@@ -1102,11 +1170,11 @@ export function EditorPane() {
     }
 
     return (
-      <div className="bg-[#1e1e1e] rounded-xl overflow-hidden my-4 border border-[#333] shadow-sm w-full max-w-full">
-        <div className="bg-[#2a2a2a] px-4 py-2 text-[11px] text-[#888] font-semibold uppercase tracking-wider flex justify-between items-center">
-          <span>{language}</span>
+      <div className="bg-[#1e1e1e] rounded-xl overflow-hidden my-4 border border-[#333] shadow-sm w-full max-w-full min-w-0">
+        <div className="bg-[#2a2a2a] px-4 py-2 text-[11px] text-[#888] font-semibold uppercase tracking-wider flex justify-between items-center gap-3">
+          <span className="truncate">{language}</span>
           {(language === 'grader' || language === 'options') && (
-            <span className="text-rose-400 font-medium normal-case flex items-center gap-1.5">
+            <span className="text-rose-400 font-medium normal-case flex items-center gap-1.5 shrink-0">
               <AlertTriangle className="w-3 h-3" /> Syntax Error
             </span>
           )}
@@ -1135,6 +1203,14 @@ export function EditorPane() {
       onDrop={handleDrop}
     >
 
+      <LimitReachedModal
+        open={limitState !== null}
+        onClose={() => setLimitState(null)}
+        reason={limitState?.reason ?? null}
+        quota={limitState?.quota ?? null}
+        upgradeRequired={limitState?.upgradeRequired}
+      />
+
       <div
         className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] pointer-events-none z-0 transition-opacity duration-700 ${!isChatActive ? 'opacity-100' : 'opacity-0'}`}
         style={{ background: 'radial-gradient(circle at 50% 50%, rgba(210, 85, 20, 0.28) 0%, rgba(130, 45, 5, 0.15) 25%, rgba(0, 0, 0, 0) 50%)' }}
@@ -1152,7 +1228,7 @@ export function EditorPane() {
       {/* Drop target overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-none animate-in fade-in duration-150">
-          <div className="flex flex-col items-center gap-4 px-12 py-10 rounded-3xl border-2 border-dashed border-[#d18a5e]/60 bg-[#111]/90">
+          <div className="flex flex-col items-center gap-4 px-8 sm:px-12 py-10 rounded-3xl border-2 border-dashed border-[#d18a5e]/60 bg-[#111]/90">
             <UploadCloud className="w-10 h-10 text-[#d18a5e]" />
             <div className="text-center">
               <p className="text-[16px] font-semibold text-white mb-1">Drop to attach</p>
@@ -1179,7 +1255,7 @@ export function EditorPane() {
           className="z-[70] flex items-center gap-2 px-3 py-2 rounded-full bg-[#1c1c1c] border border-[#3d3d3d] shadow-[0_8px_24px_rgba(0,0,0,0.7)] text-[12px] font-medium text-white hover:border-[#d18a5e] hover:bg-[#242424] transition-colors animate-in fade-in zoom-in-95 duration-100"
         >
           <Quote className="w-3.5 h-3.5 text-[#d18a5e]" />
-          Ask Forge
+          Ask about this
         </button>
       )}
 
@@ -1215,19 +1291,19 @@ export function EditorPane() {
 
       <div
         ref={scrollContainerRef}
-        className="absolute inset-0 z-10 overflow-y-auto custom-scrollbar pt-20 pb-[220px] flex flex-col"
+        className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden custom-scrollbar pt-20 pb-[190px] md:pb-[220px] flex flex-col"
       >
 
         {!isChatActive ? (
           <div className="flex-1 flex flex-col items-center justify-center w-full min-h-full px-4 animate-in fade-in duration-500">
-            <h1 className="text-[28px] md:text-[40px] font-normal text-[#f5f5f5] tracking-tight mb-8 text-center px-4">
+            <h1 className="text-[26px] sm:text-[28px] md:text-[40px] font-normal text-[#f5f5f5] tracking-tight mb-8 text-center px-2 break-words">
               {sessionGreeting || `Hey there, ${greetingName}`}
             </h1>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col w-full min-h-full">
+          <div className="flex-1 flex flex-col w-full min-h-full min-w-0">
             <div className="flex-1 min-h-0" />
-            <div ref={transcriptRef} className="max-w-3xl mx-auto w-full px-3 md:px-0 space-y-8 md:space-y-10 pb-12">
+            <div ref={transcriptRef} className="max-w-3xl mx-auto w-full min-w-0 px-3 md:px-0 space-y-8 md:space-y-10 pb-12">
               {messages.map((msg: Message) => {
                 const isUser = msg.role === 'user';
                 const parsedUser = isUser ? parseUserMessage(msg.content) : null;
@@ -1236,7 +1312,7 @@ export function EditorPane() {
                 const isEditing = editingMsgId === msg.id;
 
                 return (
-                  <div key={msg.id} className={`group/msg flex gap-4 ${isUser ? 'flex-row-reverse' : ''}`}>
+                  <div key={msg.id} className={`group/msg flex gap-3 sm:gap-4 min-w-0 ${isUser ? 'flex-row-reverse' : ''}`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
                       isUser ? 'bg-[#1c1c1c] text-[#888] border border-[#333]' : 'bg-transparent text-white'
                     }`}>
@@ -1277,11 +1353,11 @@ export function EditorPane() {
                       )}
 
                       {parsedUser?.quote && (
-                        <div className="mb-2 w-full max-w-[520px] border-l-2 border-[#d18a5e]/60 bg-[#0f0f0f] rounded-r-lg pl-3 pr-4 py-2">
+                        <div className="mb-2 w-full max-w-[520px] min-w-0 border-l-2 border-[#d18a5e]/60 bg-[#0f0f0f] rounded-r-lg pl-3 pr-4 py-2">
                           <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#d18a5e]/80 mb-1">
                             <Quote className="w-3 h-3" /> Quoted
                           </div>
-                          <p className="text-[13px] text-[#999] leading-relaxed line-clamp-4 whitespace-pre-wrap">
+                          <p className="text-[13px] text-[#999] leading-relaxed line-clamp-4 whitespace-pre-wrap break-words">
                             {parsedUser.quote}
                           </p>
                         </div>
@@ -1291,16 +1367,16 @@ export function EditorPane() {
                         <div className="w-full mb-2">
                           <button
                             onClick={() => toggleThought(msg.id)}
-                            className="flex items-center gap-2 text-[13px] font-medium text-[#777] hover:text-[#aaa] transition-colors py-1 group"
+                            className="flex items-center gap-2 text-[13px] font-medium text-[#777] hover:text-[#aaa] transition-colors py-1.5 group"
                           >
-                            <span className={`w-4 h-4 rounded-full border border-[#444] flex items-center justify-center transition-colors ${isExpanded ? 'bg-[#222]' : ''}`}>
+                            <span className={`w-4 h-4 rounded-full border border-[#444] flex items-center justify-center transition-colors shrink-0 ${isExpanded ? 'bg-[#222]' : ''}`}>
                               {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                             </span>
                             {isExpanded ? 'Hide thinking process' : 'View thinking process'}
                           </button>
 
                           {isExpanded && (
-                            <div className="mt-3 mb-2 pl-4 border-l-2 border-[#333] text-[14px] text-[#888] font-sans whitespace-pre-wrap leading-relaxed animate-in slide-in-from-top-1 fade-in duration-200">
+                            <div className="mt-3 mb-2 pl-4 border-l-2 border-[#333] text-[14px] text-[#888] font-sans whitespace-pre-wrap break-words leading-relaxed animate-in slide-in-from-top-1 fade-in duration-200">
                               {parsedAssistant.thought}
                             </div>
                           )}
@@ -1309,10 +1385,16 @@ export function EditorPane() {
 
                       {isEditing ? (
                         <div className="bg-[#1c1c1c] border border-[#333] rounded-2xl p-4 w-full md:min-w-[400px]">
+                          {/*
+                            16px on mobile. iOS Safari zooms the page in when a
+                            focused input is below 16px and never zooms back
+                            out, which leaves the layout looking broken for the
+                            rest of the session.
+                          */}
                           <textarea
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full bg-transparent text-[#e0e0e0] text-[15px] outline-none resize-none min-h-[80px] custom-scrollbar"
+                            className="w-full bg-transparent text-[#e0e0e0] text-[16px] md:text-[15px] outline-none resize-none min-h-[80px] custom-scrollbar"
                           />
                           <div className="flex justify-end gap-3 mt-3">
                             <button onClick={() => setEditingMsgId(null)} className="px-4 py-2 rounded-full text-[13px] font-medium bg-[#2a2a2a] hover:bg-[#333] text-white transition-colors">Cancel</button>
@@ -1325,7 +1407,7 @@ export function EditorPane() {
                             data-message-role={msg.role}
                             className={`text-[15px] leading-relaxed font-sans w-full min-w-0 ${
                               isUser
-                                ? 'bg-[#1c1c1c] text-white px-5 py-3.5 rounded-3xl rounded-tr-sm border border-[#333] whitespace-pre-wrap w-auto'
+                                ? 'bg-[#1c1c1c] text-white px-5 py-3.5 rounded-3xl rounded-tr-sm border border-[#333] whitespace-pre-wrap break-words w-auto'
                                 : 'text-[#e0e0e0]'
                             }`}
                           >
@@ -1338,7 +1420,7 @@ export function EditorPane() {
                                 ) : (
                                   <div
                                     key={idx}
-                                    className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-400 prose-pre:bg-[#111] prose-pre:border prose-pre:border-[#333]"
+                                    className="prose prose-invert prose-sm max-w-none min-w-0 break-words prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-400 prose-a:break-all prose-pre:bg-[#111] prose-pre:border prose-pre:border-[#333] prose-table:block prose-table:overflow-x-auto"
                                   >
                                     <ReactMarkdown
                                       // @ts-ignore - plugin typing mismatch between remark and react-markdown versions
@@ -1355,19 +1437,19 @@ export function EditorPane() {
                           </div>
 
                           <div className={`flex items-center gap-4 mt-3 text-[#666] opacity-100 md:opacity-0 md:group-hover/msg:opacity-100 transition-opacity duration-200 ${isUser ? 'justify-end pr-2' : 'justify-start pl-2'}`}>
-                            <button onClick={() => handleCopy(msg.content, msg.role)} className="hover:text-white transition-colors p-1" title="Copy">
+                            <button onClick={() => handleCopy(msg.content, msg.role)} className="hover:text-white transition-colors p-1.5 -m-0.5" title="Copy">
                               <Copy className="w-[15px] h-[15px]" />
                             </button>
                             {isUser ? (
-                              <button onClick={() => startEditing(msg)} className="hover:text-white transition-colors p-1" title="Edit">
+                              <button onClick={() => startEditing(msg)} className="hover:text-white transition-colors p-1.5 -m-0.5" title="Edit">
                                 <Edit2 className="w-[15px] h-[15px]" />
                               </button>
                             ) : (
                               <>
-                                <button onClick={handleShare} className="hover:text-white transition-colors p-1" title="Share">
+                                <button onClick={handleShare} className="hover:text-white transition-colors p-1.5 -m-0.5" title="Share">
                                   <Upload className="w-[15px] h-[15px]" />
                                 </button>
-                                <button onClick={() => handleRegenerate(msg.id)} className="hover:text-white transition-colors p-1" title="Regenerate">
+                                <button onClick={() => handleRegenerate(msg.id)} className="hover:text-white transition-colors p-1.5 -m-0.5" title="Regenerate">
                                   <RefreshCw className="w-[15px] h-[15px]" />
                                 </button>
                               </>
@@ -1380,7 +1462,7 @@ export function EditorPane() {
                         <button
                           onClick={() => handleAutoFix(parsedAssistant.score)}
                           disabled={isBusy}
-                          className="mt-4 flex items-center gap-2 px-4 py-2 bg-[#1c1c1c] text-white hover:bg-[#2a2a2a] border border-[#333] rounded-full text-[12px] font-semibold transition-all shadow-sm disabled:opacity-50"
+                          className="mt-4 flex items-center gap-2 px-4 py-2.5 bg-[#1c1c1c] text-white hover:bg-[#2a2a2a] border border-[#333] rounded-full text-[12px] font-semibold transition-all shadow-sm disabled:opacity-50"
                         >
                           <RefreshCw className="w-3.5 h-3.5" /> Auto-Fix to 45+
                         </button>
@@ -1407,7 +1489,7 @@ export function EditorPane() {
         )}
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 z-40 w-full flex flex-col items-center bg-[#000000] pt-4 pb-4 md:pb-8 px-3 md:px-0 border-t border-[#111]"
+      <div className="absolute bottom-0 left-0 right-0 z-40 w-full flex flex-col items-center bg-[#000000] pt-4 px-3 md:px-0 border-t border-[#111]"
         style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-[720px] mx-auto relative">
 
@@ -1418,13 +1500,13 @@ export function EditorPane() {
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[#666] mb-1">
                   Asking about
                 </div>
-                <p className="text-[13px] text-[#aaa] leading-relaxed line-clamp-3 whitespace-pre-wrap">
+                <p className="text-[13px] text-[#aaa] leading-relaxed line-clamp-3 whitespace-pre-wrap break-words">
                   {quote}
                 </p>
               </div>
               <button
                 onClick={() => setQuote(null)}
-                className="text-[#666] hover:text-white transition-colors shrink-0 p-1"
+                className="text-[#666] hover:text-white transition-colors shrink-0 p-1.5 -m-0.5"
                 title="Remove quote"
               >
                 <X className="w-3.5 h-3.5" />
@@ -1432,7 +1514,7 @@ export function EditorPane() {
             </div>
           )}
 
-          <div className="flex items-center gap-4 w-full">
+          <div className="flex items-center gap-3 sm:gap-4 w-full min-w-0">
             {!isChatActive && (
               <button
                 className="w-[54px] h-[54px] rounded-full flex items-center justify-center shrink-0 shadow-sm border border-[#3d3d3d] hover:border-[#555] transition-colors"
@@ -1443,20 +1525,26 @@ export function EditorPane() {
               </button>
             )}
 
-            <div className={`flex-1 relative flex items-end bg-[#1c1c1c] border shadow-[inset_0_2px_6px_rgba(0,0,0,0.2)] transition-colors focus-within:border-[#555] ${
+            <div className={`flex-1 min-w-0 relative flex items-end bg-[#1c1c1c] border shadow-[inset_0_2px_6px_rgba(0,0,0,0.2)] transition-colors focus-within:border-[#555] ${
               isDragging ? 'border-[#d18a5e]' : 'border-[#333]'
-            } ${isChatActive ? 'rounded-[28px] min-h-[56px] pl-2 pr-2' : 'rounded-[28px] min-h-[56px] pl-6 pr-2'}`}>
+            } ${isChatActive ? 'rounded-[28px] min-h-[56px] pl-2 pr-2' : 'rounded-[28px] min-h-[56px] pl-4 sm:pl-6 pr-2'}`}>
 
               {(images.length > 0 || documents.length > 0) && (
-                <div className="absolute bottom-full left-0 mb-3 flex gap-2 flex-wrap z-50">
+                <div className="absolute bottom-full left-0 right-0 mb-3 flex gap-2 flex-wrap z-50">
                   {images.map((img: string, idx: number) => (
                     <div key={`img-${idx}`} className="relative inline-block group shrink-0">
                       <div className="w-14 h-14 rounded-xl overflow-hidden shadow-sm border border-[#333]">
                         <img src={img} alt="Preview" className="w-full h-full object-cover" />
                       </div>
+                      {/*
+                        Always visible on touch. opacity-0 group-hover reveals
+                        nothing on a phone, so there was no way to remove an
+                        attachment once it had been added.
+                      */}
                       <button
                         onClick={() => removeImage(idx)}
-                        className="absolute -top-2 -right-2 bg-black text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-[#333]"
+                        className="absolute -top-2 -right-2 bg-black text-white p-1 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity border border-[#333]"
+                        aria-label="Remove image"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -1473,7 +1561,8 @@ export function EditorPane() {
                       </div>
                       <button
                         onClick={() => removeDocument(doc.id)}
-                        className="absolute -top-2 -right-2 bg-black text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-[#333]"
+                        className="absolute -top-2 -right-2 bg-black text-white p-1 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity border border-[#333]"
+                        aria-label="Remove document"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -1486,13 +1575,14 @@ export function EditorPane() {
                 <button
                   onClick={() => setIsAttachMenuOpen(!isAttachMenuOpen)}
                   className="w-[40px] h-[40px] mb-2 flex items-center justify-center text-[#888] hover:text-white transition-colors shrink-0"
+                  aria-label="Attach or choose a tool"
                 >
                   <Plus className={`w-6 h-6 transition-transform duration-200 ${isAttachMenuOpen ? 'rotate-45' : 'rotate-0'}`} />
                 </button>
               )}
 
               {activeToolName && (
-                <div className="bg-[#2a2a2a] text-white text-[13px] font-medium px-3 py-1.5 mb-2 rounded-[10px] shrink-0 mr-2 flex items-center">
+                <div className="bg-[#2a2a2a] text-white text-[13px] font-medium px-3 py-1.5 mb-2 rounded-[10px] shrink-0 mr-2 flex items-center max-w-[120px] truncate">
                   {activeToolName}
                 </div>
               )}
@@ -1503,14 +1593,19 @@ export function EditorPane() {
                 onChange={(e) => setInput(e.target.value)}
                 onPaste={handlePaste}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  // Send on Enter only with a hardware keyboard. See
+                  // isHardwareKeyboard above for why.
+                  if (e.key === 'Enter' && !e.shiftKey && isHardwareKeyboard()) {
                     e.preventDefault();
                     handleSend();
                   }
                 }}
                 placeholder={isEncoding ? 'Reading files...' : 'Ask Forge...'}
                 rows={1}
-                className="flex-1 bg-transparent text-[15px] text-white outline-none placeholder:text-[#666] min-w-0 resize-none py-4 leading-[1.4] max-h-[200px] overflow-y-auto"
+                enterKeyHint="enter"
+                // 16px on mobile: below that, iOS Safari zooms the page in on
+                // focus and does not zoom back out.
+                className="flex-1 bg-transparent text-[16px] md:text-[15px] text-white outline-none placeholder:text-[#666] min-w-0 resize-none py-4 leading-[1.4] max-h-[200px] overflow-y-auto"
               />
 
               {isLoading ? (
@@ -1518,6 +1613,7 @@ export function EditorPane() {
                   onClick={handleStop}
                   className="w-[40px] h-[40px] mb-2 rounded-full flex items-center justify-center bg-black border border-[#333] hover:bg-[#111] transition-all shrink-0"
                   title="Stop generating"
+                  aria-label="Stop generating"
                 >
                   <div className="w-3.5 h-3.5 bg-white rounded-[2px]" />
                 </button>
@@ -1528,6 +1624,7 @@ export function EditorPane() {
                   className="w-[40px] h-[40px] mb-2 rounded-full flex items-center justify-center border border-[#4a2107] transition-all disabled:opacity-50 disabled:grayscale shrink-0"
                   style={{ background: 'radial-gradient(circle at center, #bf671d 0%, #3b1803 100%)' }}
                   title="Send"
+                  aria-label="Send"
                 >
                   <svg viewBox="0 0 24 24" width="20" height="20" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -1556,21 +1653,22 @@ export function EditorPane() {
 
             {isAttachMenuOpen && showToolHub && (
               <div className="bg-[#1a1a1a] border border-[#2a2a2a] shadow-[0_8px_30px_rgba(0,0,0,0.6)] rounded-[16px] animate-in fade-in zoom-in-95 duration-100">
-                <ToolHub />
+                <ToolHub onClose={() => { setIsAttachMenuOpen(false); setShowToolHub(false); }} />
               </div>
             )}
           </div>
 
           {!isChatActive && (
-            <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 md:gap-[60px] mt-[24px] md:mt-[30px] px-2">
+            <div className="flex flex-wrap justify-center gap-x-6 sm:gap-x-8 gap-y-3 md:gap-[60px] mt-[24px] md:mt-[30px] px-2">
               {['Write Ebook', 'Content Analysis', 'Linkedin post'].map((suggestion) => (
-                <span
+                <button
                   key={suggestion}
+                  type="button"
                   onClick={() => setInput(suggestion)}
-                  className="text-[14px] text-[#888] font-medium cursor-pointer hover:text-white transition-colors"
+                  className="text-[14px] text-[#888] font-medium py-1 cursor-pointer hover:text-white transition-colors"
                 >
                   {suggestion}
-                </span>
+                </button>
               ))}
             </div>
           )}

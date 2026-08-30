@@ -118,42 +118,51 @@ export function CalendarPane() {
   };
 
   return (
-    <div className="w-full h-full overflow-y-auto custom-scrollbar bg-[#000] flex flex-col lg:flex-row gap-8 px-6 md:px-10 pt-8 pb-16">
-      <div className="flex-1 max-w-3xl mx-auto lg:mx-0 w-full">
+    // min-w-0 + overflow-x-hidden keep a seven-column grid from widening the
+    // pane on a narrow screen. px drops to 12px on phones so each day cell has
+    // room to render its chips.
+    <div className="w-full h-full min-w-0 overflow-y-auto overflow-x-hidden custom-scrollbar bg-[#000] flex flex-col lg:flex-row gap-8 px-3 sm:px-6 md:px-10 pt-6 sm:pt-8 pb-16">
+      <div className="flex-1 min-w-0 max-w-3xl mx-auto lg:mx-0 w-full">
         <div className="relative max-w-xl mx-auto mb-8">
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search Schedule..." className="w-full bg-[#161616] border border-[#2a2a2a] rounded-full pl-6 pr-14 py-3.5 text-[14px] text-white placeholder:text-[#666] outline-none focus:border-[#444] transition" />
+          {/* text-[16px] on mobile: anything smaller makes iOS Safari zoom the page in on focus. */}
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search Schedule..." className="w-full bg-[#161616] border border-[#2a2a2a] rounded-full pl-5 sm:pl-6 pr-14 py-3.5 text-[16px] sm:text-[14px] text-white placeholder:text-[#666] outline-none focus:border-[#444] transition" />
           <div className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'radial-gradient(circle at center, #bf671d 0%, #3b1803 100%)' }}>
             <Search className="w-4 h-4 text-white" />
           </div>
         </div>
 
         <div className="flex items-center justify-between mb-6">
-          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1))} className="p-1.5 text-[#666] hover:text-white transition"><ChevronLeft className="w-4 h-4" /></button>
+          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1))} className="p-2 -m-1 text-[#666] hover:text-white transition" aria-label="Previous month"><ChevronLeft className="w-4 h-4" /></button>
           <h2 className="font-serif text-[15px] text-[#ddd] tracking-wide">{monthLabel}</h2>
-          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1))} className="p-1.5 text-[#666] hover:text-white transition"><ChevronRight className="w-4 h-4" /></button>
+          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1))} className="p-2 -m-1 text-[#666] hover:text-white transition" aria-label="Next month"><ChevronRight className="w-4 h-4" /></button>
         </div>
 
         <div className="grid grid-cols-7 mb-3">
-          {DAYS.map(d => <div key={d} className="font-serif text-[12px] text-[#888] tracking-[2px] text-center">{d}</div>)}
+          {DAYS.map(d => <div key={d} className="font-serif text-[10px] sm:text-[12px] text-[#888] tracking-[1px] sm:tracking-[2px] text-center">{d}</div>)}
         </div>
 
         {loading ? (
           <div className="flex justify-center pt-16"><Loader2 className="w-5 h-5 text-[#444] animate-spin" /></div>
         ) : (
-          <div className="grid grid-cols-7 gap-y-6">
+          <div className="grid grid-cols-7 gap-y-4 sm:gap-y-6">
             {cells.map((day, i) => {
               const dayEvents = day ? eventsOnDay(day) : [];
               const isToday = day === today.getDate() && cursor.getMonth() === today.getMonth() && cursor.getFullYear() === today.getFullYear();
               return (
-                <div key={i} className="flex flex-col items-center gap-1.5 min-h-[64px]">
+                <div key={i} className="flex flex-col items-center gap-1.5 min-h-[56px] sm:min-h-[64px] min-w-0">
                   {day && (
                     <>
-                      <button onClick={() => openNewEvent(day)} className={`font-serif text-[18px] w-8 h-8 rounded-full flex items-center justify-center transition ${isToday ? 'bg-[#bf671d] text-white' : 'text-[#ccc] hover:bg-[#1a1a1a]'}`}>{day}</button>
-                      <div className="flex flex-col gap-1 w-full px-1">
-                        {dayEvents.slice(0, 2).map(ev => (
-                          <button key={ev.id} onClick={() => openEditEvent(ev)} className="text-[10px] font-medium text-white/90 truncate px-1.5 py-0.5 rounded" style={{ background: `${ev.color}33` }}>{ev.title}</button>
+                      <button onClick={() => openNewEvent(day)} className={`font-serif text-[15px] sm:text-[18px] w-8 h-8 rounded-full flex items-center justify-center transition shrink-0 ${isToday ? 'bg-[#bf671d] text-white' : 'text-[#ccc] hover:bg-[#1a1a1a]'}`}>{day}</button>
+                      <div className="flex flex-col gap-1 w-full min-w-0 px-0.5 sm:px-1">
+                        {/* One chip per cell on phones — two 10px labels inside a ~45px column is unreadable. */}
+                        {dayEvents.slice(0, 1).map(ev => (
+                          <button key={ev.id} onClick={() => openEditEvent(ev)} className="text-[9px] sm:text-[10px] font-medium text-white/90 truncate px-1 sm:px-1.5 py-0.5 rounded block w-full" style={{ background: `${ev.color}33` }}>{ev.title}</button>
                         ))}
-                        {dayEvents.length > 2 && <span className="text-[9px] text-[#666] text-center">+{dayEvents.length - 2}</span>}
+                        {dayEvents.slice(1, 2).map(ev => (
+                          <button key={ev.id} onClick={() => openEditEvent(ev)} className="hidden sm:block text-[10px] font-medium text-white/90 truncate px-1.5 py-0.5 rounded w-full" style={{ background: `${ev.color}33` }}>{ev.title}</button>
+                        ))}
+                        {dayEvents.length > 1 && <span className="text-[9px] text-[#666] text-center sm:hidden">+{dayEvents.length - 1}</span>}
+                        {dayEvents.length > 2 && <span className="hidden sm:block text-[9px] text-[#666] text-center">+{dayEvents.length - 2}</span>}
                       </div>
                     </>
                   )}
@@ -180,7 +189,11 @@ export function CalendarPane() {
                   <p className="text-[13px] font-medium text-white truncate">{ev.title}</p>
                   <button onClick={() => openEditEvent(ev)} className="text-[11px] text-[#888] hover:text-[#bbb] transition">view details</button>
                 </div>
-                <button onClick={() => shareEvent(ev)} className="opacity-0 group-hover:opacity-100 transition text-[#666] hover:text-[#d18a5e]"><Share2 className="w-3.5 h-3.5" /></button>
+                {/*
+                  Always visible on touch devices. opacity-0 group-hover reveals
+                  nothing on a phone, because there is no hover state to enter.
+                */}
+                <button onClick={() => shareEvent(ev)} className="p-1 -m-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition text-[#666] hover:text-[#d18a5e]" aria-label="Share event"><Share2 className="w-3.5 h-3.5" /></button>
               </div>
             );
           })}
@@ -188,26 +201,31 @@ export function CalendarPane() {
       </div>
 
       {modalDate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setModalDate(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[15px] font-semibold text-white">{editing ? 'Edit Event' : 'New Event'} · {modalDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h3>
-              <button onClick={() => setModalDate(null)} className="text-[#666] hover:text-white"><X className="w-4 h-4" /></button>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4" onClick={() => setModalDate(null)}>
+          {/*
+            Bottom sheet on phones, centred dialog from sm up. max-h-[90dvh]
+            with an internal scroll means the keyboard opening cannot push the
+            save button off-screen.
+          */}
+          <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-md bg-[#111] border border-[#2a2a2a] rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain custom-scrollbar">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[15px] font-semibold text-white min-w-0 truncate">{editing ? 'Edit Event' : 'New Event'} · {modalDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h3>
+              <button onClick={() => setModalDate(null)} className="text-[#666] hover:text-white p-1 -m-1 shrink-0" aria-label="Close"><X className="w-4 h-4" /></button>
             </div>
-            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Event title" className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-2.5 text-[14px] text-white placeholder:text-[#666] outline-none focus:border-[#444]" />
-            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Notes (optional)" rows={2} className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-2.5 text-[13px] text-white placeholder:text-[#666] outline-none focus:border-[#444] resize-none" />
+            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Event title" className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-2.5 text-[16px] sm:text-[14px] text-white placeholder:text-[#666] outline-none focus:border-[#444]" />
+            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Notes (optional)" rows={2} className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-2.5 text-[16px] sm:text-[13px] text-white placeholder:text-[#666] outline-none focus:border-[#444] resize-none" />
             <div className="grid grid-cols-2 gap-2">
               {TYPES.map(t => (
-                <button key={t.value} onClick={() => setForm(f => ({ ...f, type: t.value }))} className="py-2 rounded-lg text-[12px] font-medium border transition" style={form.type === t.value ? { background: `${t.color}26`, borderColor: t.color, color: t.color } : { borderColor: '#2a2a2a', color: '#777' }}>{t.label}</button>
+                <button key={t.value} onClick={() => setForm(f => ({ ...f, type: t.value }))} className="py-2.5 rounded-lg text-[12px] font-medium border transition" style={form.type === t.value ? { background: `${t.color}26`, borderColor: t.color, color: t.color } : { borderColor: '#2a2a2a', color: '#777' }}>{t.label}</button>
               ))}
             </div>
-            <div className="flex gap-2">
-              <input value={form.platform} onChange={e => setForm(f => ({ ...f, platform: e.target.value }))} placeholder="Platform (optional)" className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-[13px] text-white placeholder:text-[#666] outline-none focus:border-[#444]" />
-              <input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-[13px] text-white outline-none focus:border-[#444] [color-scheme:dark]" />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input value={form.platform} onChange={e => setForm(f => ({ ...f, platform: e.target.value }))} placeholder="Platform (optional)" className="flex-1 min-w-0 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] text-white placeholder:text-[#666] outline-none focus:border-[#444]" />
+              <input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] text-white outline-none focus:border-[#444] [color-scheme:dark]" />
             </div>
             <div className="flex items-center gap-2 text-[12px] text-[#888]">
-              <Mail className="w-3.5 h-3.5" /> Email reminder
-              <select value={form.reminder_minutes_before} onChange={e => setForm(f => ({ ...f, reminder_minutes_before: Number(e.target.value) }))} className="ml-auto bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-1 text-[12px] text-white outline-none">
+              <Mail className="w-3.5 h-3.5 shrink-0" /> <span className="shrink-0">Email reminder</span>
+              <select value={form.reminder_minutes_before} onChange={e => setForm(f => ({ ...f, reminder_minutes_before: Number(e.target.value) }))} className="ml-auto min-w-0 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-1.5 text-[12px] text-white outline-none">
                 <option value={0}>At time of event</option>
                 <option value={30}>30 min before</option>
                 <option value={60}>1 hour before</option>
@@ -215,7 +233,7 @@ export function CalendarPane() {
               </select>
             </div>
             <div className="flex gap-2 pt-2">
-              {editing && <button onClick={deleteEvent} className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-red-400 border border-red-500/20 hover:bg-red-500/10 transition flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /> Delete</button>}
+              {editing && <button onClick={deleteEvent} className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-red-400 border border-red-500/20 hover:bg-red-500/10 transition flex items-center gap-1.5 shrink-0"><Trash2 className="w-3.5 h-3.5" /> Delete</button>}
               <button onClick={saveEvent} disabled={saving || !form.title.trim()} className="flex-1 py-2.5 rounded-xl text-[14px] font-semibold text-white transition disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: 'radial-gradient(circle at center, #bf671d 0%, #3b1803 100%)' }}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? 'Save Changes' : 'Schedule It'}
               </button>

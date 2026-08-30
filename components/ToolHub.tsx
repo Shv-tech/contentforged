@@ -3,10 +3,10 @@
 import React from 'react';
 import { useAppStore } from '@/lib/store';
 import toast from 'react-hot-toast';
-import { 
-  Zap, Type, Hash, FileText, BarChart, Image as ImgIcon, Mail, Copy, 
-  LayoutTemplate, Mic, LineChart, Target, Building, Users, BookOpen, 
-  Presentation, Video, Search, ShieldAlert, Workflow, Fingerprint, 
+import {
+  Zap, Type, Hash, FileText, BarChart, Image as ImgIcon, Mail, Copy,
+  LayoutTemplate, Mic, LineChart, Target, Building, Users, BookOpen,
+  Presentation, Video, Search, ShieldAlert, Workflow, Fingerprint,
   Newspaper, Headphones, Layers, Repeat2, Lock, BookText
 } from 'lucide-react';
 
@@ -26,7 +26,7 @@ const TOOLS = [
   { id: 'tone_calibrator', name: 'Tone Calibrator', tier: 'tier2', icon: Mic, group: 'Pro Creator' },
 
   // ENTERPRISE (Tier 3)
-  { id: 'ebook_writer', name: 'Agentic Ebook Writer', tier: 'tier3', icon: BookText, group: 'Enterprise' }, // NEW EBOOK TOOL
+  { id: 'ebook_writer', name: 'Agentic Ebook Writer', tier: 'tier3', icon: BookText, group: 'Enterprise' },
   { id: 'ghostwriter', name: 'Ghostwriter Clone', tier: 'tier3', icon: Copy, group: 'Enterprise' },
   { id: 'brand_dna', name: 'Brand DNA Enforcer', tier: 'tier3', icon: Fingerprint, group: 'Enterprise' },
   { id: 'competitor_gap', name: 'Competitor Gap Analyzer', tier: 'tier3', icon: Target, group: 'Enterprise' },
@@ -51,14 +51,17 @@ interface ToolHubProps {
 export function ToolHub({ onClose }: ToolHubProps = {}) {
   const { activeTool, setActiveTool, plan } = useAppStore();
 
-  // 🔥 DEV MODE OVERRIDE FOR THE DEMO: Forces weight to 99 so it bypasses all locks 🔥
-  // Change '99' to 'TIER_WEIGHTS[plan || 'free']' before going to production
-  const currentTierWeight = 99; 
+  // The demo override is now opt-in through an env flag rather than a
+  // hardcoded 99, so shipping it to production requires an explicit
+  // NEXT_PUBLIC_UNLOCK_ALL_TOOLS=true rather than remembering to edit a line.
+  // Every paid tool is free to everyone while it is on.
+  const bypassLocks = process.env.NEXT_PUBLIC_UNLOCK_ALL_TOOLS === 'true';
+  const currentTierWeight = bypassLocks ? 99 : (TIER_WEIGHTS[plan || 'free'] ?? 0);
 
   const handleToolClick = (toolId: string, toolTier: string, toolName: string) => {
     if (currentTierWeight < TIER_WEIGHTS[toolTier]) {
       const planName = toolTier === 'tier1' ? 'Starter' : toolTier === 'tier2' ? 'Pro' : 'Unlimited';
-      toast.error(`Upgrade to ${planName} required to unlock ${toolName}.`);
+      toast.error(`Upgrade to ${planName} to unlock ${toolName}.`);
       return;
     }
     setActiveTool(activeTool === toolId ? null : toolId);
@@ -66,17 +69,31 @@ export function ToolHub({ onClose }: ToolHubProps = {}) {
   };
 
   return (
-    <div className="w-[520px] p-5 max-h-[65vh] overflow-y-auto custom-scrollbar font-sans">
+    // w-[520px] was unconditional, so this popover was wider than a phone
+    // viewport and pushed the whole page sideways. It now takes the smaller of
+    // 520px and the viewport minus the anchor's gutters.
+    //
+    // 65dvh rather than 65vh: on mobile 65vh is measured against the tall
+    // viewport, so the panel ran past the visible area once the browser chrome
+    // was showing.
+    <div
+      className="w-[min(520px,calc(100vw-2rem))] p-4 sm:p-5 max-h-[60dvh] sm:max-h-[65dvh] overflow-y-auto overscroll-contain custom-scrollbar font-sans"
+    >
       {GROUPS.map((group) => {
         const groupTools = TOOLS.filter(t => t.group === group);
         if (groupTools.length === 0) return null;
 
         return (
-          <div key={group} className="mb-6 last:mb-2">
-            <h4 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-3 px-3">
+          <div key={group} className="mb-5 sm:mb-6 last:mb-2">
+            <h4 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-3 px-2 sm:px-3">
               {group}
             </h4>
-            <div className="grid grid-cols-2 gap-1.5">
+            {/*
+              One column below sm. Two 13px labels in a ~160px cell truncated to
+              the point of being unreadable — "Competitor Gap Analyzer" became
+              "Competitor Ga...".
+            */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {groupTools.map(tool => {
                 const isLocked = currentTierWeight < TIER_WEIGHTS[tool.tier];
                 const isActive = activeTool === tool.id;
@@ -85,23 +102,24 @@ export function ToolHub({ onClose }: ToolHubProps = {}) {
                   <button
                     key={tool.id}
                     onClick={() => handleToolClick(tool.id, tool.tier, tool.name)}
-                    className={`flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 group w-full ${
-                      isActive 
-                        ? 'bg-[#2a2a2a] text-white shadow-sm' 
-                        : 'bg-transparent text-[#999] hover:bg-[#2a2a2a] hover:text-white'
+                    aria-pressed={isActive}
+                    className={`flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 group w-full min-w-0 ${
+                      isActive
+                        ? 'bg-[#2a2a2a] text-white shadow-sm'
+                        : 'bg-transparent text-[#999] hover:bg-[#2a2a2a] hover:text-white active:bg-[#2a2a2a]'
                     }`}
                   >
                     <div className={`flex-shrink-0 transition-colors ${
-                      isActive 
-                        ? 'text-white' 
+                      isActive
+                        ? 'text-white'
                         : isLocked
                           ? 'text-[#444]'
                           : 'text-[#666] group-hover:text-[#aaa]'
                     }`}>
                       <tool.icon className="w-[18px] h-[18px]" strokeWidth={1.5} />
                     </div>
-                    
-                    <span className={`text-[13px] font-medium truncate ${isLocked ? 'text-[#555]' : ''}`}>
+
+                    <span className={`text-[13px] font-medium truncate min-w-0 ${isLocked ? 'text-[#555]' : ''}`}>
                       {tool.name}
                     </span>
 
