@@ -1,3 +1,5 @@
+// auth/login/page.tsx
+
 'use client';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +12,6 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { NoiseBackground } from '../components/ui/noise-background';
 import Image from 'next/image';
-
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
