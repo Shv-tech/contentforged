@@ -9,6 +9,7 @@ import './globals.css';
 import 'katex/dist/katex.min.css';
 
 import { Toaster } from 'react-hot-toast';
+import { Analytics } from '@vercel/analytics/next';
 import { AuthProvider } from '@/components/AuthProvider';
 import StructuredData from '@/components/StructuredData';
 
@@ -169,6 +170,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             },
           }}
         />
+
+        {/* Vercel Web Analytics — page views + route changes */}
+        <Analytics />
       </body>
     </html>
   );
