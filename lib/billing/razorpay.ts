@@ -186,3 +186,52 @@ export function unixToDate(seconds: number | null | undefined): Date | null {
   if (!seconds || typeof seconds !== 'number') return null;
   return new Date(seconds * 1000);
 }
+// ============================================================================
+// INVOICES
+// ============================================================================
+
+export interface InvoiceSummary {
+  id: string;
+  number: string | null;
+  status: string;
+  /** In the smallest currency unit (paise, cents). */
+  amount: number;
+  amountPaid: number;
+  currency: string;
+  issuedAt: string | null;
+  paidAt: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  /** Razorpay's hosted invoice page, which has the PDF. */
+  url: string | null;
+}
+
+/**
+ * Every invoice Razorpay raised for these subscriptions, newest first.
+ * Razorpay generates one per successful charge, with tax details, so this
+ * is the record customers need for expenses rather than anything we draw up.
+ */
+export async function listInvoices(subscriptionIds: string[]): Promise<InvoiceSummary[]> {
+  const client = getRazorpayClient();
+  const pages = await Promise.all(subscriptionIds.slice(0, 10).map((id) => client.invoices.all({ subscription_id: id, count: 100 })));
+  const iso = (seconds: number | null | undefined) => unixToDate(seconds ?? null)?.toISOString() ?? null;
+  return pages
+    .flatMap((page) => page.items)
+    .map((invoice) => {
+      const value = invoice as typeof invoice & { amount?: number; currency?: string; status?: string };
+      return {
+        id: invoice.id,
+        number: invoice.invoice_number || null,
+        status: value.status ?? 'issued',
+        amount: Number(value.amount ?? invoice.gross_amount ?? 0),
+        amountPaid: Number(invoice.amount_paid ?? 0),
+        currency: value.currency ?? 'INR',
+        issuedAt: iso(invoice.issued_at),
+        paidAt: iso(invoice.paid_at),
+        periodStart: iso(invoice.billing_start),
+        periodEnd: iso(invoice.billing_end),
+        url: invoice.short_url ?? null,
+      };
+    })
+    .sort((a, b) => (b.issuedAt ?? '').localeCompare(a.issuedAt ?? ''));
+}

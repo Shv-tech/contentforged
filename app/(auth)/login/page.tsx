@@ -12,16 +12,27 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { NoiseBackground } from '../components/ui/noise-background';
 import Image from 'next/image';
+const toastStyle = { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' };
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [ssoOpen, setSsoOpen] = useState(false);
+  const [ssoEmail, setSsoEmail] = useState('');
+  const [ssoLoading, setSsoLoading] = useState(false);
+  const [next, setNext] = useState('/dashboard');
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
+    // Same-site paths only, matching the guard in /auth/callback.
+    const requested = new URLSearchParams(window.location.search).get('next');
+    if (requested && requested.startsWith('/') && !requested.startsWith('//')) setNext(requested);
+    const failure = new URLSearchParams(window.location.search).get('error');
+    if (failure) toast.error(failure, { style: toastStyle });
     setMounted(true);
   }, []);
 
@@ -33,9 +44,7 @@ export default function LoginPage() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      toast.error(error.message, {
-        style: { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }
-      });
+      toast.error(error.message, { style: toastStyle });
       setLoading(false);
       return;
     }
@@ -43,18 +52,15 @@ export default function LoginPage() {
     // 2. Silently log the device session on the backend
     if (data?.user?.id) {
       try {
-        await fetch('/api/auth/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: data.user.id })
-        });
+        // The server reads identity from the session cookie just set.
+        await fetch('/api/auth/session', { method: 'POST' });
       } catch (err) {
         console.error("Failed to record device session:", err);
       }
     }
 
-    // 3. Redirect to the workspace
-    router.push('/dashboard');
+    // 3. Back to where they were headed
+    router.push(next);
   }
 
   async function handleGoogleLogin() {
@@ -62,16 +68,42 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
       },
     });
 
     if (error) {
-      toast.error(error.message, {
-        style: { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }
-      });
+      toast.error(error.message, { style: toastStyle });
       setGoogleLoading(false);
     }
+  }
+
+  /**
+   * SAML single sign-on, for teams whose identity provider is connected to
+   * Forge. The company domain picks the provider; Supabase returns the
+   * provider's sign-in URL and the callback exchanges the code as usual.
+   */
+  async function handleSso(e: React.FormEvent) {
+    e.preventDefault();
+    const domain = ssoEmail.trim().toLowerCase().split('@').pop() ?? '';
+    if (!domain.includes('.')) {
+      toast.error('Enter your work email, for example you@company.com.', { style: toastStyle });
+      return;
+    }
+    setSsoLoading(true);
+    const { data, error } = await supabase.auth.signInWithSSO({
+      domain,
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
+    });
+    if (error || !data?.url) {
+      const message = error?.message?.toLowerCase().includes('no sso provider')
+        ? `Single sign-on is not set up for ${domain}. Ask your workspace owner, or sign in another way.`
+        : error?.message ?? 'Could not start single sign-on.';
+      toast.error(message, { style: toastStyle });
+      setSsoLoading(false);
+      return;
+    }
+    window.location.assign(data.url);
   }
 
   if (!mounted) return null;
@@ -154,7 +186,7 @@ export default function LoginPage() {
             {/* Google Login Button (Dark Glassy Aesthetic) */}
             <button
               onClick={handleGoogleLogin}
-              disabled={loading || googleLoading}
+              disabled={loading || googleLoading || ssoLoading}
               className="w-full bg-white/[0.02] border border-white/[0.08] text-white/80 rounded-[12px] py-3.5 text-[14px] font-medium hover:bg-white/[0.04] hover:text-white transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 backdrop-blur-sm"
             >
               {googleLoading ? (
@@ -170,6 +202,38 @@ export default function LoginPage() {
               )}
               Continue with Google
             </button>
+
+            {ssoOpen ? (
+              <form onSubmit={handleSso} className="mt-3 flex gap-2">
+                <label htmlFor="sso-email" className="sr-only">Work email</label>
+                <input
+                  id="sso-email"
+                  type="email"
+                  value={ssoEmail}
+                  onChange={(e) => setSsoEmail(e.target.value)}
+                  required
+                  autoFocus
+                  autoComplete="email"
+                  placeholder="Work email"
+                  className="min-w-0 flex-1 bg-white/[0.02] border border-white/[0.08] rounded-[12px] px-4 py-3 text-[14px] text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-[#d18a5e]/50 focus:border-[#d18a5e]/50 transition-all duration-300"
+                />
+                <button
+                  type="submit"
+                  disabled={ssoLoading}
+                  className="shrink-0 rounded-[12px] border border-white/[0.08] bg-white/[0.04] px-4 text-[14px] font-medium text-white/85 transition-colors duration-300 hover:bg-white/[0.07] hover:text-white disabled:opacity-50"
+                >
+                  {ssoLoading ? <Loader2 className="h-4 w-4 animate-spin opacity-70" /> : 'Continue'}
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSsoOpen(true)}
+                className="mt-3 w-full rounded-[12px] py-2.5 text-[13px] text-white/45 transition-colors duration-300 hover:text-white"
+              >
+                Sign in with single sign-on (SSO)
+              </button>
+            )}
 
             {/*
               Divider naming the alternative explicitly.
@@ -238,7 +302,7 @@ export default function LoginPage() {
                 >
                   <button
                     type="submit"
-                    disabled={loading || googleLoading}
+                    disabled={loading || googleLoading || ssoLoading}
                     className="group h-full w-full cursor-pointer flex items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-black via-[#0a0a0a] to-[#111111] px-4 py-3.5 text-white font-medium text-[14px] shadow-[0px_1px_0px_0px_rgba(255,255,255,0.05)_inset,0px_1px_0px_0px_rgba(0,0,0,0.8)] transition-all duration-300 active:scale-[0.98] disabled:opacity-50"
                   >
                     {loading ? (
@@ -260,7 +324,7 @@ export default function LoginPage() {
             {/* Footer Link */}
             <p className="text-[13px] text-white/40 text-center mt-10">
               Don't have an account?{' '}
-              <Link href="/signup" className="text-white hover:text-[#d18a5e] transition-colors duration-300">
+              <Link href={next === '/dashboard' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="text-white hover:text-[#d18a5e] transition-colors duration-300">
                 Create one
               </Link>
             </p>

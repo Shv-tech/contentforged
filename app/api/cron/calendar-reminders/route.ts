@@ -6,6 +6,8 @@ export const maxDuration = 60;
 
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { requireCron } from '@/lib/forge/cron';
+import { HttpError } from '@/lib/forge/http';
 import { sendScheduledPostEmail } from '@/lib/mail-service';
 
 /**
@@ -60,14 +62,13 @@ interface DueEvent {
 const CATCHUP_WINDOW_HOURS = 6;
 
 export async function GET(req: Request) {
-  const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  // Without this the endpoint is a public trigger. reminder_sent_at prevents
-  // duplicate sends, so damage is bounded, but there is no reason to leave it
-  // open.
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Fails closed, like every other job: without CRON_SECRET this would be a
+  // public trigger for outbound email.
+  try {
+    requireCron(req);
+  } catch (error) {
+    const status = error instanceof HttpError ? error.status : 401;
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unauthorized' }, { status });
   }
 
   const supabase = createServiceClient();
@@ -84,9 +85,7 @@ export async function GET(req: Request) {
 
   const { data: candidates, error } = await supabase
     .from('calendar_events')
-    .select(
-      'id, user_id, title, description, post_content, hook_score, hook_verdict, hook_notes, start_date, platform, type, reminder_minutes_before'
-    )
+    .select('id, user_id, title, description, post_content, hook_score, hook_verdict, hook_notes, start_date, platform, type, reminder_minutes_before')
     .gte('start_date', windowStart.toISOString())
     .lte('start_date', windowEnd.toISOString())
     .is('reminder_sent_at', null)
@@ -138,18 +137,11 @@ export async function GET(req: Request) {
       }
 
       const meta = userData?.user?.user_metadata ?? {};
-      const name =
-        meta.full_name?.split(' ')[0] ||
-        meta.name?.split(' ')[0] ||
-        email.split('@')[0];
+      const name = meta.full_name?.split(' ')[0] || meta.name?.split(' ')[0] || email.split('@')[0];
 
       // Timezone is read only to render times in the email. Delivery timing
       // does not depend on it.
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('timezone')
-        .eq('id', userId)
-        .maybeSingle();
+      const { data: profile } = await supabase.from('profiles').select('timezone').eq('id', userId).maybeSingle();
 
       await sendScheduledPostEmail(email, name, userEvents, profile?.timezone ?? 'UTC');
 
@@ -159,7 +151,10 @@ export async function GET(req: Request) {
       await supabase
         .from('calendar_events')
         .update({ reminder_sent_at: new Date().toISOString() })
-        .in('id', userEvents.map((e) => e.id));
+        .in(
+          'id',
+          userEvents.map((e) => e.id)
+        );
 
       sentCount += userEvents.length;
     } catch (sendError) {
@@ -170,9 +165,7 @@ export async function GET(req: Request) {
     }
   }
 
-  console.log(
-    `[cron/calendar-reminders] ${sentCount} events, ${byUser.size} users, ${failedCount} failed.`
-  );
+  console.log(`[cron/calendar-reminders] ${sentCount} events, ${byUser.size} users, ${failedCount} failed.`);
 
   return NextResponse.json({ sent: sentCount, users: byUser.size, failed: failedCount });
 }

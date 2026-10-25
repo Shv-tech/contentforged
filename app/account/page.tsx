@@ -1,33 +1,41 @@
-// app/account/page.tsx
-
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+/**
+ * app/account/page.tsx
+ *
+ * One page for everything about the person rather than a piece of content:
+ * the brief Forge reads before it writes, the documents and profiles behind
+ * it, the plan, what is left this month, and the account itself.
+ *
+ * It scrolls as one page. The floating navigation follows the section in
+ * view, and ?tab=brief|knowledge|billing|usage|notifications|connections|
+ * developers|account|data deep-links into it (upgrade notes elsewhere in the
+ * app link to ?tab=billing).
+ *
+ * Plan, subscription and quota come only from /api/billing/status, the
+ * single server-side view of entitlement. The brief is stored in
+ * user_context, which the chat's context builder reads on every turn.
+ */
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import toast from 'react-hot-toast';
+import { ArrowUpRight, Check, Loader2, Plus, X } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { createClient } from '@/lib/supabase-browser';
-import { useRouter } from 'next/navigation';
-import toast from 'react-hot-toast';
-import {
-  User, Shield, CreditCard, Activity, Loader2, ArrowLeft, CheckCircle2,
-  UploadCloud, Link as LinkIcon, FileText, Clock, Trash2, ShieldAlert,
-  AlertTriangle, Zap,
-} from 'lucide-react';
-import Link from 'next/link';
 import { useSubscriptionCheckout } from '@/lib/billing/use-subscription-checkout';
 import { displayName, toAppUser } from '@/lib/user-display';
+import { Plate, cn, focusRing, type PlateName } from '@/components/forge/ui';
+import { SectionHead, fieldDark, pillGhost, pillWhite } from '@/components/forge/account/accountStyle';
+import { ApiKeysSection, ConnectionsSection, DataSection, InvoicesSection, NotificationsSection } from '@/components/forge/account/AccountSections';
 
-type Tab = 'general' | 'personalization' | 'billing' | 'usage';
-type StrategicMemoryTab = 'identity' | 'knowledge' | 'social';
+// ============================================================================
+// TYPES
+// ============================================================================
 
-/**
- * Everything on this page reads from /api/billing/status, which is the single
- * server-side view of plan, subscription, and quota.
- *
- * The previous version read `profiles.credits_remaining` and hardcoded
- * `maxCredits = isFreeTier ? 5 : ...`, neither of which any server code wrote.
- * The meters therefore showed a number unrelated to actual usage, and the
- * upgrade buttons posted to /api/billing/razorpay, which does not exist.
- */
+type Section = 'brief' | 'knowledge' | 'billing' | 'usage' | 'notifications' | 'connections' | 'developers' | 'account';
 
 interface UpgradeOption {
   planId: 'starter' | 'pro' | 'agency';
@@ -62,6 +70,41 @@ interface BillingStatus {
   availableUpgrades: UpgradeOption[];
 }
 
+interface BriefState {
+  role: string;
+  beliefs: string;
+  audience: string;
+  tone: string;
+}
+
+/** user_context.context_type for each brief field. Keys are read by lib/brand-dna. */
+const CONTEXT_TYPES: Record<keyof BriefState, string> = {
+  role: 'property_focus',
+  beliefs: 'brand_dna',
+  audience: 'target_audience',
+  tone: 'brand_tone',
+};
+
+const ROLES: ReadonlyArray<{ value: string; label: string; hint: string }> = [
+  { value: 'creator', label: 'Creator', hint: 'Writing as yourself' },
+  { value: 'founder', label: 'Founder', hint: 'Building in public' },
+  { value: 'consultant', label: 'Consultant or coach', hint: 'Selling expertise' },
+  { value: 'ghostwriter', label: 'Ghostwriter', hint: 'Writing for clients' },
+  { value: 'agency', label: 'Agency or team', hint: 'Many brands, one desk' },
+  { value: 'company', label: 'Company brand', hint: 'An organisation account' },
+];
+
+const NAV: ReadonlyArray<{ id: Section; label: string }> = [
+  { id: 'brief', label: 'Brief' },
+  { id: 'knowledge', label: 'Knowledge' },
+  { id: 'billing', label: 'Plan' },
+  { id: 'usage', label: 'Usage' },
+  { id: 'notifications', label: 'Alerts' },
+  { id: 'connections', label: 'Connections' },
+  { id: 'developers', label: 'API' },
+  { id: 'account', label: 'Account' },
+];
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -72,12 +115,9 @@ function percentUsed(used: number, budget: number): number {
 }
 
 /**
- * Quota is stored in cost micros, which is meaningless to a user. It is
- * presented as generation counts against a nominal per-generation cost.
- *
- * This is an approximation and is labelled as such in the UI: a long war-room
- * output costs several times a short reply, so the true remaining count varies
- * with usage. Showing "$0.0043 of $0.20 spent" would be precise and useless.
+ * Quota is metered in cost micros, which mean nothing to a person, so it is
+ * shown as generations against a nominal cost per generation. The page says
+ * the count is approximate: a War Room run costs several times a short reply.
  */
 const MICROS_PER_GENERATION = 9500;
 
@@ -85,30 +125,67 @@ function toGenerations(micros: number): number {
   return Math.max(0, Math.round(micros / MICROS_PER_GENERATION));
 }
 
-function formatResetCountdown(iso: string | null): string {
-  if (!iso) return 'unknown';
-  const target = new Date(iso).getTime();
-  const remaining = target - Date.now();
+function formatCountdown(iso: string | null): string {
+  if (!iso) return 'soon';
+  const remaining = new Date(iso).getTime() - Date.now();
   if (remaining <= 0) return 'now';
-
-  const minutes = Math.ceil(remaining / 60000);
+  const minutes = Math.ceil(remaining / 60_000);
   if (minutes < 60) return `${minutes} min`;
-
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    const leftover = minutes % 60;
-    return leftover > 0 ? `${hours}h ${leftover}m` : `${hours}h`;
-  }
-
+  if (hours < 24) return minutes % 60 ? `${hours}h ${minutes % 60}m` : `${hours}h`;
   const days = Math.ceil(hours / 24);
   return `${days} day${days === 1 ? '' : 's'}`;
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-  });
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return 'not set';
+  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 5) return 'Still up';
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+const PLAN_PLATES: Record<string, PlateName> = { starter: 'ingot', pro: 'molten', agency: 'sparks' };
+
+// ============================================================================
+// BRIEF STRENGTH
+//
+// How much Forge has to work with, as one number and one next step. Each
+// part maps to something the context builder actually reads, weighted by
+// how much it changes the drafts.
+// ============================================================================
+
+interface StrengthInput {
+  brief: BriefState;
+  documents: number;
+  profiles: number;
+  voiceSamples: number | null;
+}
+
+interface StrengthPart {
+  id: string;
+  label: string;
+  weight: number;
+  done: boolean;
+  next: string;
+  target: Section | 'brand';
+}
+
+function strengthParts({ brief, documents, profiles, voiceSamples }: StrengthInput): StrengthPart[] {
+  return [
+    { id: 'beliefs', label: 'What you believe', weight: 25, done: brief.beliefs.trim().length >= 40, next: 'Write what you believe that others in your space do not.', target: 'brief' },
+    { id: 'audience', label: 'Who you write for', weight: 20, done: brief.audience.trim().length >= 30, next: 'Describe who you write for, as specifically as you can.', target: 'brief' },
+    { id: 'voice', label: 'Measured voice', weight: 20, done: (voiceSamples ?? 0) >= 5, next: 'Add five of your own posts so Forge can measure your voice.', target: 'brand' },
+    { id: 'documents', label: 'Source documents', weight: 15, done: documents > 0, next: 'Add a document: a brand guide, an old deck, your best posts.', target: 'knowledge' },
+    { id: 'tone', label: 'How you sound', weight: 10, done: brief.tone.trim().length >= 8, next: 'Say how you want to sound in a few words.', target: 'brief' },
+    { id: 'role', label: 'What you are', weight: 5, done: brief.role !== '', next: 'Choose what best describes you.', target: 'brief' },
+    { id: 'profiles', label: 'Public profiles', weight: 5, done: profiles > 0, next: 'Add the public profile you post from.', target: 'knowledge' },
+  ];
 }
 
 // ============================================================================
@@ -118,455 +195,1084 @@ function formatDate(iso: string | null): string {
 export default function AccountPage() {
   const { user, setUser, setPlan, setQuota, setSubscription } = useAppStore();
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
-  const [activeTab, setActiveTab] = useState<Tab>('general');
+  const [active, setActive] = useState<Section>('brief');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-
   const [billing, setBilling] = useState<BillingStatus | null>(null);
-
   const [fullName, setFullName] = useState('');
-  const [propertyFocus, setPropertyFocus] = useState('');
-  const [brandDNA, setBrandDNA] = useState('');
-  const [targetAudience, setTargetAudience] = useState('');
-  const [brandTone, setBrandTone] = useState('');
+  const [brief, setBrief] = useState<BriefState>({ role: '', beliefs: '', audience: '', tone: '' });
+  const [documents, setDocuments] = useState(0);
+  const [profiles, setProfiles] = useState(0);
+  const [voiceSamples, setVoiceSamples] = useState<number | null>(null);
 
-  const { startCheckout, cancelSubscription, isStarting, isConfirming } =
-    useSubscriptionCheckout();
+  const { startCheckout, cancelSubscription, isStarting, isConfirming } = useSubscriptionCheckout();
 
   const refreshBilling = useCallback(async () => {
     try {
       const res = await fetch('/api/billing/status', { cache: 'no-store' });
       if (!res.ok) return;
-
       const data: BillingStatus = await res.json();
       setBilling(data);
-
-      // Mirror into the store so the rest of the app sees the same plan
-      // without each surface fetching independently.
+      // Mirrored into the store so every other surface shows the same plan.
       setPlan(data.planId);
       setQuota(data.quota);
       setSubscription(data.subscription);
     } catch {
-      // Non-fatal: the page still renders, meters just show as unavailable.
+      // Non-fatal: the sections say the data did not load.
     }
   }, [setPlan, setQuota, setSubscription]);
 
+  // The store's user arrives from AuthProvider after the first render, and is
+  // replaced with a new object on every auth event, so loading is keyed on
+  // the id. Middleware guarantees a session here, so no user means not yet.
+  const userId = user?.id ?? null;
+  const storedName = user?.fullName ?? '';
+
   useEffect(() => {
+    setFullName(storedName);
+  }, [storedName]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
     async function load() {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-
-      // Read from the store's own field. The previous version read
-      // user.user_metadata.full_name, which the client user object does not
-      // carry, so the input rendered empty even when a name was saved.
-      setFullName(user.fullName ?? '');
-
-      const [{ data: contextData }] = await Promise.all([
-        supabase
-          .from('user_context')
-          .select('context_type, content')
-          .eq('user_id', user.id),
+      const [{ data: contextRows }] = await Promise.all([
+        supabase.from('user_context').select('context_type, content').eq('user_id', userId),
         refreshBilling(),
+        fetch('/api/voice', { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => !cancelled && setVoiceSamples(data?.fingerprint?.sample_count ?? data?.samples?.length ?? 0))
+          .catch(() => !cancelled && setVoiceSamples(null)),
       ]);
+      if (cancelled) return;
 
-      if (contextData) {
-        for (const row of contextData) {
-          if (row.context_type === 'brand_dna') setBrandDNA(row.content);
-          if (row.context_type === 'target_audience') setTargetAudience(row.content);
-          if (row.context_type === 'property_focus') setPropertyFocus(row.content);
-          if (row.context_type === 'brand_tone') setBrandTone(row.content);
-        }
+      const next: BriefState = { role: '', beliefs: '', audience: '', tone: '' };
+      for (const row of contextRows ?? []) {
+        const key = (Object.keys(CONTEXT_TYPES) as Array<keyof BriefState>).find((k) => CONTEXT_TYPES[k] === row.context_type);
+        if (key) next[key] = row.content ?? '';
       }
-
+      // Values saved before the role list changed are not shown as a choice.
+      if (!ROLES.some((r) => r.value === next.role)) next.role = '';
+      setBrief(next);
       setIsLoading(false);
     }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, supabase, refreshBilling]);
 
-    load();
-  }, [user, supabase, refreshBilling]);
+  // ----- navigation -----------------------------------------------------------
 
-  const handleUpdateProfile = async () => {
-    setIsSaving(true);
-    const { data, error } = await supabase.auth.updateUser({
-      data: { full_name: fullName },
-    });
+  const goTo = useCallback((section: Section) => {
+    setActive(section);
+    document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
-    if (error) {
-      toast.error('Failed to update name');
-    } else {
-      // Mapped through toAppUser so the name survives. Writing
-      // { id, email } here discarded it, which is why the field emptied
-      // itself immediately after a successful save.
-      if (data?.user) {
-        setUser(toAppUser(data.user));
-      }
-      toast.success('Profile updated');
+  // Deep link once the sections exist.
+  useEffect(() => {
+    if (isLoading) return;
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    const alias: Record<string, string> = { general: 'account', personalization: 'brief', plan: 'billing', api: 'developers' };
+    const target = requested ? (alias[requested] ?? requested) : null;
+    // Invoices and data are parts of the plan and account sections without their own tab.
+    const section = (target === 'invoices' ? 'billing' : target === 'data' ? 'account' : target) as Section | null;
+    if (target && section && NAV.some((n) => n.id === section)) {
+      requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView({ block: 'start' }));
+      setActive(section);
+      return;
     }
-    setIsSaving(false);
-  };
+    if (section && NAV.some((n) => n.id === section)) {
+      requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ block: 'start' }));
+      setActive(section);
+    }
+  }, [isLoading]);
 
-  const handleSaveContext = async (type: string, content: string) => {
-    if (!user) return;
-    setIsSaving(true);
-
-    await supabase.from('user_context').delete().eq('user_id', user.id).eq('context_type', type);
-    const { error } = await supabase.from('user_context').insert({
-      user_id: user.id,
-      context_type: type,
-      content,
+  // The navigation follows the section in view.
+  useEffect(() => {
+    if (isLoading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible) setActive(visible.target.id as Section);
+      },
+      { rootMargin: '-35% 0px -55% 0px' }
+    );
+    NAV.forEach((n) => {
+      const el = document.getElementById(n.id);
+      if (el) observer.observe(el);
     });
+    return () => observer.disconnect();
+  }, [isLoading]);
 
-    setIsSaving(false);
-    if (error) toast.error('Failed to save');
-    else toast.success('Saved');
+  // ----- actions --------------------------------------------------------------
+
+  const saveName = async () => {
+    const name = fullName.trim();
+    if (!name) return false;
+    const { data, error } = await supabase.auth.updateUser({ data: { full_name: name } });
+    if (error) {
+      toast.error('Could not save your name.');
+      return false;
+    }
+    // Mapped through toAppUser so the name survives in the store.
+    if (data?.user) setUser(toAppUser(data.user));
+    return true;
   };
 
-  const handleUpgrade = (planId: 'starter' | 'pro' | 'agency') => {
+  const saveBriefField = useCallback(
+    async (key: keyof BriefState, value: string): Promise<boolean> => {
+      if (!userId) return false;
+      const type = CONTEXT_TYPES[key];
+      // One row per type: replace rather than accumulate versions. A failed
+      // delete stops here, or the insert would leave two rows for one field.
+      const removed = await supabase.from('user_context').delete().eq('user_id', userId).eq('context_type', type);
+      const inserted =
+        removed.error || !value.trim()
+          ? removed
+          : await supabase.from('user_context').insert({ user_id: userId, context_type: type, content: value.trim() });
+      if (inserted.error) {
+        toast.error('Could not save that. Check your connection and try again.');
+        return false;
+      }
+      return true;
+    },
+    [supabase, userId]
+  );
+
+  const upgrade = (planId: UpgradeOption['planId']) => {
     if (!user?.email) {
       toast.error('Your account email is missing. Sign in again.');
       return;
     }
-    startCheckout({
-      planId,
-      email: user.email,
-      name: fullName,
-      onActivated: refreshBilling,
-    });
+    startCheckout({ planId, email: user.email, name: fullName, onActivated: refreshBilling });
   };
 
-  const handleCancel = async () => {
-    const confirmed = window.confirm(
-      'Cancel your subscription? You keep full access until the end of your current billing period.'
-    );
-    if (!confirmed) return;
-
+  const cancel = async () => {
     const ok = await cancelSubscription();
     if (ok) await refreshBilling();
   };
 
-  const handleLogout = async () => {
+  const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
     router.push('/');
   };
 
+  const parts = strengthParts({ brief, documents, profiles, voiceSamples });
+  const strength = parts.reduce((sum, p) => sum + (p.done ? p.weight : 0), 0);
+  const nextStep = parts.find((p) => !p.done) ?? null;
+  const firstName = (fullName || displayName(user)).split(' ')[0];
+  const generationsLeft = billing?.quota ? toGenerations(Math.max(0, billing.quota.monthlyBudget - billing.quota.monthlyUsed)) : null;
+
+  const openStep = (step: StrengthPart) => {
+    if (step.target === 'brand') router.push('/dashboard?view=brand&tab=voice');
+    else goTo(step.target);
+  };
+
   return (
-    <div className="min-h-screen bg-[#050505] font-sans text-zinc-100 flex flex-col selection:bg-white/20">
-      <header className="h-14 border-b border-white/5 flex items-center px-6 shrink-0 bg-[#050505]/80 backdrop-blur-md sticky top-0 z-50">
-        <Link href="/dashboard" className="flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Workspace
+    <div className="min-h-screen bg-black font-sans text-white antialiased selection:bg-white/20">
+      <FloatingNav active={active} onSelect={goTo} />
+
+      {isLoading ? (
+        <div className="flex h-screen items-center justify-center text-white/40">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      ) : (
+        <main className="mx-auto max-w-[1180px] px-5 sm:px-8">
+          <header className="grid gap-12 pb-24 pt-36 sm:pb-32 sm:pt-44 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-end">
+            <div>
+              <Reveal>
+                <h1 className="text-[48px] font-semibold leading-[0.98] tracking-[-0.045em] sm:text-[84px]">
+                  {greeting()}, {firstName}.
+                </h1>
+              </Reveal>
+              <Reveal delay={0.08}>
+                <p className="mt-7 max-w-[520px] text-[18px] leading-[1.55] text-white/55">
+                  What Forge knows about you, the plan you are on, and how much you have left this month.
+                </p>
+              </Reveal>
+            </div>
+            <Reveal delay={0.16}>
+              <StatusPanel
+                strength={strength}
+                nextStep={nextStep}
+                onNextStep={openStep}
+                planName={billing?.planName ?? 'Free'}
+                generationsLeft={generationsLeft}
+                onPlan={() => goTo('billing')}
+                onUsage={() => goTo('usage')}
+              />
+            </Reveal>
+          </header>
+
+          <div className="space-y-32 pb-40 sm:space-y-44">
+            <BriefSection brief={brief} setBrief={setBrief} onSave={saveBriefField} strength={strength} parts={parts} onStep={openStep} />
+            <KnowledgeSection userId={userId!} onDocuments={setDocuments} onProfiles={setProfiles} />
+            <div className="space-y-5">
+              <PlanSection billing={billing} onUpgrade={upgrade} onCancel={cancel} busy={isStarting || isConfirming} />
+              <InvoicesSection />
+            </div>
+            <UsageSection billing={billing} onPlans={() => goTo('billing')} />
+            <NotificationsSection />
+            <ConnectionsSection />
+            <ApiKeysSection />
+            <div className="space-y-5">
+              <AccountSection fullName={fullName} setFullName={setFullName} onSaveName={saveName} email={user?.email ?? ''} onSignOut={signOut} />
+              <DataSection />
+            </div>
+          </div>
+        </main>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// CHROME
+// ============================================================================
+
+function FloatingNav({ active, onSelect }: { active: Section; onSelect: (s: Section) => void }) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
+      <nav
+        aria-label="Account sections"
+        className="pointer-events-auto flex w-full max-w-[1040px] items-center gap-1 rounded-full border border-white/[0.08] bg-[#0C0C0C]/80 p-1.5 pl-5 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl"
+      >
+        <Link href="/dashboard" className={cn('mr-auto rounded-full text-[14px] font-semibold tracking-[0.18em] text-white', focusRing)}>
+          FORGE
         </Link>
-      </header>
-
-      <main className="flex flex-1 max-w-7xl w-full mx-auto mt-12 px-6">
-        <aside className="w-64 pr-10 flex flex-col gap-1 shrink-0">
-          <h2 className="text-xl font-semibold tracking-tight mb-6 px-3 text-white">Settings</h2>
-          <nav className="flex flex-col gap-1">
-            <SidebarButton active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<User className="w-4 h-4" />} label="Account" />
-            <SidebarButton active={activeTab === 'personalization'} onClick={() => setActiveTab('personalization')} icon={<Shield className="w-4 h-4" />} label="Strategic Memory" />
-            <SidebarButton active={activeTab === 'billing'} onClick={() => setActiveTab('billing')} icon={<CreditCard className="w-4 h-4" />} label="Billing" />
-            <SidebarButton active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} icon={<Activity className="w-4 h-4" />} label="Usage" />
-          </nav>
-        </aside>
-
-        <section className="flex-1 min-h-[600px] pb-24 border-l border-white/5 pl-10">
-          {isLoading ? (
-            <div className="h-full flex items-center justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
-            </div>
-          ) : (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {activeTab === 'general' && (
-                <GeneralSettings
-                  fullName={fullName} setFullName={setFullName}
-                  handleUpdateProfile={handleUpdateProfile}
-                  isSaving={isSaving} userEmail={user?.email} handleLogout={handleLogout}
-                  avatarInitial={displayName(user).charAt(0).toUpperCase()}
-                />
+        <div className="hidden items-center lg:flex">
+          {NAV.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => onSelect(n.id)}
+              aria-current={active === n.id ? 'true' : undefined}
+              className={cn('relative rounded-full px-3.5 py-2 text-[14px] transition-colors', active === n.id ? 'text-white' : 'text-white/55 hover:text-white', focusRing)}
+            >
+              {active === n.id && (
+                <motion.span layoutId="account-nav-pill" className="absolute inset-0 rounded-full bg-white/[0.08]" transition={{ type: 'spring', stiffness: 500, damping: 40 }} />
               )}
-              {activeTab === 'personalization' && (
-                <StrategicMemorySettings
-                  propertyFocus={propertyFocus} setPropertyFocus={setPropertyFocus}
-                  brandDNA={brandDNA} setBrandDNA={setBrandDNA}
-                  targetAudience={targetAudience} setTargetAudience={setTargetAudience}
-                  brandTone={brandTone} setBrandTone={setBrandTone}
-                  handleSaveContext={handleSaveContext}
-                />
-              )}
-              {activeTab === 'billing' && (
-                <BillingSettings
-                  billing={billing}
-                  onUpgrade={handleUpgrade}
-                  onCancel={handleCancel}
-                  isStarting={isStarting}
-                  isConfirming={isConfirming}
-                />
-              )}
-              {activeTab === 'usage' && (
-                <UsageSettings billing={billing} setActiveTab={setActiveTab} />
-              )}
-            </div>
-          )}
-        </section>
-      </main>
+              <span className="relative">{n.label}</span>
+            </button>
+          ))}
+        </div>
+        <Link href="/dashboard" className={cn(pillWhite, 'ml-2 !py-2')}>
+          Workspace
+        </Link>
+      </nav>
+      {/* Below lg the sections move to a scrollable strip under the bar. */}
+      <div className="pointer-events-auto absolute inset-x-0 top-[60px] flex justify-center px-4 lg:hidden">
+        <div className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-white/[0.08] bg-[#0C0C0C]/80 p-1 backdrop-blur-xl [scrollbar-width:none]">
+          {NAV.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => onSelect(n.id)}
+              aria-current={active === n.id ? 'true' : undefined}
+              className={cn('shrink-0 rounded-full px-3.5 py-1.5 text-[13px] transition-colors', active === n.id ? 'bg-white text-black' : 'text-white/60', focusRing)}
+            >
+              {n.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ============================================================================
-// SHARED
-// ============================================================================
-
-function SidebarButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+/** One orchestrated entrance for the hero; nothing else animates on its own. */
+function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  const reduce = useReducedMotion();
   return (
-    <button onClick={onClick} className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 ${active ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'}`}>
-      {icon} {label}
-    </button>
+    <motion.div
+      initial={reduce ? false : { opacity: 0, y: 18, filter: 'blur(8px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ duration: 0.9, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
-function Meter({
-  label, sublabel, used, budget, resetLabel, warnAt = 80,
+function Chip({ children, dot = '#FF8A2B' }: { children: React.ReactNode; dot?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 text-[12.5px] text-white/80 backdrop-blur">
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot }} />
+      {children}
+    </span>
+  );
+}
+
+/** A circular gauge for brief strength. */
+function Ring({ value, size = 64 }: { value: number; size?: number }) {
+  const reduce = useReducedMotion();
+  const stroke = 5;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`Brief strength ${value} percent`} className="-rotate-90">
+      <defs>
+        <linearGradient id="ring-ember" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#FFB067" />
+          <stop offset="1" stopColor="#E0570A" />
+        </linearGradient>
+      </defs>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={stroke} />
+      <motion.circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="url(#ring-ember)"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={c}
+        initial={reduce ? false : { strokeDashoffset: c }}
+        animate={{ strokeDashoffset: c * (1 - value / 100) }}
+        transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
+      />
+    </svg>
+  );
+}
+
+// ============================================================================
+// HERO STATUS
+// ============================================================================
+
+function StatusPanel({
+  strength,
+  nextStep,
+  onNextStep,
+  planName,
+  generationsLeft,
+  onPlan,
+  onUsage,
 }: {
-  label: string; sublabel: string; used: number; budget: number; resetLabel: string; warnAt?: number;
+  strength: number;
+  nextStep: StrengthPart | null;
+  onNextStep: (step: StrengthPart) => void;
+  planName: string;
+  generationsLeft: number | null;
+  onPlan: () => void;
+  onUsage: () => void;
 }) {
-  const pct = percentUsed(used, budget);
-  const remaining = Math.max(0, budget - used);
-
   return (
-    <div className="bg-[#09090B] border border-white/5 rounded-2xl p-6 shadow-sm">
-      <div className="flex justify-between items-start mb-1">
-        <div>
-          <div className="text-sm font-medium text-zinc-300">{label}</div>
-          <div className="text-xs text-zinc-600 mt-0.5">{sublabel}</div>
+    <div className="overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#0B0B0B]">
+      <div className="flex items-center gap-5 p-6">
+        <div className="relative shrink-0">
+          <Ring value={strength} />
+          <span className="absolute inset-0 flex items-center justify-center text-[15px] font-semibold tabular-nums">{strength}</span>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-white tracking-tight leading-none">
-            {toGenerations(remaining).toLocaleString()}
-          </div>
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mt-1">left</div>
+        <div className="min-w-0">
+          <p className="text-[13px] text-white/45">Brief strength</p>
+          {nextStep ? (
+            <button type="button" onClick={() => onNextStep(nextStep)} className={cn('mt-1 text-left text-[15px] leading-snug text-white hover:text-[#FFB067]', focusRing, 'rounded-sm')}>
+              {nextStep.next} <ArrowUpRight className="inline h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <p className="mt-1 text-[15px] text-white">Forge has everything it needs to write like you.</p>
+          )}
         </div>
       </div>
-
-      <div className="w-full bg-[#1A1A1A] h-2.5 rounded-full overflow-hidden relative mt-4">
-        <div
-          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out ${
-            pct >= 100 ? 'bg-red-500' : pct > warnAt ? 'bg-amber-500' : 'bg-white'
-          }`}
-          style={{ width: `${pct}%` }}
-        />
+      <div className="grid grid-cols-2 border-t border-white/[0.06]">
+        <button type="button" onClick={onPlan} className={cn('px-6 py-4 text-left transition-colors hover:bg-white/[0.03]', focusRing)}>
+          <span className="block text-[12.5px] text-white/40">Plan</span>
+          <span className="mt-0.5 block text-[17px] font-semibold">{planName}</span>
+        </button>
+        <button type="button" onClick={onUsage} className={cn('border-l border-white/[0.06] px-6 py-4 text-left transition-colors hover:bg-white/[0.03]', focusRing)}>
+          <span className="block text-[12.5px] text-white/40">Left this month</span>
+          <span className="mt-0.5 block text-[17px] font-semibold tabular-nums">{generationsLeft === null ? 'Unavailable' : `${generationsLeft.toLocaleString()} generations`}</span>
+        </button>
       </div>
+    </div>
+  );
+}
 
-      <div className="flex justify-between items-center mt-3 text-xs">
-        <span className="text-zinc-500">
-          {toGenerations(used).toLocaleString()} of {toGenerations(budget).toLocaleString()} used
+// ============================================================================
+// BRIEF
+// ============================================================================
+
+type SaveState = 'idle' | 'saving' | 'saved';
+
+/**
+ * A field that saves on blur, only when its value changed, and says so in
+ * place. A toast for every blur was noise; an inline "Saved" is enough.
+ */
+function useFieldSaver(save: (value: string) => Promise<boolean>, initial: string) {
+  const [state, setState] = useState<SaveState>('idle');
+  // Sections mount after the brief has loaded, so the first value is the saved one.
+  const last = useRef(initial);
+  const timer = useRef<number | null>(null);
+
+  const commit = useCallback(
+    async (value: string) => {
+      if (value.trim() === last.current.trim()) return;
+      setState('saving');
+      const ok = await save(value);
+      if (ok) {
+        last.current = value;
+        setState('saved');
+        if (timer.current) window.clearTimeout(timer.current);
+        timer.current = window.setTimeout(() => setState('idle'), 2200);
+      } else {
+        setState('idle');
+      }
+    },
+    [save]
+  );
+
+  return { state, commit };
+}
+
+function SaveIndicator({ state }: { state: SaveState }) {
+  if (state === 'idle') return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[12.5px] text-white/45" aria-live="polite">
+      {state === 'saving' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-[#8EE3B0]" strokeWidth={2.5} />}
+      {state === 'saving' ? 'Saving' : 'Saved'}
+    </span>
+  );
+}
+
+const briefField =
+  'block w-full resize-none bg-transparent text-[21px] font-medium leading-[1.4] tracking-[-0.015em] text-white placeholder:text-white/[0.18] outline-none [field-sizing:content] min-h-[1.4em] sm:text-[22px]';
+
+function BriefRow({
+  id,
+  label,
+  note,
+  state,
+  count,
+  children,
+}: {
+  id: string;
+  label: string;
+  note?: string;
+  state: SaveState;
+  count?: { value: number; good: number };
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="group border-t border-white/[0.08] py-6 first:border-t-0 first:pt-0">
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+        <label htmlFor={id} className="text-[13.5px] text-white/50 transition-colors group-focus-within:text-white/80">
+          {label}
+        </label>
+        <span className="flex items-center gap-3">
+          <SaveIndicator state={state} />
+          {note && state === 'idle' && <span className="text-[12.5px] text-[#FF9A52]">{note}</span>}
+          {count && (
+            <span className={cn('text-[12px] tabular-nums transition-opacity', count.value >= count.good ? 'text-white/30' : 'text-white/45', 'opacity-0 group-focus-within:opacity-100')}>
+              {count.value}
+            </span>
+          )}
         </span>
-        <span className="text-zinc-500">Resets in {resetLabel}</span>
       </div>
+      {children}
     </div>
   );
 }
 
-// ============================================================================
-// GENERAL
-// ============================================================================
-
-function GeneralSettings({ fullName, setFullName, handleUpdateProfile, isSaving, userEmail, handleLogout, avatarInitial }: any) {
+function BriefTextField({
+  id,
+  label,
+  note,
+  value,
+  onChange,
+  onSave,
+  placeholder,
+  goodLength,
+}: {
+  id: string;
+  label: string;
+  note?: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSave: (value: string) => Promise<boolean>;
+  placeholder: string;
+  goodLength: number;
+}) {
+  const { state, commit } = useFieldSaver(onSave, value);
   return (
-    <div className="max-w-3xl space-y-12">
-      <section>
-        <div className="mb-6 border-b border-white/5 pb-4">
-          <h3 className="text-lg font-semibold text-white tracking-tight">Profile</h3>
-          <p className="text-sm text-zinc-500 mt-1">Manage your identity across the workspace.</p>
-        </div>
-        <div className="grid grid-cols-[200px_1fr] gap-8 items-center mb-8">
-          <label className="text-sm text-zinc-400 font-medium">Avatar</label>
-          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl border border-white/10 shadow-xl" style={{ background: 'linear-gradient(135deg, #18181b 0%, #09090b 100%)' }}>
-            {avatarInitial}
-          </div>
-        </div>
-        <div className="grid grid-cols-[200px_1fr] gap-8 items-center">
-          <label className="text-sm text-zinc-400 font-medium">Full name</label>
-          <div className="flex gap-3 max-w-md">
-            <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-4 py-2.5 text-sm bg-[#09090B] text-white border border-white/10 rounded-lg focus:ring-2 focus:ring-white/20 focus:border-transparent outline-none transition-all placeholder:text-zinc-600 shadow-sm" placeholder="Enter your name" />
-            <button onClick={handleUpdateProfile} disabled={isSaving || !fullName} className="px-6 py-2.5 bg-white text-black text-sm font-medium rounded-lg transition-all hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[80px]">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
-            </button>
-          </div>
-        </div>
-      </section>
+    <BriefRow id={id} label={label} note={note} state={state} count={{ value: value.trim().length, good: goodLength }}>
+      <textarea
+        id={id}
+        rows={2}
+        value={value}
+        maxLength={2000}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => void commit(value)}
+        className={briefField}
+        placeholder={placeholder}
+      />
+    </BriefRow>
+  );
+}
 
-      <section>
-        <div className="mb-6 border-b border-white/5 pb-4">
-          <h3 className="text-lg font-semibold text-white tracking-tight">Account Security</h3>
-          <p className="text-sm text-zinc-500 mt-1">Manage your sessions and device access.</p>
-        </div>
-        <div className="grid grid-cols-[200px_1fr] gap-8 items-start mb-8">
-          <label className="text-sm text-zinc-400 font-medium pt-3">Active sessions</label>
-          <div className="w-full max-w-md bg-[#09090B] border border-white/5 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-1">
-              <span className="text-sm font-medium text-white">Current Session</span>
-              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>
+function BriefSection({
+  brief,
+  setBrief,
+  onSave,
+  strength,
+  parts,
+  onStep,
+}: {
+  brief: BriefState;
+  setBrief: React.Dispatch<React.SetStateAction<BriefState>>;
+  onSave: (key: keyof BriefState, value: string) => Promise<boolean>;
+  strength: number;
+  parts: StrengthPart[];
+  onStep: (step: StrengthPart) => void;
+}) {
+  const roleSaver = useFieldSaver((value) => onSave('role', value), brief.role);
+  const set = (key: keyof BriefState) => (value: string) => setBrief((prev) => ({ ...prev, [key]: value }));
+  const quote = brief.beliefs.trim();
+
+  return (
+    <section id="brief" className="scroll-mt-36 lg:scroll-mt-28">
+      <SectionHead
+        title="This is how Forge hears you."
+        lead="Forge reads this before it writes a word. What you write here comes first, then your documents and profiles, then your measured voice."
+      />
+
+      <div className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[32px] bg-[#0E0E0E] lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <Plate name="molten" className="flex min-h-[320px] flex-col justify-between p-7 sm:p-9 lg:min-h-[620px]" dim={0.55} position="50% 70%">
+          <div className="relative">
+            <Chip dot="#FFB067">Your brief</Chip>
+          </div>
+          <div className="relative">
+            <p className="max-w-[380px] text-[24px] font-semibold leading-[1.15] tracking-[-0.03em] text-white sm:text-[28px]">
+              {quote ? `“${quote.length > 110 ? `${quote.slice(0, 108).trimEnd()}…` : quote}”` : 'Tell Forge what you believe.'}
+            </p>
+            <ul className="mt-8 flex flex-col gap-2">
+              {parts.map((part) => (
+                <li key={part.id}>
+                  <button
+                    type="button"
+                    onClick={() => onStep(part)}
+                    className={cn('flex items-center gap-2.5 rounded-sm text-[13.5px] transition-colors', part.done ? 'text-white/80' : 'text-white/45 hover:text-white', focusRing)}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn('flex h-4 w-4 items-center justify-center rounded-full border', part.done ? 'border-transparent bg-white text-black' : 'border-white/30')}
+                    >
+                      {part.done && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+                    </span>
+                    {part.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-[13px] text-white/55">{strength}% complete</p>
+          </div>
+        </Plate>
+
+        <div className="min-w-0 p-7 sm:p-10">
+          <BriefRow id="role" label="What best describes you" state={roleSaver.state}>
+            <div role="radiogroup" aria-labelledby="role" className="flex flex-wrap gap-2 pt-1">
+              {ROLES.map((role) => {
+                const selected = brief.role === role.value;
+                return (
+                  <button
+                    key={role.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => {
+                      const next = selected ? '' : role.value;
+                      setBrief((prev) => ({ ...prev, role: next }));
+                      void roleSaver.commit(next);
+                    }}
+                    className={cn(
+                      'group/role flex flex-col items-start rounded-[18px] border px-4 py-2.5 text-left transition-colors',
+                      selected ? 'border-white bg-white text-black' : 'border-white/[0.12] text-white hover:border-white/30',
+                      focusRing
+                    )}
+                  >
+                    <span className="text-[14.5px] font-medium">{role.label}</span>
+                    <span className={cn('text-[12px]', selected ? 'text-black/55' : 'text-white/40')}>{role.hint}</span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="text-xs text-zinc-500">Logged in via {userEmail}</div>
-          </div>
+          </BriefRow>
+
+          <BriefTextField
+            id="brand-dna"
+            label="What you believe that others in your space don't"
+            note="Weighted highest"
+            value={brief.beliefs}
+            onChange={set('beliefs')}
+            onSave={(v) => onSave('beliefs', v)}
+            placeholder="Most creators post more. We think they should post better."
+            goodLength={40}
+          />
+          <BriefTextField
+            id="target-audience"
+            label="Who you're writing for"
+            value={brief.audience}
+            onChange={set('audience')}
+            onSave={(v) => onSave('audience', v)}
+            placeholder="Solo founders who know their product but hate writing about it."
+            goodLength={30}
+          />
+          <BriefTextField
+            id="brand-tone"
+            label="How you want to sound"
+            value={brief.tone}
+            onChange={set('tone')}
+            onSave={(v) => onSave('tone', v)}
+            placeholder="Plain, direct, a little dry."
+            goodLength={8}
+          />
+          <p className="pt-2 text-[13px] text-white/35">Saves when you leave a field.</p>
         </div>
-        <div className="grid grid-cols-[200px_1fr] gap-8 items-center">
-          <label className="text-sm text-zinc-400 font-medium">Device Management</label>
-          <div>
-            <button onClick={handleLogout} className="px-5 py-2.5 bg-transparent border border-red-500/20 text-red-400 hover:bg-red-500/10 text-sm font-medium rounded-lg transition-colors">
-              Log out of all devices
-            </button>
-          </div>
+      </div>
+
+      <Link
+        href="/dashboard?view=brand&tab=voice"
+        className={cn(
+          'group mt-5 flex flex-col gap-4 rounded-[28px] border border-white/[0.07] bg-[#0B0B0B] p-6 transition-colors hover:border-white/15 sm:flex-row sm:items-center sm:justify-between sm:p-7',
+          focusRing
+        )}
+      >
+        <div className="min-w-0">
+          <p className="text-[17px] font-semibold text-white">Your voice, stories and rules live in Brand.</p>
+          <p className="mt-1 text-[14.5px] leading-relaxed text-white/50">
+            The measured Voice Fingerprint, the Story Bank Forge writes from, and the rules it has learned from your edits.
+          </p>
         </div>
-      </section>
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-[14px] font-medium text-white">
+          Open Brand <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </span>
+      </Link>
+    </section>
+  );
+}
+
+// ============================================================================
+// KNOWLEDGE
+// ============================================================================
+
+function KnowledgeSection({ userId, onDocuments, onProfiles }: { userId: string; onDocuments: (n: number) => void; onProfiles: (n: number) => void }) {
+  return (
+    <section id="knowledge" className="scroll-mt-36 lg:scroll-mt-28">
+      <SectionHead
+        title="What Forge has read."
+        lead="Documents and public profiles fill in what the brief leaves out: your offer, your history, how you position yourself."
+      />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <DocumentsCard userId={userId} onCount={onDocuments} />
+        <ProfilesCard userId={userId} onCount={onProfiles} />
+      </div>
+    </section>
+  );
+}
+
+interface SourceRow {
+  id: string;
+  title: string;
+  source_type: string;
+  created_at: string;
+}
+
+const ACCEPTED = ['pdf', 'md', 'markdown', 'txt', 'docx'];
+
+function DocumentsCard({ userId, onCount }: { userId: string; onCount: (n: number) => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [sources, setSources] = useState<SourceRow[]>([]);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('brand_dna_sources').select('id, title, source_type, created_at').eq('user_id', userId).order('created_at', { ascending: false });
+      if (data) setSources(data as SourceRow[]);
+    })();
+  }, [supabase, userId]);
+
+  useEffect(() => onCount(sources.length), [sources.length, onCount]);
+
+  const upload = async (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+    if (!ACCEPTED.includes(extension)) {
+      toast.error('Use a PDF, Word, Markdown or text file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('That file is over 5 MB.');
+      return;
+    }
+
+    // 'text' is the pasted-string path server-side; a .txt upload is a file
+    // and must be sent as 'txt' or the source is rejected for having no text.
+    const sourceType = extension === 'pdf' ? 'pdf' : extension === 'md' || extension === 'markdown' ? 'md' : extension === 'docx' ? 'docx' : 'txt';
+    const form = new FormData();
+    form.append('file', file);
+    form.append('sourceType', sourceType);
+    form.append('title', file.name);
+
+    setUploading(file.name);
+    try {
+      const res = await fetch('/api/brand-dna/upload', { method: 'POST', body: form });
+      if (!res.ok) {
+        const data = res.headers.get('content-type')?.includes('application/json') ? await res.json() : null;
+        throw new Error(data?.error ?? `Upload failed (${res.status}).`);
+      }
+      const { source } = await res.json();
+      setSources((prev) => [source, ...prev]);
+      toast.success(`Forge read ${file.name}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Upload failed.');
+    } finally {
+      setUploading(null);
+      if (fileInput.current) fileInput.current.value = '';
+    }
+  };
+
+  const remove = async (id: string) => {
+    // Scoped by user_id as well as RLS: a second line of defence if a policy changes.
+    const { error } = await supabase.from('brand_dna_sources').delete().eq('id', id).eq('user_id', userId);
+    if (error) toast.error('Could not remove that document.');
+    else setSources((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  return (
+    <div
+      className={cn('flex flex-col rounded-[32px] bg-[#0E0E0E] p-7 transition-shadow sm:p-9', dragging && 'shadow-[inset_0_0_0_2px_rgba(255,176,103,0.6)]')}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) void upload(file);
+      }}
+    >
+      <input
+        ref={fileInput}
+        type="file"
+        className="hidden"
+        accept=".pdf,.md,.markdown,.txt,.docx"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void upload(file);
+        }}
+      />
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <Chip dot="#9AA8B8">Documents</Chip>
+          <h3 className="mt-5 text-[26px] font-semibold leading-tight tracking-[-0.025em]">
+            {sources.length === 0 ? 'Nothing to read yet.' : `${sources.length} document${sources.length === 1 ? '' : 's'} in memory.`}
+          </h3>
+          <p className="mt-2 max-w-[360px] text-[15px] leading-relaxed text-white/50">Brand guides, decks, your best posts. PDF, Word, Markdown or text, up to 5 MB. Drop a file here.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => fileInput.current?.click()}
+          disabled={uploading !== null}
+          aria-label="Add a document"
+          className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-black transition hover:bg-white/85 disabled:opacity-50', focusRing)}
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {uploading && <p className="mt-6 text-[14px] text-white/55">Reading {uploading}</p>}
+
+      {sources.length > 0 && (
+        <ul className="mt-7 divide-y divide-white/[0.07]">
+          {sources.map((source) => (
+            <li key={source.id} className="flex items-center gap-4 py-3.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-[10.5px] font-semibold tracking-wide text-white/60">
+                {source.source_type.toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[15px] text-white/85">{source.title}</span>
+                <span className="block text-[12px] text-white/35">Added {formatDate(source.created_at)}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => remove(source.id)}
+                aria-label={`Remove ${source.title}`}
+                className={cn('rounded-full p-2 text-white/30 transition hover:bg-white/[0.06] hover:text-white', focusRing)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+interface ProfileRow {
+  id: string;
+  platform: string;
+  handle: string | null;
+  summary: string | null;
+  scraped_at: string | null;
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  linkedin: 'LinkedIn',
+  x: 'X',
+  twitter: 'X',
+  threads: 'Threads',
+  bluesky: 'Bluesky',
+  instagram: 'Instagram',
+  youtube: 'YouTube',
+  website: 'Website',
+};
+
+function ProfilesCard({ userId, onCount }: { userId: string; onCount: (n: number) => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [url, setUrl] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('scraped_profiles').select('id, platform, handle, summary, scraped_at').eq('user_id', userId).order('scraped_at', { ascending: false });
+      if (data) setProfiles(data as ProfileRow[]);
+    })();
+  }, [supabase, userId]);
+
+  useEffect(() => onCount(profiles.length), [profiles.length, onCount]);
+
+  const sync = async () => {
+    const value = url.trim();
+    if (!value) return;
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/brand-dna/scrape', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ profileUrl: /^https?:\/\//.test(value) ? value : `https://${value}` }),
+      });
+      if (!res.ok) {
+        const data = res.headers.get('content-type')?.includes('application/json') ? await res.json() : null;
+        throw new Error(data?.error ?? `Could not read that profile (${res.status}).`);
+      }
+      const { profile } = await res.json();
+      setProfiles((prev) => [profile, ...prev.filter((p) => p.id !== profile.id)]);
+      setUrl('');
+      toast.success('Profile read.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not read that profile. Make sure it is public.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    const { error } = await supabase.from('scraped_profiles').delete().eq('id', id).eq('user_id', userId);
+    if (error) toast.error('Could not remove that profile.');
+    else setProfiles((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  return (
+    <div className="flex flex-col rounded-[32px] bg-[#0E0E0E] p-7 sm:p-9">
+      <div className="self-start">
+        <Chip dot="#8EE3B0">Public profiles</Chip>
+      </div>
+      <h3 className="mt-5 text-[26px] font-semibold leading-tight tracking-[-0.025em]">
+        {profiles.length === 0 ? 'Where do you post?' : `${profiles.length} profile${profiles.length === 1 ? '' : 's'} read.`}
+      </h3>
+      <p className="mt-2 max-w-[380px] text-[15px] leading-relaxed text-white/50">
+        Forge reads the public page only: bio and positioning. It never guesses at follower counts it cannot verify.
+      </p>
+
+      <form
+        className="mt-7 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!syncing) void sync();
+        }}
+      >
+        <label htmlFor="profile-url" className="sr-only">
+          Public profile URL
+        </label>
+        <input
+          id="profile-url"
+          type="text"
+          inputMode="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          disabled={syncing}
+          className={cn(fieldDark, 'disabled:opacity-50')}
+          placeholder="linkedin.com/in/you"
+          autoCapitalize="off"
+          spellCheck={false}
+        />
+        <button type="submit" disabled={syncing || !url.trim()} className={cn(pillWhite, 'shrink-0')}>
+          {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
+        </button>
+      </form>
+
+      {profiles.length > 0 && (
+        <ul className="mt-6 divide-y divide-white/[0.07]">
+          {profiles.map((profile) => (
+            <li key={profile.id} className="flex items-start gap-4 py-4">
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] text-white">
+                  <span>{PLATFORM_LABELS[profile.platform] ?? profile.platform}</span>
+                  {profile.handle && <span className="text-white/45"> @{profile.handle}</span>}
+                </div>
+                {profile.summary && <p className="mt-1 line-clamp-2 text-[14px] leading-relaxed text-white/50">{profile.summary}</p>}
+                {/* Read once; add it again to refresh. */}
+                <p className="mt-2 text-[12.5px] text-white/30">Read {formatDate(profile.scraped_at)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(profile.id)}
+                aria-label={`Remove ${profile.handle ?? profile.platform}`}
+                className={cn('rounded-full p-2 text-white/30 transition hover:bg-white/[0.06] hover:text-white', focusRing)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
 // ============================================================================
-// BILLING
+// PLAN
 // ============================================================================
 
-function BillingSettings({
-  billing, onUpgrade, onCancel, isStarting, isConfirming,
+function PlanSection({
+  billing,
+  onUpgrade,
+  onCancel,
+  busy,
 }: {
   billing: BillingStatus | null;
-  onUpgrade: (planId: 'starter' | 'pro' | 'agency') => void;
-  onCancel: () => void;
-  isStarting: boolean;
-  isConfirming: boolean;
+  onUpgrade: (planId: UpgradeOption['planId']) => void;
+  onCancel: () => Promise<void>;
+  busy: boolean;
 }) {
+  const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   if (!billing) {
-    return <div className="text-sm text-zinc-500">Billing information is unavailable right now.</div>;
+    return (
+      <section id="billing" className="scroll-mt-36 lg:scroll-mt-28">
+        <SectionHead title="Your plan." lead="Plan details did not load. Refresh the page to try again." />
+      </section>
+    );
   }
 
   const isFree = billing.planId === 'free';
   const sub = billing.subscription;
-  const busy = isStarting || isConfirming;
-
   // A renewal is being retried. Access continues through the grace window,
-  // which the user needs told explicitly or a failed charge looks like
-  // silent, unexplained deactivation.
-  const inGrace = sub?.status === 'pending' && sub.graceUntil;
+  // and the user needs to be told, or a failed charge looks like a silent shutdown.
+  const inGrace = sub?.status === 'pending' && Boolean(sub.graceUntil);
+
+  const lead = isFree
+    ? 'Upgrade when Forge becomes part of how you work. Free keeps the grader, drafts, voice and Story Bank.'
+    : sub?.cancelAtPeriodEnd
+      ? `Cancelled. You keep everything until ${formatDate(sub.currentPeriodEnd)}.`
+      : `Renews ${formatDate(sub?.currentPeriodEnd)}.`;
+
+  const confirmCancel = async () => {
+    setCancelling(true);
+    await onCancel();
+    setCancelling(false);
+    setConfirming(false);
+  };
 
   return (
-    <div className="max-w-5xl space-y-10">
-      <div className="mb-8 border-b border-white/5 pb-4">
-        <h3 className="text-lg font-semibold text-white tracking-tight">Billing &amp; Subscription</h3>
-        <p className="text-sm text-zinc-500 mt-1">Manage your plan and payment method.</p>
-      </div>
-
-      {inGrace && (
-        <div className="flex items-start gap-3 bg-amber-500/5 border border-amber-500/20 rounded-xl p-5">
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-medium text-amber-400 mb-1">Payment needs attention</h4>
-            <p className="text-sm text-amber-400/80 leading-relaxed">
-              We could not process your last renewal and are retrying. Your access continues
-              until {formatDate(sub!.graceUntil)}. Updating your payment method in the Razorpay
-              email will resolve it.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {sub?.cancelAtPeriodEnd && (
-        <div className="flex items-start gap-3 bg-white/[0.03] border border-white/10 rounded-xl p-5">
-          <Clock className="w-5 h-5 text-zinc-400 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-medium text-white mb-1">Subscription ending</h4>
-            <p className="text-sm text-zinc-400 leading-relaxed">
-              Your plan is cancelled and will not renew. You keep full access
-              until {formatDate(sub.currentPeriodEnd)}.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-[200px_1fr] gap-8 items-start">
-        <label className="text-sm text-zinc-400 font-medium pt-1">Current Plan</label>
-        <div className="w-full bg-[#09090B] border border-white/10 rounded-2xl p-8 shadow-xl">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="text-xl font-bold text-white tracking-tight">{billing.planName}</div>
-                {!isFree && !sub?.cancelAtPeriodEnd && (
-                  <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                    {sub?.status === 'pending' ? 'Retrying' : 'Active'}
-                  </span>
-                )}
+    <section id="billing" className="scroll-mt-36 lg:scroll-mt-28">
+      <SectionHead
+        title={isFree ? 'You’re on Free.' : `You’re on ${billing.planName}.`}
+        lead={lead}
+        aside={
+          !isFree && !sub?.cancelAtPeriodEnd ? (
+            confirming ? (
+              <div className="flex flex-col items-start gap-3 rounded-[22px] border border-white/[0.1] bg-[#0B0B0B] p-4 md:items-end">
+                <p className="max-w-[300px] text-[13.5px] leading-relaxed text-white/65">You keep full access until the end of the period you have paid for.</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setConfirming(false)} className={pillGhost}>
+                    Keep plan
+                  </button>
+                  <button type="button" onClick={confirmCancel} disabled={cancelling} className={cn(pillGhost, '!border-[#FF8A65]/40 !text-[#FF9A85]')}>
+                    {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Cancel plan'}
+                  </button>
+                </div>
               </div>
-              <div className="text-sm text-zinc-400">
-                {isFree
-                  ? 'You are on the free tier.'
-                  : `Renews ${formatDate(sub?.currentPeriodEnd ?? null)}`}
-              </div>
-            </div>
-            {!isFree && !sub?.cancelAtPeriodEnd && (
-              <button
-                onClick={onCancel}
-                className="px-5 py-2.5 bg-transparent border border-red-500/20 text-red-400 hover:bg-red-500/10 text-sm font-medium rounded-lg transition-colors"
-              >
+            ) : (
+              <button type="button" onClick={() => setConfirming(true)} className={pillGhost}>
                 Cancel plan
               </button>
-            )}
-          </div>
+            )
+          ) : undefined
+        }
+      />
+
+      {inGrace && (
+        <div role="status" className="mb-6 rounded-[24px] bg-[#2A1B05] px-7 py-5 text-[15px] leading-relaxed text-[#FFD08A]">
+          Your last payment did not go through, so it is being retried. You keep full access until {formatDate(sub!.graceUntil)}. Updating your payment method from the
+          Razorpay email fixes it.
         </div>
-      </div>
+      )}
 
       {billing.availableUpgrades.length > 0 && (
-        <div className="grid grid-cols-[200px_1fr] gap-8 items-start">
-          <label className="text-sm text-zinc-400 font-medium pt-1">
-            {isFree ? 'Upgrade' : 'Change plan'}
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <>
+          <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))' }}>
             {billing.availableUpgrades.map((tier) => (
-              <div key={tier.planId} className="p-6 rounded-2xl bg-[#09090B] border border-white/5 hover:border-white/10 flex flex-col justify-between transition-all duration-300">
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-3">
-                    {tier.name}
+              <article key={tier.planId} className="flex flex-col overflow-hidden rounded-[32px] bg-[#0E0E0E]">
+                <Plate name={PLAN_PLATES[tier.planId] ?? 'steel'} className="flex aspect-[16/10] flex-col justify-between p-6" dim={0.45}>
+                  <div className="relative">
+                    <Chip dot="rgba(255,255,255,0.9)">{tier.name}</Chip>
                   </div>
-                  <div className="flex items-baseline gap-1 mb-6">
-                    <span className="text-4xl font-bold text-white tracking-tighter">{tier.displayPrice}</span>
-                    <span className="text-xs text-zinc-500 font-medium">/month</span>
+                  <div className="relative flex items-baseline gap-1.5">
+                    <span className="text-[52px] font-semibold leading-none tracking-[-0.045em] tabular-nums">{tier.displayPrice}</span>
+                    <span className="text-[14px] text-white/75">a month</span>
                   </div>
-                  <p className="text-xs text-zinc-400 mb-6 min-h-[32px] leading-relaxed">{tier.tagline}</p>
-                  <ul className="text-sm text-zinc-300 mb-6 space-y-3">
-                    {tier.features.map((feat, idx) => (
-                      <li key={idx} className="flex items-start gap-3">
-                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-zinc-600" />
-                        <span className="leading-relaxed text-xs">{feat}</span>
+                </Plate>
+                <div className="flex flex-1 flex-col p-7">
+                  <p className="text-[17px] leading-snug text-white/85">{tier.tagline}</p>
+                  <ul className="mt-6 flex-1 space-y-3">
+                    {tier.features.map((feature) => (
+                      <li key={feature} className="flex gap-3 text-[15px] leading-snug text-white/60">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-white/80" strokeWidth={2.25} />
+                        {feature}
                       </li>
                     ))}
                   </ul>
-                  <div className="text-[10px] text-zinc-600 mb-4">
-                    Pay with {tier.paymentMethods.join(', ')}
-                  </div>
+                  <button type="button" onClick={() => onUpgrade(tier.planId)} disabled={busy} className={cn(pillWhite, 'mt-8 w-full py-3')}>
+                    {busy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        Choose {tier.name} <ArrowUpRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
+                  <p className="mt-3 text-center text-[12.5px] text-white/35">Pay with {tier.paymentMethods.join(', ')}</p>
                 </div>
-                <button
-                  onClick={() => onUpgrade(tier.planId)}
-                  disabled={busy}
-                  className="w-full py-3 rounded-xl text-sm font-medium transition-all flex justify-center items-center bg-white/5 text-white hover:bg-white/10 border border-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : `Choose ${tier.name}`}
-                </button>
-              </div>
+              </article>
             ))}
           </div>
-        </div>
+          {!isFree && (
+            <p className="mt-6 max-w-[620px] text-[14px] leading-relaxed text-white/40">
+              To switch plans, cancel this one first. You keep it until the period you have paid for ends, then you can start the new one.
+            </p>
+          )}
+        </>
       )}
-
-      {!isFree && (
-        <p className="text-xs text-zinc-600 max-w-2xl leading-relaxed">
-          To switch plans, cancel your current subscription first. You keep access until the end
-          of the period you have already paid for, and can subscribe to the new plan at any time.
-        </p>
-      )}
-    </div>
+    </section>
   );
 }
 
@@ -574,431 +1280,169 @@ function BillingSettings({
 // USAGE
 // ============================================================================
 
-function UsageSettings({
-  billing, setActiveTab,
-}: {
-  billing: BillingStatus | null;
-  setActiveTab: (tab: Tab) => void;
-}) {
-  // Countdown re-renders every 30s so "resets in" does not sit frozen while
-  // the tab is open.
-  const [, forceTick] = useState(0);
+function UsageSection({ billing, onPlans }: { billing: BillingStatus | null; onPlans: () => void }) {
+  // Re-render every 30 seconds so "resets in" does not sit frozen.
+  const [, tick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => forceTick((n) => n + 1), 30_000);
-    return () => clearInterval(id);
+    const id = window.setInterval(() => tick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
   }, []);
 
   if (!billing?.quota) {
-    return <div className="text-sm text-zinc-500">Usage information is unavailable right now.</div>;
+    return (
+      <section id="usage" className="scroll-mt-36 lg:scroll-mt-28">
+        <SectionHead title="Usage." lead="Usage did not load. Refresh the page to try again." />
+      </section>
+    );
   }
 
   const q = billing.quota;
   const monthlyPct = percentUsed(q.monthlyUsed, q.monthlyBudget);
+  const monthlyLeft = toGenerations(Math.max(0, q.monthlyBudget - q.monthlyUsed));
+  const canUpgrade = billing.planId !== 'agency';
 
   return (
-    <div className="max-w-3xl space-y-10">
-      <div className="mb-8 border-b border-white/5 pb-4">
-        <h3 className="text-lg font-semibold text-white tracking-tight">Usage</h3>
-        <p className="text-sm text-zinc-500 mt-1">
-          You have two limits: a short rolling window that prevents bursts, and a monthly total.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <Meter
-          label="Current window"
-          sublabel="Short-term burst allowance"
-          used={q.windowUsed}
-          budget={q.windowBudget}
-          resetLabel={formatResetCountdown(q.windowResetsAt)}
+    <section id="usage" className="scroll-mt-36 lg:scroll-mt-28">
+      <SectionHead
+        title={`${monthlyLeft.toLocaleString()} generations left this month.`}
+        lead="Counts are approximate. A long, multi-step piece like a War Room run uses more than a short reply."
+        aside={
+          monthlyPct >= 80 && canUpgrade ? (
+            <button type="button" onClick={onPlans} className={pillWhite}>
+              Raise my limits
+            </button>
+          ) : undefined
+        }
+      />
+      <div className="grid gap-5 md:grid-cols-3">
+        <BigStat
+          value={`${monthlyPct}%`}
+          label="of this month used"
+          detail={`${toGenerations(q.monthlyUsed).toLocaleString()} of ${toGenerations(q.monthlyBudget).toLocaleString()}. Resets in ${formatCountdown(q.monthlyResetsAt)}.`}
+          pct={monthlyPct}
         />
-        <Meter
-          label="This month"
-          sublabel="Your total monthly allowance"
-          used={q.monthlyUsed}
-          budget={q.monthlyBudget}
-          resetLabel={formatResetCountdown(q.monthlyResetsAt)}
+        <BigStat
+          value={toGenerations(Math.max(0, q.windowBudget - q.windowUsed)).toLocaleString()}
+          label="left in this window"
+          detail={`A short-term limit that smooths out bursts. Resets in ${formatCountdown(q.windowResetsAt)}.`}
+          pct={percentUsed(q.windowUsed, q.windowBudget)}
+        />
+        <BigStat
+          value={q.ebooksAllowed === 0 ? 'None' : `${q.ebooksUsed}/${q.ebooksAllowed}`}
+          label="ebooks this month"
+          detail={q.ebooksAllowed === 0 ? 'Not included on your plan.' : 'Full, multi-chapter books.'}
+          pct={q.ebooksAllowed === 0 ? 0 : percentUsed(q.ebooksUsed, q.ebooksAllowed)}
+          action={
+            (q.ebooksAllowed === 0 || q.ebooksUsed >= q.ebooksAllowed) && canUpgrade ? (
+              <button type="button" onClick={onPlans} className={cn('rounded-sm text-[14px] font-medium text-white underline decoration-white/30 underline-offset-4 hover:decoration-white', focusRing)}>
+                See plans
+              </button>
+            ) : undefined
+          }
         />
       </div>
+    </section>
+  );
+}
 
-      <p className="text-xs text-zinc-600 leading-relaxed">
-        Counts are approximate. A short reply costs less than a long multi-agent generation,
-        so the number remaining moves faster on heavy work.
-      </p>
+function BigStat({ value, label, detail, pct, action }: { value: string; label: string; detail: string; pct: number; action?: React.ReactNode }) {
+  const reduce = useReducedMotion();
+  const fill = pct >= 100 ? '#FF8A65' : pct > 80 ? 'linear-gradient(90deg,#E0570A,#FFB067)' : '#FFFFFF';
+  return (
+    <div className="flex flex-col rounded-[32px] bg-[#0E0E0E] p-7 sm:p-9">
+      <div className="text-[62px] font-semibold leading-none tracking-[-0.05em] tabular-nums sm:text-[74px]">{value}</div>
+      <div className="mt-3 text-[17px] text-white/80">{label}</div>
+      <div className="mt-8 h-[3px] overflow-hidden rounded-full bg-white/[0.08]" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={label}>
+        <motion.div
+          className="h-full rounded-full"
+          style={{ background: fill }}
+          initial={reduce ? false : { width: 0 }}
+          whileInView={{ width: `${pct}%` }}
+          viewport={{ once: true }}
+          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+        />
+      </div>
+      <div className="mt-4 flex items-end justify-between gap-4">
+        <p className="text-[13.5px] leading-relaxed text-white/40">{detail}</p>
+        {action}
+      </div>
+    </div>
+  );
+}
 
-      {monthlyPct >= 80 && billing.planId !== 'agency' && (
-        <div className="flex items-center justify-between gap-4 bg-[#09090B] border border-white/10 rounded-xl p-5">
-          <div className="flex items-start gap-3">
-            <Zap className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <div className="text-sm font-medium text-white mb-0.5">
-                You have used {monthlyPct}% of this month
-              </div>
-              <div className="text-xs text-zinc-500">
-                Upgrading raises both your window and monthly limits immediately.
-              </div>
+// ============================================================================
+// ACCOUNT
+// ============================================================================
+
+function AccountSection({
+  fullName,
+  setFullName,
+  onSaveName,
+  email,
+  onSignOut,
+}: {
+  fullName: string;
+  setFullName: (value: string) => void;
+  onSaveName: () => Promise<boolean>;
+  email: string;
+  onSignOut: () => Promise<void>;
+}) {
+  const [state, setState] = useState<SaveState>('idle');
+  const [signingOut, setSigningOut] = useState(false);
+
+  const save = async () => {
+    setState('saving');
+    const ok = await onSaveName();
+    setState(ok ? 'saved' : 'idle');
+    if (ok) window.setTimeout(() => setState('idle'), 2200);
+  };
+
+  return (
+    <section id="account" className="scroll-mt-36 lg:scroll-mt-28">
+      <SectionHead title="Account." lead={email ? `Signed in as ${email}.` : undefined} />
+      <div className="grid gap-5 md:grid-cols-[1.4fr_1fr]">
+        <div className="rounded-[32px] bg-[#0E0E0E] p-7 sm:p-9">
+          <div className="flex items-center justify-between">
+            <label htmlFor="full-name" className="text-[13.5px] text-white/45">
+              Your name
+            </label>
+            <SaveIndicator state={state} />
+          </div>
+          <form
+            className="mt-4 flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (state !== 'saving' && fullName.trim()) void save();
+            }}
+          >
+            <input id="full-name" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className={fieldDark} placeholder="Your name" autoComplete="name" maxLength={80} />
+            <button type="submit" disabled={state === 'saving' || !fullName.trim()} className={cn(pillWhite, 'min-w-[84px] shrink-0')}>
+              {state === 'saving' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+            </button>
+          </form>
+          <p className="mt-4 text-[13.5px] text-white/35">How Forge greets you, here and in the workspace.</p>
+        </div>
+
+        <div className="flex flex-col justify-between rounded-[32px] bg-[#0E0E0E] p-7 sm:p-9">
+          <div>
+            <div className="flex items-center gap-2 text-[13.5px] text-white/45">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#8EE3B0]" /> Signed in on this browser
             </div>
+            <p className="mt-4 text-[15px] leading-relaxed text-white/60">Signing out ends this session. Browser extension tokens stay valid until you revoke them under Settings in Brand.</p>
           </div>
           <button
-            onClick={() => setActiveTab('billing')}
-            className="px-5 py-2.5 bg-white text-black text-sm font-medium rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
+            type="button"
+            onClick={async () => {
+              setSigningOut(true);
+              await onSignOut();
+            }}
+            disabled={signingOut}
+            className={cn(pillGhost, 'mt-8 self-start !text-[#FF9A85] hover:!border-[#FF8A65]/50')}
           >
-            Upgrade
+            {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign out'}
           </button>
         </div>
-      )}
-
-      <div className="grid grid-cols-[200px_1fr] gap-8 items-start pt-8 border-t border-white/5">
-        <div>
-          <label className="text-sm text-zinc-400 font-medium">Ebooks</label>
-          <p className="text-xs text-zinc-600 mt-1">Multi-chapter generation</p>
-        </div>
-        <div className="flex items-center justify-between bg-[#09090B] border border-white/5 rounded-xl p-5 shadow-sm">
-          <span className="text-sm font-medium text-zinc-300">
-            {q.ebooksAllowed === 0
-              ? 'Not included on your plan'
-              : `${q.ebooksUsed} of ${q.ebooksAllowed} used this month`}
-          </span>
-          {q.ebooksUsed >= q.ebooksAllowed && billing.planId !== 'agency' && (
-            <button onClick={() => setActiveTab('billing')} className="text-sm text-blue-400 font-medium hover:text-blue-300 transition-colors">
-              Upgrade
-            </button>
-          )}
-        </div>
       </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// STRATEGIC MEMORY
-// ============================================================================
-
-function StrategicMemorySettings(props: any) {
-  const [activeSubTab, setActiveSubTab] = useState<StrategicMemoryTab>('identity');
-
-  return (
-    <div className="max-w-4xl space-y-8">
-      <div className="mb-8">
-        <h3 className="text-2xl font-semibold text-white tracking-tight mb-2">Strategic Memory</h3>
-        <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">
-          Forge retrieves this on every generation. Manual context takes priority, then source
-          documents, then public profile snapshots.
-        </p>
-      </div>
-
-      <div className="flex space-x-1 border-b border-white/10 mb-8 pb-px">
-        {([
-          ['identity', 'Core Identity', <FileText key="i" className="w-4 h-4" />],
-          ['knowledge', 'Knowledge Base', <UploadCloud key="k" className="w-4 h-4" />],
-          ['social', 'Social DNA', <LinkIcon key="s" className="w-4 h-4" />],
-        ] as const).map(([id, label, icon]) => (
-          <button
-            key={id}
-            onClick={() => setActiveSubTab(id as StrategicMemoryTab)}
-            className={`flex items-center space-x-2 px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 -mb-[2px] ${
-              activeSubTab === id ? 'text-white border-white' : 'text-zinc-500 border-transparent hover:text-zinc-300'
-            }`}
-          >
-            {icon}<span>{label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="bg-[#09090B] border border-white/5 rounded-2xl p-8 shadow-2xl">
-        {activeSubTab === 'identity' && <CoreIdentityForm {...props} />}
-        {activeSubTab === 'knowledge' && <KnowledgeBaseManager />}
-        {activeSubTab === 'social' && <SocialScraperManager />}
-      </div>
-    </div>
-  );
-}
-
-function CoreIdentityForm({ propertyFocus, setPropertyFocus, brandDNA, setBrandDNA, targetAudience, setTargetAudience, brandTone, setBrandTone, handleSaveContext }: any) {
-  return (
-    <div className="space-y-8 animate-in fade-in duration-300 max-w-2xl">
-      <div className="grid gap-2">
-        <label className="text-sm font-medium text-zinc-300">Organization Type</label>
-        <select value={propertyFocus} onChange={(e) => { setPropertyFocus(e.target.value); handleSaveContext('property_focus', e.target.value); }} className="w-full bg-[#121214] border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 transition-all appearance-none text-white shadow-sm">
-          <option value="">Select an option...</option>
-          <option value="boutique_hotel">Boutique Hotel / Independent</option>
-          <option value="resort_group">Resort Group / Multi-Property</option>
-          <option value="pms_software">Hospitality SaaS / PMS</option>
-          <option value="agency">Marketing Agency</option>
-        </select>
-      </div>
-
-      <div className="grid gap-2">
-        <label className="text-sm font-medium text-zinc-300 flex justify-between items-center">
-          Core Brand DNA
-          <span className="text-zinc-400 text-[10px] font-bold tracking-wider bg-white/10 px-2.5 py-1 rounded-full uppercase">Highest Priority</span>
-        </label>
-        <p className="text-xs text-zinc-500 mb-1">What are your contrarian beliefs in the market?</p>
-        <textarea rows={4} value={brandDNA} onChange={(e) => setBrandDNA(e.target.value)} onBlur={() => handleSaveContext('brand_dna', brandDNA)} className="w-full bg-[#121214] border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 transition-all resize-y placeholder:text-zinc-600 text-white shadow-sm" placeholder="e.g., We are an asymmetric warfare division for brands..." />
-      </div>
-
-      <div className="grid gap-2">
-        <label className="text-sm font-medium text-zinc-300">Target Audience</label>
-        <textarea rows={3} value={targetAudience} onChange={(e) => setTargetAudience(e.target.value)} onBlur={() => handleSaveContext('target_audience', targetAudience)} className="w-full bg-[#121214] border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 transition-all resize-y placeholder:text-zinc-600 text-white shadow-sm" placeholder="e.g., General Managers of 50-200 room properties..." />
-      </div>
-
-      <div className="grid gap-2">
-        <label className="text-sm font-medium text-zinc-300">Tone &amp; Voice</label>
-        <textarea rows={2} value={brandTone} onChange={(e) => setBrandTone(e.target.value)} onBlur={() => handleSaveContext('brand_tone', brandTone)} className="w-full bg-[#121214] border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 transition-all resize-y placeholder:text-zinc-600 text-white shadow-sm" placeholder="e.g., Authoritative, minimalist, slightly provocative..." />
-      </div>
-    </div>
-  );
-}
-
-function KnowledgeBaseManager() {
-  const [isUploading, setIsUploading] = useState(false);
-  const [sources, setSources] = useState<any[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const supabase = createClient();
-
-  useEffect(() => {
-    async function fetchSources() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from('brand_dna_sources')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      if (data) setSources(data);
-    }
-    fetchSources();
-  }, [supabase]);
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File exceeds the 5MB limit.');
-      return;
-    }
-
-    setIsUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
-    // 'text' means a pasted string with no file attached, which is a different
-    // code path server-side. A .txt upload is a FILE and must be sent as 'txt'
-    // or createBrandDnaSource rejects it for having no textContent.
-    const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-    const sourceType =
-      extension === 'pdf' ? 'pdf' :
-      extension === 'md' || extension === 'markdown' ? 'md' :
-      extension === 'docx' ? 'docx' :
-      'txt';
-
-    formData.append('sourceType', sourceType);
-    formData.append('title', file.name);
-
-    try {
-      const res = await fetch('/api/brand-dna/upload', { method: 'POST', body: formData });
-      const contentType = res.headers.get('content-type');
-
-      if (!res.ok) {
-        if (contentType?.includes('application/json')) {
-          const data = await res.json();
-          throw new Error(data.error);
-        }
-        throw new Error(`Upload failed (${res.status}).`);
-      }
-
-      const { source } = await res.json();
-      setSources((prev) => [source, ...prev]);
-      toast.success('Source added to Knowledge Base');
-    } catch (error: any) {
-      toast.error(error.message || 'Upload failed');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Scoped by user_id in addition to RLS. RLS does enforce ownership here,
-    // but a delete that relies solely on a policy being correct has no second
-    // line of defence if that policy is ever changed.
-    const { error } = await supabase
-      .from('brand_dna_sources')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
-
-    if (error) toast.error('Could not remove that source.');
-    else setSources((prev) => prev.filter((s) => s.id !== id));
-  };
-
-  return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.md,.txt,.docx" onChange={handleFileUpload} />
-      <div onClick={isUploading ? undefined : () => fileInputRef.current?.click()} className={`border-2 border-dashed bg-[#121214] rounded-xl p-12 flex flex-col items-center justify-center transition-all group shadow-sm ${isUploading ? 'border-white/10 opacity-50 cursor-not-allowed' : 'border-white/10 hover:border-white/20 hover:bg-[#151518] cursor-pointer'}`}>
-        <div className="bg-zinc-800/50 p-4 rounded-full mb-4 group-hover:bg-zinc-800 transition-colors">
-          {isUploading ? <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" /> : <UploadCloud className="w-6 h-6 text-zinc-400 group-hover:text-white transition-colors" />}
-        </div>
-        <h3 className="text-sm font-medium text-white mb-1">{isUploading ? 'Processing document...' : 'Upload Source Documents'}</h3>
-        <p className="text-xs text-zinc-500 mb-6">PDF, Word, Markdown, or text files up to 5MB.</p>
-        <button disabled={isUploading} className="bg-white/5 hover:bg-white/10 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors border border-white/5 disabled:opacity-50">
-          {isUploading ? 'Uploading...' : 'Browse Files'}
-        </button>
-      </div>
-
-      <div>
-        <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Active Sources</h4>
-        <div className="space-y-3">
-          {sources.length === 0 ? (
-            <div className="flex items-center justify-center p-6 border border-white/5 rounded-xl">
-              <p className="text-sm text-zinc-500">No documents uploaded yet.</p>
-            </div>
-          ) : (
-            sources.map((source) => (
-              <div key={source.id} className="flex items-center justify-between bg-[#121214] border border-white/5 p-4 rounded-lg shadow-sm">
-                <div className="flex items-center space-x-4">
-                  <div className="bg-blue-500/10 text-blue-400 p-2 rounded flex-shrink-0"><FileText className="w-4 h-4" /></div>
-                  <div>
-                    <p className="text-sm font-medium text-zinc-200">{source.title}</p>
-                    <p className="text-xs text-zinc-500">{source.source_type.toUpperCase()}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <span className="flex items-center text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full font-medium"><CheckCircle2 className="w-3 h-3 mr-1" /> Active</span>
-                  <button onClick={() => handleDelete(source.id)} className="text-zinc-500 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SocialScraperManager() {
-  const [url, setUrl] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const supabase = createClient();
-
-  useEffect(() => {
-    async function fetchProfiles() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from('scraped_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('scraped_at', { ascending: false });
-      if (data) setProfiles(data);
-    }
-    fetchProfiles();
-  }, [supabase]);
-
-  const handleSyncProfile = async () => {
-    if (!url.trim()) {
-      toast.error('Enter a profile URL');
-      return;
-    }
-
-    setIsSyncing(true);
-    try {
-      const res = await fetch('/api/brand-dna/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileUrl: url.trim() }),
-      });
-
-      const contentType = res.headers.get('content-type');
-      if (!res.ok) {
-        if (contentType?.includes('application/json')) {
-          const data = await res.json();
-          throw new Error(data.error);
-        }
-        throw new Error(`Sync failed (${res.status}).`);
-      }
-
-      const { profile } = await res.json();
-      setProfiles((prev) => [profile, ...prev.filter((p) => p.id !== profile.id)]);
-      toast.success('Profile synced');
-      setUrl('');
-    } catch (error: any) {
-      toast.error(error.message || 'Sync failed. Make sure the profile is public.');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { error } = await supabase
-      .from('scraped_profiles')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
-
-    if (error) toast.error('Could not remove that profile.');
-    else setProfiles((prev) => prev.filter((p) => p.id !== id));
-  };
-
-  return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-5 flex items-start space-x-4">
-        <ShieldAlert className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-        <div>
-          <h4 className="text-sm font-medium text-blue-400 mb-1">Public metadata only</h4>
-          <p className="text-sm text-blue-400/80 leading-relaxed">
-            Forge reads what a public profile page exposes: bio, description, and positioning.
-            Follower counts and engagement metrics are not available without official platform
-            API access, and Forge will say so rather than estimate them.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex space-x-3 max-w-2xl">
-        <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><LinkIcon className="h-4 w-4 text-zinc-500" /></div>
-          <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !isSyncing && handleSyncProfile()} disabled={isSyncing} className="w-full bg-[#121214] border border-white/10 rounded-lg pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 transition-all placeholder:text-zinc-600 text-white disabled:opacity-50 shadow-sm" placeholder="https://x.com/yourhandle" />
-        </div>
-        <button onClick={handleSyncProfile} disabled={isSyncing || !url} className="bg-white text-black hover:bg-zinc-200 px-6 py-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center min-w-[120px] justify-center shadow-sm">
-          {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sync Profile'}
-        </button>
-      </div>
-
-      <div>
-        <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Monitored Profiles</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {profiles.length === 0 ? (
-            <div className="col-span-full flex items-center justify-center p-6 border border-white/5 rounded-xl">
-              <p className="text-sm text-zinc-500">No profiles synced yet.</p>
-            </div>
-          ) : (
-            profiles.map((profile) => (
-              <div key={profile.id} className="bg-[#121214] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors shadow-sm">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium text-sm text-white">{profile.platform}</span>
-                    {profile.handle && <span className="text-xs text-zinc-500">@{profile.handle}</span>}
-                  </div>
-                  <button onClick={() => handleDelete(profile.id)} className="text-zinc-600 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                </div>
-                <p className="text-xs text-zinc-400 line-clamp-2 mb-4">{profile.summary}</p>
-                <div className="flex items-center text-xs text-zinc-500 space-x-1 font-medium">
-                  <Clock className="w-3 h-3" />
-                  <span>Next refresh: {formatDate(profile.next_refresh_at)}</span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
+    </section>
   );
 }

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forge</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/icon-32.png" alt="" width="22" height="22" />
+      <span class="wordmark">FORGE</span>
+      <span id="who" class="muted"></span>
+    </header>
+
+    <section id="setup" hidden>
+      <h1>Connect the extension</h1>
+      <p class="muted">In Forge, open Brand, Settings, and create an access token. Paste it here.</p>
+      <label for="token">Access token</label>
+      <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="fx_..." />
+      <details>
+        <summary>Self-hosted or local Forge</summary>
+        <label for="base">Forge address</label>
+        <input id="base" type="url" placeholder="https://forgeyourway.dev" />
+      </details>
+      <button id="save" class="primary">Connect</button>
+      <p id="setup-error" class="error" role="alert"></p>
+    </section>
+
+    <section id="ready" hidden>
+      <label for="text">Grade an opening line</label>
+      <textarea id="text" rows="4" placeholder="Paste or write a hook"></textarea>
+      <div class="row">
+        <select id="platform" aria-label="Platform">
+          <option value="linkedin">LinkedIn</option>
+          <option value="x">X</option>
+          <option value="threads">Threads</option>
+          <option value="bluesky">Bluesky</option>
+        </select>
+        <button id="grade" class="primary">Grade</button>
+      </div>
+      <div id="result" aria-live="polite"></div>
+      <p class="muted small">
+        On X, LinkedIn, Threads and Bluesky a Grade button appears on the composer. Ctrl+Shift+G grades from the keyboard. Right-click selected text to save it
+        to Forge.
+      </p>
+      <div class="row footer">
+        <a id="open" href="#" target="_blank" rel="noopener">Open Forge</a>
+        <button id="disconnect" class="link">Disconnect</button>
+      </div>
+    </section>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

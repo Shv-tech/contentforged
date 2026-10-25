@@ -6,34 +6,34 @@ import { Metadata } from 'next';
 const BASE_URL = 'https://forgeyourway.dev';
 
 export const landingMetadata: Metadata = {
-  title: 'Forge — AI Content Strategy Platform | Brand DNA · Calendar Agent · 26 Tools',
+  title: 'Forge: AI content that sounds like you',
   description:
-    'Forge is the AI content operating system that remembers your Brand DNA, scores your LinkedIn and Instagram posts before you publish, plans 90 days of content automatically, and gets smarter every session. Trusted by creators, ghostwriters, and agencies.',
+    'Forge learns your voice, writes in it, grades every draft before you post, and plans up to 90 days of content. 24 tools in one workspace for creators, ghostwriters and teams.',
   alternates: {
     canonical: BASE_URL,
   },
   openGraph: {
-    title: 'Forge — Your AI Validates. Forge Fixes.',
+    title: 'Forge: AI content that sounds like you',
     description:
-      'Brand DNA memory. Stop-Scroll Grader. Calendar agent that plans your next 90 days. 26 precision tools. The content AI that tells you the truth.',
+      'Brand DNA memory, a grader that scores your hook before you post, and a calendar agent that plans 90 days ahead. 24 tools, one workspace.',
     url: BASE_URL,
     type: 'website',
     images: [
       {
-        url: `${BASE_URL}/og-image.png`,
+        url: `${BASE_URL}/og-image.jpg`,
         width: 1200,
         height: 630,
-        alt: 'Forge — The Content Operating System for Serious Creators',
-        type: 'image/png',
+        alt: 'Forge: AI content that sounds like you',
+        type: 'image/jpeg',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Forge — Your AI Validates. Forge Fixes.',
+    title: 'Forge: AI content that sounds like you',
     description:
-      'Brand DNA memory. Stop-Scroll Grader. Calendar agent that plans your next 90 days. 26 precision tools. The content AI that tells you the truth.',
-    images: [`${BASE_URL}/og-image.png`],
+      'Brand DNA memory, a grader that scores your hook before you post, and a calendar agent that plans 90 days ahead. 24 tools, one workspace.',
+    images: [`${BASE_URL}/og-image.jpg`],
   },
 };
 

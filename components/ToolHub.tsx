@@ -1,136 +1,181 @@
 'use client';
 
-import React from 'react';
-import { useAppStore } from '@/lib/store';
-import toast from 'react-hot-toast';
+/**
+ * The tool menu behind the composer's + button.
+ *
+ * Tools, groups and plan gates come from lib/forge/entitlements, the table the
+ * chat route enforces, so the menu can never show a tool as open that the
+ * server will refuse, or lock one the plan includes. A locked tool still
+ * opens a one-line note naming the plan it is on, with a link to compare
+ * plans; it is never presented as an error.
+ */
+
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import {
-  Zap, Type, Hash, FileText, BarChart, Image as ImgIcon, Mail, Copy,
-  LayoutTemplate, Mic, LineChart, Target, Building, Users, BookOpen,
-  Presentation, Video, Search, ShieldAlert, Workflow, Fingerprint,
-  Newspaper, Headphones, Layers, Repeat2, Lock, BookText
+  BarChart,
+  BookOpen,
+  BookText,
+  Building,
+  Copy,
+  Fingerprint,
+  Hash,
+  Image as ImageIcon,
+  Layers,
+  LayoutTemplate,
+  LineChart,
+  Mail,
+  Mic,
+  Newspaper,
+  Repeat2,
+  Search,
+  ShieldAlert,
+  Swords,
+  Target,
+  Type,
+  Video,
+  Workflow,
+  Zap,
+  type LucideIcon,
 } from 'lucide-react';
+import { useAppStore } from '@/lib/store';
+import { CHAT_TOOLS, TOOL_GROUPS, canUseTool, planName, type ChatTool } from '@/lib/forge/entitlements';
+import { cn, focusRing } from '@/components/forge/ui';
 
-// THE 26-TOOL ENTERPRISE ARSENAL
-const TOOLS = [
-  // ESSENTIALS (Tier 1)
-  { id: 'formatter', name: 'Native Formatter', tier: 'tier1', icon: Type, group: 'Essentials' },
-  { id: 'shadowban', name: 'Shadowban Checker', tier: 'tier1', icon: Hash, group: 'Essentials' },
-  { id: 'simplifier', name: 'Readability Simplifier', tier: 'tier1', icon: BookOpen, group: 'Essentials' },
+const TOOL_ICONS: Record<string, LucideIcon> = {
+  hook_grader: BarChart,
+  viral_hook: Zap,
+  formatter: Type,
+  simplifier: BookOpen,
+  shadowban: Hash,
+  ocr: ImageIcon,
+  email_inject: Mail,
+  ab_tester: LayoutTemplate,
+  tone_calibrator: Mic,
+  omni_channel: Repeat2,
+  ebook_writer: BookText,
+  ghostwriter: Copy,
+  brand_dna: Fingerprint,
+  competitor_gap: Target,
+  trend_forecast: LineChart,
+  b2b_case: Building,
+  seo_cluster: Search,
+  lead_magnet: Workflow,
+  video_script: Video,
+  pr_generator: Newspaper,
+  crisis_spin: ShieldAlert,
+  ad_copy: Layers,
+  war_room: Swords,
+};
 
-  // PRO CREATOR (Tier 2)
-  { id: 'hook_grader', name: 'Stop-Scroll Grader', tier: 'tier2', icon: BarChart, group: 'Pro Creator' },
-  { id: 'ocr', name: 'Image-to-Text (OCR)', tier: 'tier2', icon: ImgIcon, group: 'Pro Creator' },
-  { id: 'email_inject', name: 'Zero-Cost Outreach', tier: 'tier2', icon: Mail, group: 'Pro Creator' },
-  { id: 'viral_hook', name: 'Viral Hook Generator', tier: 'tier2', icon: Zap, group: 'Pro Creator' },
-  { id: 'ab_tester', name: 'A/B Test Simulator', tier: 'tier2', icon: LayoutTemplate, group: 'Pro Creator' },
-  { id: 'tone_calibrator', name: 'Tone Calibrator', tier: 'tier2', icon: Mic, group: 'Pro Creator' },
+const GROUP_LABELS: Record<(typeof TOOL_GROUPS)[number], string> = {
+  Essentials: 'Essentials',
+  Creator: 'Creator',
+  Pro: 'Pro',
+};
 
-  // ENTERPRISE (Tier 3)
-  { id: 'ebook_writer', name: 'Agentic Ebook Writer', tier: 'tier3', icon: BookText, group: 'Enterprise' },
-  { id: 'ghostwriter', name: 'Ghostwriter Clone', tier: 'tier3', icon: Copy, group: 'Enterprise' },
-  { id: 'brand_dna', name: 'Brand DNA Enforcer', tier: 'tier3', icon: Fingerprint, group: 'Enterprise' },
-  { id: 'competitor_gap', name: 'Competitor Gap Analyzer', tier: 'tier3', icon: Target, group: 'Enterprise' },
-  { id: 'trend_forecast', name: 'Trend Forecaster', tier: 'tier3', icon: LineChart, group: 'Enterprise' },
-  { id: 'b2b_case', name: 'B2B Case Study Builder', tier: 'tier3', icon: Building, group: 'Enterprise' },
-  { id: 'seo_cluster', name: 'SEO Content Clusters', tier: 'tier3', icon: Search, group: 'Enterprise' },
-  { id: 'lead_magnet', name: 'Lead Funnel Architect', tier: 'tier3', icon: Workflow, group: 'Enterprise' },
-  { id: 'video_script', name: 'Video Script Storyboarder', tier: 'tier3', icon: Video, group: 'Enterprise' },
-  { id: 'pr_generator', name: 'Press Release Generator', tier: 'tier3', icon: Newspaper, group: 'Enterprise' },
-  { id: 'crisis_spin', name: 'Crisis Spindoctor', tier: 'tier3', icon: ShieldAlert, group: 'Enterprise' },
-  { id: 'ad_copy', name: 'Ad Copy Multi-Variate', tier: 'tier3', icon: Layers, group: 'Enterprise' },
-  { id: 'omni_channel', name: 'Omni-Channel Repurposer', tier: 'tier3', icon: Repeat2, group: 'Enterprise' },
-];
-
-const TIER_WEIGHTS: Record<string, number> = { free: 0, basic: 1, tier1: 2, tier2: 3, tier3: 4 };
-const GROUPS = ['Essentials', 'Pro Creator', 'Enterprise'];
-
-interface ToolHubProps {
-  onClose?: () => void; // Optional callback to close the parent menu if needed
-}
-
-export function ToolHub({ onClose }: ToolHubProps = {}) {
+export function ToolHub({ onClose }: { onClose?: () => void } = {}) {
   const { activeTool, setActiveTool, plan } = useAppStore();
+  const [locked, setLocked] = useState<ChatTool | null>(null);
+  const [query, setQuery] = useState('');
 
-  // The demo override is now opt-in through an env flag rather than a
-  // hardcoded 99, so shipping it to production requires an explicit
-  // NEXT_PUBLIC_UNLOCK_ALL_TOOLS=true rather than remembering to edit a line.
-  // Every paid tool is free to everyone while it is on.
-  const bypassLocks = process.env.NEXT_PUBLIC_UNLOCK_ALL_TOOLS === 'true';
-  const currentTierWeight = bypassLocks ? 99 : (TIER_WEIGHTS[plan || 'free'] ?? 0);
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return CHAT_TOOLS;
+    return CHAT_TOOLS.filter((tool) => `${tool.name} ${tool.description}`.toLowerCase().includes(q));
+  }, [query]);
 
-  const handleToolClick = (toolId: string, toolTier: string, toolName: string) => {
-    if (currentTierWeight < TIER_WEIGHTS[toolTier]) {
-      const planName = toolTier === 'tier1' ? 'Starter' : toolTier === 'tier2' ? 'Pro' : 'Unlimited';
-      toast.error(`Upgrade to ${planName} to unlock ${toolName}.`);
+  const choose = (tool: ChatTool) => {
+    if (!canUseTool(plan, tool.id)) {
+      setLocked(tool);
       return;
     }
-    setActiveTool(activeTool === toolId ? null : toolId);
-    onClose?.(); // Optionally trigger a close event to the parent
+    setActiveTool(activeTool === tool.id ? null : tool.id);
+    onClose?.();
   };
 
   return (
-    // w-[520px] was unconditional, so this popover was wider than a phone
-    // viewport and pushed the whole page sideways. It now takes the smaller of
-    // 520px and the viewport minus the anchor's gutters.
-    //
-    // 65dvh rather than 65vh: on mobile 65vh is measured against the tall
-    // viewport, so the panel ran past the visible area once the browser chrome
-    // was showing.
-    <div
-      className="w-[min(520px,calc(100vw-2rem))] p-4 sm:p-5 max-h-[60dvh] sm:max-h-[65dvh] overflow-y-auto overscroll-contain custom-scrollbar font-sans"
-    >
-      {GROUPS.map((group) => {
-        const groupTools = TOOLS.filter(t => t.group === group);
-        if (groupTools.length === 0) return null;
+    <div className="flex w-[min(560px,calc(100vw-2rem))] flex-col font-sans">
+      <div className="border-b border-white/[0.06] p-3">
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setLocked(null);
+          }}
+          placeholder="Find a tool"
+          aria-label="Find a tool"
+          className="h-10 w-full rounded-full border border-white/[0.08] bg-white/[0.03] px-4 text-[14px] text-white outline-none placeholder:text-white/35 focus:border-white/20"
+        />
+      </div>
 
-        return (
-          <div key={group} className="mb-5 sm:mb-6 last:mb-2">
-            <h4 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-3 px-2 sm:px-3">
-              {group}
-            </h4>
-            {/*
-              One column below sm. Two 13px labels in a ~160px cell truncated to
-              the point of being unreadable — "Competitor Gap Analyzer" became
-              "Competitor Ga...".
-            */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              {groupTools.map(tool => {
-                const isLocked = currentTierWeight < TIER_WEIGHTS[tool.tier];
-                const isActive = activeTool === tool.id;
+      {locked && (
+        <div className="mx-3 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+          <p className="text-[13px] text-white/75">
+            {locked.name} is on {planName(locked.minPlan)}.
+          </p>
+          <Link href="/account?tab=billing" onClick={onClose} className={cn('rounded-full bg-white px-3 py-1 text-[12.5px] font-medium text-black', focusRing)}>
+            Compare plans
+          </Link>
+        </div>
+      )}
 
-                return (
-                  <button
-                    key={tool.id}
-                    onClick={() => handleToolClick(tool.id, tool.tier, tool.name)}
-                    aria-pressed={isActive}
-                    className={`flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 group w-full min-w-0 ${
-                      isActive
-                        ? 'bg-[#2a2a2a] text-white shadow-sm'
-                        : 'bg-transparent text-[#999] hover:bg-[#2a2a2a] hover:text-white active:bg-[#2a2a2a]'
-                    }`}
-                  >
-                    <div className={`flex-shrink-0 transition-colors ${
-                      isActive
-                        ? 'text-white'
-                        : isLocked
-                          ? 'text-[#444]'
-                          : 'text-[#666] group-hover:text-[#aaa]'
-                    }`}>
-                      <tool.icon className="w-[18px] h-[18px]" strokeWidth={1.5} />
-                    </div>
-
-                    <span className={`text-[13px] font-medium truncate min-w-0 ${isLocked ? 'text-[#555]' : ''}`}>
-                      {tool.name}
-                    </span>
-
-                    {isLocked && <Lock className="w-[14px] h-[14px] text-[#444] ml-auto flex-shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+      {/* 60dvh: on mobile vh is measured against the tall viewport and the
+          panel would run past the visible area with the browser chrome shown. */}
+      <div className="custom-scrollbar max-h-[56dvh] overflow-y-auto overscroll-contain p-3 sm:max-h-[60dvh]">
+        {visible.length === 0 && <p className="px-3 py-6 text-center text-[13px] text-white/40">No tool matches.</p>}
+        {TOOL_GROUPS.map((group) => {
+          const tools = visible.filter((tool) => tool.group === group);
+          if (tools.length === 0) return null;
+          return (
+            <section key={group} className="mb-4 last:mb-1">
+              <h4 className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-white/30">{GROUP_LABELS[group]}</h4>
+              <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+                {tools.map((tool) => {
+                  const Icon = TOOL_ICONS[tool.id] ?? Zap;
+                  const isLocked = !canUseTool(plan, tool.id);
+                  const isActive = activeTool === tool.id;
+                  return (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      onClick={() => choose(tool)}
+                      aria-pressed={isActive}
+                      title={tool.description}
+                      className={cn(
+                        'group flex w-full min-w-0 items-start gap-3 rounded-[14px] px-3 py-2.5 text-left transition-colors',
+                        isActive ? 'bg-white/[0.08]' : 'hover:bg-white/[0.04]',
+                        focusRing
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          'mt-0.5 h-[17px] w-[17px] shrink-0',
+                          isActive ? 'text-forge-gold' : isLocked ? 'text-white/25' : 'text-white/50 group-hover:text-white/80'
+                        )}
+                        strokeWidth={1.6}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className={cn('truncate text-[13.5px] font-medium', isLocked ? 'text-white/45' : 'text-white')}>{tool.name}</span>
+                          {isLocked && (
+                            <span className="shrink-0 rounded-full border border-white/[0.1] px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-white/40">
+                              {planName(tool.minPlan)}
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-0.5 line-clamp-2 block text-[12px] leading-snug text-white/40">{tool.description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

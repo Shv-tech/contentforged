@@ -1,148 +1,131 @@
 // lib/landing-data.ts
-// Static copy + content for the Forge landing page.
-// Pulled out of JSX so components stay focused on layout/motion, not strings.
-// Icon fields reference lucide-react export names — components resolve them
-// via the ICONS map pattern (see components/landing/icon-map.ts).
+// Copy and content for the Forge landing page.
+//
+// Editorial rules for this file:
+//   - Say it once, plainly. Calm and certain beats loud and clever.
+//   - Every number must be true today (the tool count, real prices, real users).
+//   - No quotes, logos or results that didn't happen.
+
+import { CHAT_TOOLS, TOOL_GROUPS, type ToolGroup } from '@/lib/forge/entitlements';
 
 export interface HeroData {
-  eyebrow: string;
-  headlineLines: string[]; // rendered line by line, last line gets accent color
+  headlineLines: string[];
   subheadline: string;
   ctaPrimary: string;
   ctaSecondary: string;
-  trustStrip: string[];
-  socialProofLabel: string;
-  logos: { name: string; src: string; displayName: string }[];
-  proofQuote: { quote: string; name: string; title: string };
-  floatingCards: { label: string; quote: string; tone: 'warn' | 'flag' | 'pattern' }[];
+  /** Set to a real screen recording (e.g. '/assets/forge-demo.mp4') to replace the coded demo. */
+  recordingSrc?: string;
+  // Kept optional so older imports keep compiling; intentionally empty.
+  eyebrow?: string;
+  trustStrip?: string[];
+  socialProofLabel?: string;
+  logos?: { name: string; src: string; displayName: string }[];
 }
 
 export const HERO: HeroData = {
-  eyebrow: '',
   headlineLines: ['AI content that', 'actually sounds like you.'],
-  subheadline:
-    "Forge learns your voice from your best-performing posts, writes in it, plans your calendar, and flags weak hooks before you publish.",
-  ctaPrimary: 'Start Forging Free',
-  ctaSecondary: 'See how it works',
-  trustStrip: [
-    '26 Specialized Tools',
-    'Brand DNA Memory',
-    'Calendar Agent',
-    'Performance Intelligence',
-    '40+ Countries',
-  ],
-  socialProofLabel: 'Creators and teams from companies like these use Forge',
-   
-  logos: [
-    { name: 'Notion', src: '/logos/notion.svg', displayName: 'Notion' },
-    { name: 'Beehiiv', src: '/logos/beehiive.svg', displayName: 'Beehiiv' },
-    { name: 'Webflow', src: '/logos/webflow.svg', displayName: 'Webflow' },
-    { name: 'Gumroad', src: '/logos/gumroad.svg', displayName: 'Gumroad' },
-    { name: 'Lemon Squeezy', src: '/logos/lemon-squeezy.svg', displayName: 'Lemon Squeezy' },
-    { name: '', src: '', displayName: 'Morning Brew' },
-    { name: 'IndieHackers', src: '/logos/indiehackers.svg', displayName: 'IndieHackers' },
-    { name: 'Product Hunt', src: '/logos/product-hunt.svg', displayName: 'Product Hunt' },
-  ],
-
-  proofQuote: {
-    quote: 'The tool that actually pushed back and made the post better.',
-    name: 'Marcus Webb',
-    title: 'Growth Consultant',
-  },
-  floatingCards: [
-    {
-      label: 'HOOK ANALYSIS',
-      quote:
-        'That hook is weak. It takes too long to get to the point. Cut the first sentence entirely and start directly with the core conflict.',
-      tone: 'warn',
-    },
-    {
-      label: 'RULE VIOLATED',
-      quote: 'Using profanity as a gimmick signals weak content. Virality comes from tension, not cheap tricks.',
-      tone: 'flag',
-    },
-    {
-      label: 'PATTERN DETECTED',
-      quote: 'Your last 4 posts opened with a question. Your audience has been trained past it. Switch to a declaration.',
-      tone: 'pattern',
-    },
-  ],
+  subheadline: 'Forge learns your voice, writes in it, and tells you when a post isn’t ready yet.',
+  ctaPrimary: 'Start free',
+  ctaSecondary: 'Grade a hook',
+  recordingSrc: undefined,
 };
 
-export interface ProblemCard {
-  num: string;
+/** What the coded hero demo types and writes. Replace with a real recording when you have one. */
+export const HERO_DEMO = {
+  prompt: 'A LinkedIn post about getting our first 60 users',
+  response: [
+    'Two Product Hunt launches. 900 ad views. Zero signups.',
+    'Then we stopped explaining the product and started showing it.',
+    'Here’s what got our first 60 users, and what didn’t.',
+  ],
+  score: 42,
+  verdict: 'Ready to post',
+  scheduled: 'Scheduled for Thursday, 9:00',
+};
+
+// ─── The difference (replaces the old Problem + Architecture sections) ───
+
+export interface Pillar {
+  label: string;
+  instead: string;
   title: string;
   body: string;
 }
 
-export const PROBLEM_SECTION = {
-  eyebrow: 'THE PROBLEM',
-  heading: ["The tool you're using right now", 'is making you generic.'],
-  subheading:
-    'ChatGPT, Gemini, every major AI writer they were built to be helpful to everyone. That makes them useless for anyone who needs to stand out.',
+export const PRODUCT_SECTION = {
+  heading: ['Most AI writes for everyone.', 'Forge writes for you.'],
+  subheading: 'Three things general-purpose AI doesn’t do. They’re why your fiftieth session is better than your first.',
 };
 
-export const PROBLEMS: ProblemCard[] = [
+export const PILLARS: Pillar[] = [
   {
-    num: '01',
-    title: 'It forgets you. Every single time.',
-    body: 'Every session starts from zero. No memory of your brand voice, your best-performing hooks, what resonated last month, or what your audience actually responds to. You spend 20% of every conversation re-explaining who you are. Then you do it again tomorrow.',
+    label: 'Memory',
+    instead: 'Other tools start from zero every time.',
+    title: 'It remembers you.',
+    body: 'Your first session builds your Brand DNA: your niche, your audience, the hooks that work for you and the ones that don’t. Every session after starts from there.',
   },
   {
-    num: '02',
-    title: 'It tells you what you want to hear.',
-    body: 'ChatGPT and Gemini were trained to validate, agree, and polish. They make your weak ideas sound professional. That is the most dangerous thing a content tool can do. A bad idea delivered with confidence still performs like a bad idea.',
+    label: 'Honesty',
+    instead: 'Other tools agree with everything you write.',
+    title: 'It tells you the truth.',
+    body: 'Forge grades a draft before you publish and says what’s weak, with the fix. It won’t polish a weak idea into a confident one.',
   },
   {
-    num: '03',
-    title: 'Generic content is invisible content.',
-    body: 'When every creator uses the same model with the same prompts, every creator produces the same content. Same hooks. Same structures. Same strategic advice. The output is indistinguishable which means it is skipped.',
-  },
-  {
-    num: '04',
-    title: 'It has no memory of what worked.',
-    body: 'Your last post hit 40,000 impressions. Your AI does not know. Your next post will be built exactly like every post before it no data, no pattern recognition, no learning. The tool is the same on day one as it is on day three hundred.',
+    label: 'Learning',
+    instead: 'Other tools are the same on day 300 as on day one.',
+    title: 'It learns what works.',
+    body: 'Share your analytics and Forge works out why your best post landed and your worst one didn’t, then writes with that in mind.',
   },
 ];
 
-export interface ArchitecturePillar {
-  iconLabel: string;
-  icon: 'Fingerprint' | 'TrendingUp' | 'GitBranch';
-  title: string;
-  body: string;
-  proofLine: string;
-}
+// ─── Live grader ───
 
-export const ARCHITECTURE_SECTION = {
-  eyebrow: 'THE DIFFERENCE',
-  heading: ['Forge is not an AI writer.', 'It is a content operating system.'],
-  subheading:
-    'Three architectural decisions that no other tool has made. Each one is the reason your 50th session with Forge is measurably better than your first.',
+export const LIVE_GRADER = {
+  heading: ['Paste a hook.', 'See what Forge thinks.'],
+  subheading: 'The first line decides whether anyone reads the rest. Try the Stop-Scroll Grader on yours. No account needed.',
+  placeholder: 'Paste the first line of your next post',
+  cta: 'Grade it',
+  fallbackHref: '/tools/tweet-hook-generator',
+  /**
+   * POST { hook: string } → { score: number (0-50), verdict: string,
+   *   weakest?: string, rewrite?: string, breakdown?: { label: string; score: number (0-10) }[] }
+   * Return 429 when a visitor hits the free limit. See app/api/public/grade-hook/route.ts.
+   */
+  endpoint: '/api/public/grade-hook',
 };
 
-export const ARCHITECTURE_PILLARS: ArchitecturePillar[] = [
-  {
-    iconLabel: 'MEMORY',
-    icon: 'Fingerprint',
-    title: 'Forge knows who you are.',
-    body: 'On your first session, Forge runs a Brand DNA extraction 5 questions that build your permanent strategic fingerprint. Your niche. Your audience\u2019s proven emotional triggers. Your highest-converting hook style. Your dead zones. Every session after that is built on this foundation. It never starts from zero. It compounds.',
-    proofLine: 'Unlike ChatGPT, Forge never asks who you are twice.',
+export const GRADER_DEMO = {
+  cardLabel: 'Stop-Scroll Grader',
+  hookText:
+    'The model scored 94% on the benchmark. The benchmark was designed by the same lab that built the model. I’ll leave the rest to you.',
+  badge: 'Curiosity gap',
+  scores: [
+    { label: 'Pattern interrupt', score: '9/10', width: '90%' },
+    { label: 'Curiosity gap', score: '9.5/10', width: '95%' },
+    { label: 'Emotional charge', score: '8/10', width: '80%' },
+    { label: 'Specificity', score: '8.5/10', width: '85%' },
+    { label: 'Shareability', score: '9/10', width: '90%' },
+  ],
+  verdict: 'Ready to post',
+  caption: 'An example: 44 out of 50. For a 31, Forge shows you exactly what has to change.',
+};
+
+// ─── Voice (the light section) ───
+
+export const VOICE_SECTION = {
+  heading: 'Same idea. Your voice.',
+  subheading: 'An example of one idea written twice: once by a general-purpose assistant, once by Forge with a Brand DNA.',
+  before: {
+    label: 'General-purpose AI',
+    text: 'In today’s fast-paced digital landscape, consistency is the key to unlocking your brand’s full potential. Here are 5 tips to help you stay consistent and grow your audience!',
   },
-  {
-    iconLabel: 'INTELLIGENCE',
-    icon: 'TrendingUp',
-    title: 'Forge learns what works for you.',
-    body: 'Feed Forge your analytics. It runs a full Performance Autopsy isolating exactly why your best post won, why your worst post died, and what the replication pattern looks like. Those findings are encoded into every future piece of content it generates for you. Your performance data becomes your competitive advantage.',
-    proofLine: 'The tool gets measurably better the longer you use it.',
+  after: {
+    label: 'Forge, with your Brand DNA',
+    text: 'I posted every day for a month and gained twelve followers. Then I posted three times a week, only when I had something to say. Here’s what changed.',
   },
-  {
-    iconLabel: 'AGENCY',
-    icon: 'GitBranch',
-    title: 'Forge acts on your behalf.',
-    body: 'Tell Forge you have a product launch in three months. It reads your calendar, checks what is already scheduled, computes every date, and builds a complete 90-day content plan across every platform. Everything is scheduled. You receive a confirmation email with the full plan and a Google Calendar link.',
-    proofLine: 'This is not a chatbot. This is an agent.',
-  },
-];
+};
+
+// ─── Tools ───
 
 export interface Tool {
   number: string;
@@ -156,178 +139,50 @@ export interface ToolCategory {
 }
 
 export const TOOL_ARSENAL_SECTION = {
-  eyebrow: 'THE ARSENAL',
-  heading: ['26 precision-built tools.', 'One workspace.'],
-  subheading:
-    "Every tool engineered for a specific job at a level of depth that general-purpose AI cannot match. This is what $40 a month buys. Not access to a model. Access to a system.",
+  heading: [`${CHAT_TOOLS.length + 1} tools.`, 'One workspace.'],
+  subheading: 'Each one does a single job well, and every one of them already knows your voice.',
 };
 
-export const TOOL_CATEGORIES: ToolCategory[] = [
-  {
-    name: 'ESSENTIALS',
-    tools: [
-      {
-        number: '01',
-        name: 'Native Formatter',
-        description:
-          'Platform-specific visual architecture. Cognitive load theory applied to every paragraph. Produces the reading experience, not just the words.',
-      },
-      {
-        number: '02',
-        name: 'Shadowban Checker',
-        description:
-          'Reach suppression forensics. Every flagged phrase, every NLP trigger, every algorithm penalty identified and replaced with a bypass that preserves your meaning without losing your reach.',
-      },
-      {
-        number: '03',
-        name: 'Readability Simplifier',
-        description:
-          'The Hemingway-Ogilvy distillation engine. Removes 40% of the word count without losing a single unit of meaning. Used by executives who need their ideas to land, not impress.',
-      },
-    ],
-  },
-  {
-    name: 'PRO CREATOR',
-    tools: [
-      {
-        number: '04',
-        name: 'Stop-Scroll Grader',
-        description:
-          'Algorithm simulator. Grades your content against the exact psychological and structural demands of your platform. Score of 4 or below means the algorithm will not push it. You get the exact fix, not a suggestion.',
-      },
-      {
-        number: '05',
-        name: 'Image-to-Text (OCR)',
-        description:
-          'Signal extraction from raw visual data. Transcribes, synthesizes, finds the three highest-leverage angles buried in any screenshot, document, or image then writes the hook.',
-      },
-      {
-        number: '06',
-        name: 'Zero-Cost Outreach',
-        description:
-          'The $100K cold email architecture. Triad Protocol: Non-obvious observation, value bridge, curiosity close. Three complete sequences per session. Tested against the seven reasons cold emails fail.',
-      },
-      {
-        number: '07',
-        name: 'Viral Hook Generator',
-        description:
-          'Ten psychological trigger types per session. Identity Threat. Social Proof Inversion. Specificity Bomb. Curiosity Gap. Contrarian Declaration. Every hook labeled with its mechanism and ranked by estimated stop-scroll probability.',
-      },
-      {
-        number: '08',
-        name: 'A/B Test Simulator',
-        description:
-          'Audience tension mapping. Two psychographic personas The Believer and The Skeptic run against your content simultaneously. Identifies the exact sentence that will generate the most controversy.',
-      },
-      {
-        number: '09',
-        name: 'Tone Calibrator',
-        description:
-          'Four emotional frequencies per piece. Aggressive and Contrarian. Vulnerable and Authentic. Analytical and Data-driven. Satirical and Mocking. Full rewrites in all four.',
-      },
-    ],
-  },
-  {
-    name: 'Pro Plus',
-    tools: [
-      {
-        number: '10',
-        name: 'Agentic Ebook Writer',
-        description:
-          'Complete manuscripts, not bullet points. Writes at the level of a $2,000 masterclass every chapter containing at least one proprietary named framework, one tactical checklist, and one executable script.',
-      },
-      {
-        number: '11',
-        name: 'Ghostwriter Clone',
-        description:
-          'Voice replication at syntactic level. Cadence mapping. Lexicon fingerprinting. Punchline placement analysis. Tested against the exact question: "Would their most observant follower notice a difference?"',
-      },
-      {
-        number: '12',
-        name: 'Brand DNA Enforcer',
-        description:
-          'Reputation risk and identity drift detection. Five threat vectors: Legal liability, PR misinterpretation, audience mismatch, brand DNA drift, competitor ammunition. Every piece scored and cleared.',
-      },
-      {
-        number: '13',
-        name: 'Competitor Gap Analyzer',
-        description:
-          'Narrative void detection. Five-layer autopsy of competitor content to find the emotional and intellectual territory they are leaving undefended. Delivers a three-post kill-shot sequence.',
-      },
-      {
-        number: '14',
-        name: 'Trend Forecaster',
-        description:
-          'Lifecycle positioning and contrarian timing. Identifies where a trend sits on its curve Emergence, Early Adoption, Peak, Saturation, Backlash, Rebound and which position to take.',
-      },
-      {
-        number: '15',
-        name: 'B2B Case Study Builder',
-        description:
-          'The Revenue Dramatist framework. Transforms client data into a narrative arc the bleeding neck, the architecture, the ROI explosion. Every metric bolded. The math made emotional.',
-      },
-      {
-        number: '16',
-        name: 'SEO Content Clusters',
-        description:
-          'Topical authority and semantic dominance. Pillar keyword, ten hyper-specific long-tail questions, and the internal linking narrative that connects all eleven pieces into one system.',
-      },
-      {
-        number: '17',
-        name: 'Lead Funnel Architect',
-        description:
-          'Full-stack conversion pipeline. Content attractor, lead magnet, five-email conversion sequence, and sales page architecture written completely, not outlined.',
-      },
-      {
-        number: '18',
-        name: 'Video Script Storyboarder',
-        description:
-          'Retention engineering by timestamp. Two-column storyboard: visual direction and audio script. Hook, retention hook, credibility moment, core content, pattern interrupt, payoff, CTA.',
-      },
-      {
-        number: '19',
-        name: 'Press Release Generator',
-        description:
-          'Institutional authority format. Inverted pyramid structure. The lead, the visionary CEO quote, the industry context. Zero marketing hype.',
-      },
-      {
-        number: '20',
-        name: 'Crisis Spindoctor',
-        description:
-          'Reputational surgery protocol. Immediate radical ownership. Error reframed as operational learning. Three structural changes announced. Zero defensiveness.',
-      },
-      {
-        number: '21',
-        name: 'Ad Copy Multi-Variate',
-        description:
-          'Ten psychological variants per run. Pain Avoidance. Status Seeking. Curiosity. Loss Aversion. Social Proof. FOMO. Identity Alignment. Authority Transfer. Scarcity. Aspiration.',
-      },
-      {
-        number: '22',
-        name: 'Omni-Channel Repurposer',
-        description:
-          'One idea, five platforms, zero repetition. LinkedIn gets the narrative. Twitter gets the friction. Instagram gets the emotion. Newsletter gets the depth. Reels get the hook.',
-      },
-    ],
-  },
-  {
-    name: 'Enterprise',
-    tools: [
-      {
-        number: '23',
-        name: 'Calendar Agent',
-        description:
-          'Full read/write access to your content schedule. Brief Forge on any goal and it reads your existing schedule, computes every specific date, and creates a complete plan across every platform.',
-      },
-      {
-        number: '24',
-        name: 'War Room (Omni-Swarm Terminal)',
-        description:
-          'Multi-agent strategy mode. Four specialized intelligences The Architect, The Viralist, The Ghostwriter, The Logistician — executing simultaneously on your most complex strategic brief.',
-      },
-    ],
-  },
+/**
+ * The landing page's tool list is generated from the same table the app's
+ * tool menu and the chat route's plan gates use (lib/forge/entitlements), so
+ * the marketing page can never list a tool the product does not have, or
+ * put one on the wrong plan. The Calendar Agent works in every chat rather
+ * than as a menu tool, so it is added here.
+ */
+const CALENDAR_AGENT = {
+  id: 'calendar_agent',
+  name: 'Calendar Agent',
+  description: 'Reads your calendar, picks the dates and plans the next 90 days of posts.',
+};
+
+const CATEGORY_LABELS: Record<ToolGroup, string> = {
+  Essentials: 'Free',
+  Creator: 'Starter',
+  Pro: 'Pro',
+};
+
+const ORDERED = [
+  ...CHAT_TOOLS.filter((t) => t.group === 'Essentials').map((t) => ({ id: t.id, name: t.name, description: t.description, group: t.group })),
+  { ...CALENDAR_AGENT, group: 'Essentials' as ToolGroup },
+  ...CHAT_TOOLS.filter((t) => t.group !== 'Essentials').map((t) => ({ id: t.id, name: t.name, description: t.description, group: t.group })),
 ];
+
+const NUMBERED = ORDERED.map((tool, index) => ({ ...tool, number: String(index + 1).padStart(2, '0') }));
+
+export const TOOL_CATEGORIES: ToolCategory[] = TOOL_GROUPS.map((group) => ({
+  name: CATEGORY_LABELS[group],
+  tools: NUMBERED.filter((tool) => tool.group === group).map(({ number, name, description }) => ({ number, name, description })),
+}));
+
+/** Shown first on the landing page; the rest sit behind "See all". */
+export const FEATURED_TOOLS = ['hook_grader', 'viral_hook', 'ghostwriter', 'omni_channel', 'calendar_agent', 'war_room']
+  .map((id) => NUMBERED.find((tool) => tool.id === id)?.number)
+  .filter((n): n is string => Boolean(n));
+
+export const TOOL_COUNT = NUMBERED.length;
+
+// ─── Who it's for ───
 
 export interface UseCaseTab {
   id: string;
@@ -338,65 +193,41 @@ export interface UseCaseTab {
 }
 
 export const USE_CASES_SECTION = {
-  eyebrow: "WHO IT'S BUILT FOR",
-  heading: ['Built for the people', 'the algorithm actually rewards.'],
+  heading: ['Built for people', 'who post for a living.'],
 };
 
 export const USE_CASES: UseCaseTab[] = [
   {
     id: 'creators',
-    audience: 'Solo Creators',
-    headline:
-      "You have the ideas. You've been losing to people with worse ones because they have better execution.",
-    body: 'Forge builds your Brand DNA in session one. Every post is scored before you publish. Your calendar is managed so you never miss a content window. The gap between what you think and what you publish closes permanently.',
-    features: [
-      'Brand DNA built and stored in session one',
-      'Every post scored against platform algorithm before publishing',
-      'Content calendar planned up to 90 days in advance',
-      'Performance Autopsy after every analytics report',
-      'Hook alternatives generated on every piece',
-    ],
+    audience: 'Creators',
+    headline: 'You have the ideas. Forge helps them land.',
+    body: 'Your Brand DNA is set up in the first session. Every post is graded before it goes out, and your calendar is planned ahead.',
+    features: ['Brand DNA from session one', 'Every draft graded before posting', 'Up to 90 days planned ahead'],
   },
   {
     id: 'ghostwriters',
-    audience: 'Ghostwriters and Agencies',
-    headline: 'You are managing eight clients. You cannot be eight different people. Forge can.',
-    body: 'Each workspace stores a separate Brand DNA. The Voice Clone tool operates at syntactic level cadence ratios, lexicon fingerprinting, punchline placement. Your clients stop asking for revisions because the content sounds like them.',
-    features: [
-      'Separate Brand DNA per client, never contaminated',
-      'Voice Clone at syntactic level, not just tone',
-      'Bulk content calendar planning per client',
-      'Brand DNA Enforcer flags identity drift before delivery',
-      'Omni-Channel Repurposer multiplies every approved idea',
-    ],
+    audience: 'Ghostwriters and agencies',
+    headline: 'Eight clients. Eight voices. None of them yours.',
+    body: 'Each client gets a separate Brand DNA, so voices never bleed into each other and drafts need fewer revisions.',
+    features: ['Separate Brand DNA per client', 'Voice matching down to sentence rhythm', 'Flags off-voice drafts before delivery'],
   },
   {
     id: 'founders',
-    audience: 'Founders and Startups',
-    headline: 'You are building a company and an audience at the same time. Most founders treat these as separate.',
-    body: 'Your content is your distribution. Forge understands technical depth and knows the founders who win are the ones who can translate ideas into content that stops scrolls. Your launch content is planned months in advance.',
-    features: [
-      'Technical authority without academic tone',
-      'Launch campaigns planned 90 days out',
-      'Competitor Gap analysis before entering any conversation',
-      'Trend Forecasting to position ahead of the narrative',
-      'Brand DNA Enforcer keeps voice consistent across growth',
-    ],
+    audience: 'Founders',
+    headline: 'Your content is your distribution.',
+    body: 'Turn what you already know into posts that explain it well, and plan launch content months ahead.',
+    features: ['Technical depth without the jargon', 'Launch campaigns planned 90 days out', 'Competitor and trend analysis'],
   },
   {
     id: 'enterprise',
-    audience: 'Enterprise and Marketing Teams',
-    headline: 'Your team produces a large volume of content. Very little of it compounds.',
-    body: 'Centralized Brand DNA across the entire team means every piece sounds like it came from one coherent voice. Performance intelligence is shared, not siloed. The calendar agent handles campaign planning.',
-    features: [
-      'Centralized Brand DNA across all team members',
-      'Shared performance intelligence the team learns together',
-      'Campaign calendar planning for up to 12 months',
-      'Brand DNA Enforcer with legal and PR risk scanning',
-      'Multi-client workspace management',
-    ],
+    audience: 'Teams',
+    headline: 'Many writers. One voice.',
+    body: 'A shared Brand DNA keeps every team member on-voice, and what works for one team is learned by all of them.',
+    features: ['Shared Brand DNA across the team', 'Shared performance learning', 'Campaigns planned up to 12 months ahead'],
   },
 ];
+
+// ─── How it works ───
 
 export interface HowItWorksStep {
   number: string;
@@ -406,80 +237,40 @@ export interface HowItWorksStep {
 }
 
 export const HOW_IT_WORKS_SECTION = {
-  eyebrow: 'HOW IT WORKS',
-  heading: ['Three sessions.', 'You will never work the same way again.'],
+  heading: ['Three steps.', 'The first takes ten minutes.'],
 };
 
 export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   {
     number: '01',
-    title: 'Brand DNA Extraction',
-    body: 'Your first session is different from every other AI tool you have ever used. Forge asks five questions to build your permanent strategic fingerprint. Niche. Contrarian belief. Benchmark account. Biggest failure. Your best-performing content.',
-    timeLabel: 'Takes about 10 minutes. Lasts forever.',
+    title: 'Tell Forge who you are',
+    body: 'Five questions build your Brand DNA: your niche, what you believe, who you admire, what flopped, and what worked.',
+    timeLabel: 'About 10 minutes, once.',
   },
   {
     number: '02',
-    title: 'Produce at Precision',
-    body: 'Twenty-six specialized tools, each built for a specific job at a depth general-purpose AI cannot reach. Forge already knows who you are, what your audience responds to, and what your dead zones are.',
-    timeLabel: 'First output in under 60 seconds.',
+    title: 'Write with it',
+    body: 'Every tool starts from your Brand DNA, so the first draft already sounds like you.',
+    timeLabel: 'First draft in under a minute.',
   },
   {
     number: '03',
-    title: 'Feed It. Watch It Learn.',
-    body: 'Bring Forge your analytics. It runs the Performance Autopsy, updates your Brand DNA, and encodes the new patterns into every future generation. The tool you have in six months is materially better than the one you start with.',
-    timeLabel: 'Performance loop takes 5 minutes. Gains are permanent.',
+    title: 'Let it learn',
+    body: 'Bring your analytics now and then. Forge works out what landed and writes with it from then on.',
+    timeLabel: 'About 5 minutes each time.',
   },
 ];
 
-export interface Testimonial {
-  metric: string;
-  quote: string;
-  name: string;
-  title: string;
-}
+// ─── Built in public ───
 
-export const TESTIMONIALS_SECTION = {
-  eyebrow: 'REAL RESULTS',
-  heading: 'They stopped asking for permission.',
+export const FOUNDER_NOTE = {
+  text:
+    'I built Forge because every AI tool I tried made me sound like everyone else. It has 60 users today. I’m giving it 30 days, in public, to find out whether it deserves more. If you try it, tell me what’s wrong with it. That’s the most useful thing you can do.',
+  signature: 'Senku, founder',
+  handle: 'https://x.com/senkuisme',
 };
 
-export const TESTIMONIALS: Testimonial[] = [
-  {
-    metric: '22K → 34K',
-    quote:
-      'I gave Forge my last six posts with their analytics. It identified two structural dead zones I was repeating in every piece and told me my highest-converting hook style was appearing in only 15% of my content. I fixed it. My next six posts averaged 34,000 impressions. It is not a writing tool. It is an audit system that also writes.',
-    name: 'Arjun Mehta',
-    title: 'SaaS Founder, 22K LinkedIn followers',
-  },
-  {
-    metric: '11 clients. Zero voice drift.',
-    quote:
-      'I manage 11 ghostwriting clients. Before Forge, my clients were getting my voice on a bad day, not their voice on a good one. The Voice Clone feature is the only tool I have found that works at the syntactic level. My clients stopped asking me to revise.',
-    name: 'Clara Novak',
-    title: 'Independent Ghostwriter',
-  },
-  {
-    metric: '400 → 51,000 impressions',
-    quote:
-      'Forge told me not to post something. Flagged it as validation-seeking with no friction in the hook. I posted it anyway. It got 400 impressions. My next Forge-approved post got 51,000. I have not overridden it since.',
-    name: 'Marcus Webb',
-    title: 'Growth Consultant',
-  },
-  {
-    metric: '3 tools replaced. 2 roles eliminated.',
-    quote:
-      'Our agency runs content for 40 brands across six industries. Forge replaced three separate tools and two freelance roles. We brief Forge on a launch and receive a complete three-month plan the same day.',
-    name: 'Priya Sharma',
-    title: 'Content Director, Webb Creative Agency',
-  },
-  {
-    metric: '4 months. 0 → 18K followers.',
-    quote:
-      'I had zero social presence and a product to launch. Forge extracted my Brand DNA in session one and built my first 90-day content calendar. Four months later I have 18,000 followers and a waitlist. I did not change the ideas. I changed the execution.',
-    name: 'Kenji Watanabe',
-    title: 'Indie Founder, ProductHunt #1 Launch',
-  },
-];
+// ─── Methodology (kept for the /methodology page; not shown on the landing page) ───
 
 export interface PsychologyCard {
   name: string;
@@ -487,75 +278,23 @@ export interface PsychologyCard {
 }
 
 export const PSYCHOLOGY_SECTION = {
-  eyebrow: 'THE METHODOLOGY',
-  heading: "Content either stops people or it doesn't exist.",
-  subheading:
-    'Forge is built on nine psychological weapons deployed explicitly, labeled by name, in every piece of content it generates.',
+  heading: 'Content either stops people or it doesn’t exist.',
+  subheading: 'Forge writes with nine well-known principles of attention, and names the one it used in every draft.',
 };
 
 export const PSYCHOLOGY_MECHANISMS: PsychologyCard[] = [
-  {
-    name: 'Zeigarnik Effect',
-    description:
-      'Open loops the brain is physiologically compelled to close. Deployed in every hook Forge writes. The reader cannot leave without finishing.',
-  },
-  {
-    name: 'Identity Threat',
-    description:
-      'Content that challenges who someone thinks they are stops scrolls completely. Forge identifies when to deploy it and when it crosses into damaging.',
-  },
-  {
-    name: 'Social Proof Inversion',
-    description:
-      'Admitting failure publicly builds more trust than claiming success ever will. The most underused mechanism in professional content.',
-  },
-  {
-    name: 'Specificity Bias',
-    description:
-      '"3 years, 2 months, and 12 days" is more credible than "a long time." Forge eliminates vagueness at the sentence level.',
-  },
-  {
-    name: 'Future Pacing',
-    description:
-      'Letting the reader feel the outcome before they receive the insight. The structure that makes content convert, not just engage.',
-  },
-  {
-    name: 'Contrast Principle',
-    description:
-      'Show the before state vividly enough that the after state feels transformative. Mapped into every case study and story-based post.',
-  },
-  {
-    name: 'Status Signaling',
-    description:
-      'People share content that makes them look intelligent, insightful, or ahead of the curve. Forge designs for the sharer, not just the reader.',
-  },
-  {
-    name: 'Tribal Identity',
-    description:
-      'Content that names a specific ingroup creates instant belonging and sharing velocity. Forge identifies your tribe and writes directly to it.',
-  },
-  {
-    name: 'Curiosity Gap',
-    description:
-      'Reveal enough to make them need the rest. Never front-load the insight. If the hook gives away the answer, Forge rewrites the hook.',
-  },
+  { name: 'Open loops', description: 'People want to finish what they start. A good hook opens a question the post answers.' },
+  { name: 'Identity', description: 'Posts that speak to who someone is stop them faster than posts about what they do.' },
+  { name: 'Honest failure', description: 'Admitting what went wrong builds more trust than announcing what went right.' },
+  { name: 'Specificity', description: '“Three years and two months” is more believable than “a long time.”' },
+  { name: 'Future pacing', description: 'Let the reader picture the outcome before you explain how.' },
+  { name: 'Contrast', description: 'A clear before makes the after feel earned.' },
+  { name: 'Status', description: 'People share what makes them look thoughtful. Write for the person who shares.' },
+  { name: 'Belonging', description: 'Naming a specific group makes its members feel seen.' },
+  { name: 'Curiosity', description: 'Give enough to make them need the rest, never the whole answer up front.' },
 ];
 
-export const GRADER_DEMO = {
-  cardLabel: 'STOP-SCROLL GRADER · LIVE SAMPLE',
-  hookText:
-    "The model scored 94% on the benchmark. The benchmark was designed by the same lab that built the model. I'll leave the rest to you.",
-  badge: 'IDENTITY THREAT + CURIOSITY GAP',
-  scores: [
-    { label: 'Pattern Interrupt', score: '9/10', width: '90%' },
-    { label: 'Curiosity Gap', score: '9.5/10', width: '95%' },
-    { label: 'Emotional Charge', score: '8/10', width: '80%' },
-    { label: 'Tribal Signal', score: '8.5/10', width: '85%' },
-    { label: 'Retweetability', score: '9/10', width: '90%' },
-  ],
-  verdict: 'PUBLISH',
-  caption: 'This is what a 44/50 looks like. Forge tells you what a 31/50 needs to become before you publish it.',
-};
+// ─── FAQ ───
 
 export interface FAQItem {
   q: string;
@@ -563,62 +302,37 @@ export interface FAQItem {
 }
 
 export const FAQ_SECTION = {
-  eyebrow: 'COMMON QUESTIONS',
-  heading: ['The questions skeptics ask.', 'Answered honestly.'],
+  heading: ['Questions', 'worth asking.'],
 };
 
 export const FAQS: FAQItem[] = [
   {
-    q: 'Is this just a system prompt on top of Claude or GPT?',
-    a: 'No. Forge is a content operating system with persistent cross-session memory, 26 purpose-built tools with specialized deep prompt architecture, a calendar agent with full database read/write access, RAG-powered Brand DNA recall, and a performance intelligence layer that updates with every analytics input. The model is the engine. The infrastructure around it is the product.',
+    q: 'Is this just a prompt on top of ChatGPT or Claude?',
+    a: 'No. The model is the engine. Forge is everything around it: memory that persists between sessions, 24 purpose-built tools, a calendar agent, and a learning loop that uses your analytics.',
   },
   {
-    q: 'How is this different from asking ChatGPT the same question?',
-    a: 'ChatGPT has no memory of who you are, your audience, your proven hook styles, your dead zones, or what happened to your analytics last month. Forge does. The model is identical. The context is everything.',
+    q: 'How is it different from asking ChatGPT?',
+    a: 'ChatGPT doesn’t know your audience, your best hooks or what happened to your last ten posts. Forge does, and uses it every time.',
   },
   {
-    q: 'Does the Brand DNA actually persist across sessions?',
-    a: 'Yes. Permanently. Every session after your first is built on your complete strategic fingerprint niche, audience emotional triggers, highest-converting hook styles, dead zones, and Performance Autopsy findings. It updates when you bring new data, it never resets.',
+    q: 'Does my Brand DNA really persist?',
+    a: 'Yes. It’s built once and stays, and it updates whenever you share new results. It never resets.',
   },
   {
-    q: 'Can the calendar agent actually manage my content schedule?',
-    a: 'Yes. Full read and write access. Brief Forge on any goal and it reads what is already on your calendar, computes exact dates, and creates a complete content plan across every platform with a confirmation email and a one-click Google Calendar link.',
+    q: 'Can it keep several clients’ voices separate?',
+    a: 'Yes. Each workspace has its own Brand DNA, and nothing crosses between them.',
   },
   {
-    q: 'I manage multiple clients as a ghostwriter. Can it keep their voices completely separate?',
-    a: 'Yes. Every workspace maintains a completely isolated Brand DNA. The Ghostwriter Clone tool operates at the syntactic level cadence ratios, vocabulary fingerprinting, punchline placement, structural default detection not just tone adjustments.',
-  },
-  {
-    q: 'What platforms does Forge write for?',
-    a: 'LinkedIn, Twitter/X, Instagram, TikTok and short-form video, Newsletter and long-form email, and Podcast and YouTube scripts. Platform DNA is baked structurally into every tool, enforced at the system level, not left to the model\u2019s judgment.',
-  },
-  {
-    q: 'Is my Brand DNA and content data private?',
-    a: 'Yes. Your Brand DNA, chat history, performance data, and calendar are isolated to your account using row-level security at the database level. No training occurs on your data, and no other user can access your workspace without an explicit invitation.',
+    q: 'Is my data private?',
+    a: 'Your Brand DNA, drafts and analytics are isolated to your account with database-level security. Your data isn’t used for training.',
   },
   {
     q: 'What happens if I cancel?',
-    a: 'Cancel in settings, any time, in one click. No email required, no cancellation form. Your data remains accessible for 30 days after cancellation.',
-  },
-  {
-    q: 'Why does Forge push back on my ideas?',
-    a: 'Because that is the job. The most dangerous thing a content tool can do is make a weak idea sound professional. Forge is designed to disagree with you when disagreement is correct and to tell you exactly why, with the precise fix.',
-  },
-  {
-    q: 'What makes the Stop-Scroll Grader different from other AI graders?',
-    a: 'The Grader operates from platform-specific rubrics and grades against the actual psychological and structural demands of each algorithm. A score of 4/10 means the algorithm will not push it. The lowest-scoring element gets an exact rewrite, then a Content Tree is generated from the corrected piece.',
+    a: 'Cancel from settings in one click. You keep access until the end of the period you’ve paid for, and your data stays available for 30 days.',
   },
 ];
 
-export const FINAL_CTA = {
-  eyebrow: 'START NOW',
-  heading: ['Your next post is either', "forgettable or it isn't."],
-  subheading:
-    'The creators who compound are not smarter than you. They stopped asking their AI to validate their ideas and started using one that tells them the truth. That gap closes today.',
-  ctaPrimary: 'Start Forging Free',
-  belowCta: 'No card required · Brand DNA built in your first session · Cancel anytime',
-  trustSignals: ['26 Specialized Tools', 'Permanent Brand DNA Memory', 'Calendar Agent', '14-Day Money-Back Guarantee'],
-};
+// ─── Pricing ───
 
 export interface PricingTier {
   id: string;
@@ -635,96 +349,69 @@ export interface PricingTier {
 }
 
 export const PRICING_SECTION = {
-  eyebrow: 'PRICING',
-  heading: ['Start forging.', "Scale when it's working."],
-  subheading:
-    'Every plan includes a burst allowance and a monthly total. No surprise overage charges, and no "contact sales" for the features you actually need.',
-  saleBanner: 'LAUNCH PRICING · LOCKED IN FOR AS LONG AS YOU STAY SUBSCRIBED',
+  heading: ['Simple pricing.', 'Upgrade when it’s working.'],
+  subheading: 'Every plan has a short-term allowance and a monthly total. No overage charges.',
+  saleBanner: 'Launch pricing, kept for as long as you stay subscribed.',
   guarantee: {
     title: 'Cancel in one click',
-    body: 'Cancel any time from your account. You keep full access until the end of the period you have already paid for.',
+    body: 'Cancel any time from your account. You keep full access until the end of the period you’ve paid for.',
   },
 };
- 
+
 export const PRICING_TIERS: PricingTier[] = [
   {
     // Must match PlanId in lib/billing/plans.ts and the plan_id enum in Postgres.
     id: 'starter',
     name: 'Starter',
-    tagline: 'For the solo operator.',
+    tagline: 'For getting started.',
     price: 9,
-    billingNote: '/ month',
-    features: [
-      'Roughly 210 generations per month',
-      'Allowance resets every 4 hours',
-      '2 ebooks per month',
-      'Brand DNA up to 20,000 characters',
-      'Platform-native output for every channel',
-    ],
-    ctaLabel: 'Start for $9',
+    billingNote: 'a month',
+    features: ['About 210 generations a month', 'Allowance resets every 4 hours', '2 ebooks a month', 'Brand DNA up to 20,000 characters'],
+    ctaLabel: 'Choose Starter',
     ctaType: 'checkout',
-    finePrint: 'Cancel anytime in settings. No card lock-in.',
+    finePrint: 'Cancel anytime from settings.',
   },
   {
     id: 'pro',
     name: 'Pro',
-    tagline: 'For the working creator.',
+    tagline: 'For posting every week.',
     price: 20,
-    billingNote: '/ month',
-    badge: 'MOST POPULAR',
+    billingNote: 'a month',
     highlighted: true,
-    features: [
-      'Roughly 1,050 generations per month',
-      'Allowance resets every 5 hours',
-      '12 ebooks per month',
-      'Full Brand DNA memory, permanent and compounding',
-      'Social profile sync and Performance Intelligence',
-      'War Room multi-agent mode',
-      'Calendar agent',
-    ],
-    ctaLabel: 'Start Pro — $20/mo',
+    features: ['About 1,050 generations a month', 'Allowance resets every 5 hours', '12 ebooks a month', 'Full Brand DNA memory', 'Profile sync and analytics learning', 'Calendar agent and War Room'],
+    ctaLabel: 'Choose Pro',
     ctaType: 'checkout',
-    finePrint: 'Cancel anytime in settings. One click. No email required.',
+    finePrint: 'Cancel anytime from settings.',
   },
   {
     id: 'agency',
     name: 'Agency',
-    tagline: 'For teams shipping daily.',
+    tagline: 'For teams posting daily.',
     price: 39,
-    billingNote: '/ month',
-    features: [
-      'Roughly 1,890 generations per month',
-      'Allowance resets every 5 hours',
-      '25 ebooks per month',
-      'Everything in Pro',
-      'Priority generation queue',
-    ],
-    // Was 'contact', which sent a self-serve customer to a sales form for a
-    // plan that is fully self-serve.
-    ctaLabel: 'Start Agency — $39/mo',
+    billingNote: 'a month',
+    features: ['About 1,890 generations a month', 'Allowance resets every 5 hours', '25 ebooks a month', 'Everything in Pro', 'Priority queue'],
+    ctaLabel: 'Choose Agency',
     ctaType: 'checkout',
-    finePrint: 'Cancel anytime in settings. Volume and annual terms on request.',
+    finePrint: 'Volume and annual terms on request.',
   },
   {
-    // Deliberately has no `id` matching a PlanId: there is no Enterprise plan
-    // in Razorpay or in plan_limits, and it must never reach checkout. The
-    // 'contact' ctaType is what keeps it out of the subscription flow.
+    // No matching PlanId on purpose: Enterprise never reaches checkout.
     id: 'enterprise',
     name: 'Enterprise',
     price: 'Custom',
-    billingNote: 'Tailored to your scale',
-    tagline: 'For organizations needing custom volume, deployment, or terms.',
-    features: [
-      'Custom generation volume',
-      'Dedicated account manager',
-      'Custom Brand DNA models',
-      'On-premise / VPC deployment',
-      'SLA and priority support',
-    ],
-    ctaLabel: 'Contact Sales',
+    billingNote: 'Built around your volume',
+    tagline: 'For organisations with custom needs.',
+    features: ['Custom volume', 'A dedicated contact', 'Custom Brand DNA models', 'Private deployment', 'SLA and priority support'],
+    ctaLabel: 'Talk to us',
     ctaType: 'contact',
-    finePrint: 'Annual contracts only.',
-    highlighted: false,
+    finePrint: 'Annual contracts.',
   },
 ];
- 
+
+// ─── Final call to action ───
+
+export const FINAL_CTA = {
+  heading: ['Make your next post', 'sound like you.'],
+  subheading: 'Free to start. Your Brand DNA is ready after the first session. Cancel anytime.',
+  ctaPrimary: 'Start free',
+};

@@ -12,9 +12,6 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
 
-// 1. IMPORT YOUR NEW SERVER ACTION HERE
-import { sendWelcomeEmail } from '../../../lib/email/action';
-
 // IMPORT YOUR NOISE BACKGROUND COMPONENT HERE
 // Adjust the path based on where you saved it (e.g., Aceternity UI / Magic UI folder)
 import { NoiseBackground } from '../components/ui/noise-background';
@@ -25,9 +22,14 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [next, setNext] = useState('/dashboard');
   const router = useRouter();
 
   useEffect(() => {
+    // An invite link sends people here with ?next=/invite/<token>; keep it
+    // through confirmation so they land on the invite, not an empty dashboard.
+    const requested = new URLSearchParams(window.location.search).get('next');
+    if (requested && requested.startsWith('/') && !requested.startsWith('//')) setNext(requested);
     setMounted(true);
   }, []);
 
@@ -36,7 +38,11 @@ export default function SignupPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
+    });
 
     if (error) {
       toast.error(error.message, {
@@ -46,13 +52,13 @@ export default function SignupPage() {
       return;
     }
 
-    // 2. CALL THE FUNCTION HERE (Don't await it, just let it fire in the background)
-    sendWelcomeEmail(email);
-
-    toast.success('System initialized. Check your email to verify.', {
+    // The welcome email is sent by the server once onboarding finishes, for
+    // an account that exists. A client-triggered send would let anyone mail
+    // any address from Forge's domain.
+    toast.success('Check your email to confirm your account.', {
       style: { background: '#111', color: '#fff', border: '1px solid rgba(209,138,94,0.3)' }
     });
-    router.push('/login');
+    router.push(next === '/dashboard' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
   }
 
   /**
@@ -74,7 +80,7 @@ export default function SignupPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
       },
     });
 

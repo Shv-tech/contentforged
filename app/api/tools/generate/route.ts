@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToolBySlug } from "@/lib/tools-config";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceClient } from "@/lib/supabase/service";
 
 // Cheapest capable model — short-form generation task
 const MODEL = "claude-haiku-4-5-20251001";
@@ -11,11 +11,6 @@ const MODEL = "claude-haiku-4-5-20251001";
 // Hard ceiling regardless of what a tool config claims to want.
 const ABSOLUTE_MAX_OUTPUT_TOKENS = 400;
 
-// Initialize Supabase admin client for backend lead capture
-// Service role key used here to bypass RLS, as this runs securely on the server
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -65,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (hasEmail && email) {
       const normalizedEmail = email.toLowerCase();
       // Upsert prevents database errors if the same user tries multiple tools
-      await supabase.from("leads").upsert(
+      await createServiceClient().from("leads").upsert(
         { 
           email: normalizedEmail, 
           source: `tool:${slug}`,

@@ -1,145 +1,113 @@
 'use client';
 
-import { motion, useReducedMotion, Variants } from 'framer-motion';
-import { Sparkles, Terminal } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { PSYCHOLOGY_SECTION, PSYCHOLOGY_MECHANISMS, GRADER_DEMO } from '../../lib/landing-data';
+import { Artwork, Heading, Tag, sentence } from './forge-art';
 
-const customEase = [0.16, 1, 0.3, 1] as any;
+const ease = [0.16, 1, 0.3, 1] as any;
 
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0, transition: { duration: 1, ease: customEase } },
-};
-
+/**
+ * A working demonstration, not a screenshot: when the card scrolls into view
+ * the hook is typed out, graded line by line, and the verdict lands last.
+ */
 export default function PsychologySection() {
-  const prefersReducedMotion = useReducedMotion();
+  return (
+    <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
+      <Heading lines={[PSYCHOLOGY_SECTION.heading]} lead={PSYCHOLOGY_SECTION.subheading} align="center" />
+      <GraderDemo />
+      <Mechanisms />
+    </div>
+  );
+}
+
+function GraderDemo() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: '-20% 0px' });
+  const reduce = useReducedMotion();
+  const full = GRADER_DEMO.hookText;
+  const [typed, setTyped] = useState(reduce ? full.length : 0);
+  const done = typed >= full.length;
+
+  useEffect(() => {
+    if (!inView || reduce || done) return;
+    const id = setInterval(() => setTyped((n) => Math.min(full.length, n + 2)), 28);
+    return () => clearInterval(id);
+  }, [inView, reduce, done, full.length]);
+
+  // "44/50" in the caption is the real total; derive the headline number from the scores.
+  const total = GRADER_DEMO.scores.reduce((sum, s) => sum + parseFloat(s.score), 0);
 
   return (
-    <section className="py-40 bg-[#000000] border-t border-white/[0.02] relative overflow-hidden">
-      
-      <div className="max-w-[1200px] mx-auto px-6 relative z-10">
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '-100px' }}
-          variants={{ visible: { transition: { staggerChildren: 0.1 } } }}
-          className="text-center max-w-[700px] mx-auto mb-32"
-        >
-          
-          
-          <motion.h2 variants={fadeUp} className="font-medium text-[44px] md:text-[64px] tracking-[-0.04em] leading-[1.05] text-white/95 mb-8">
-            {PSYCHOLOGY_SECTION.heading}
-          </motion.h2>
-          
-          <motion.p variants={fadeUp} className="text-[18px] text-white/40 leading-[1.7] font-light">
-            {PSYCHOLOGY_SECTION.subheading}
-          </motion.p>
-        </motion.div>
+    <div ref={ref} className="mt-16 overflow-hidden rounded-[36px] bg-[#0E0E0E] lg:grid lg:grid-cols-[1.05fr_0.95fr]">
+      <Artwork scene="ember" className="flex min-h-[360px] flex-col justify-between p-8 sm:p-10">
+        <div className="self-start"><Tag dot="#FFB067">{sentence(GRADER_DEMO.cardLabel.split('·')[0].trim())}</Tag></div>
+        <p className="mt-10 text-[26px] font-semibold leading-[1.22] tracking-[-0.025em] text-white sm:text-[32px]">
+          “{full.slice(0, typed)}
+          {!done && <span className="ml-0.5 inline-block h-[0.9em] w-[3px] translate-y-[0.12em] animate-pulse bg-white" />}
+          {done && '”'}
+        </p>
+        <div className="mt-10 text-[14px] text-white/60">{sentence(GRADER_DEMO.badge)}</div>
+      </Artwork>
 
-        <div className="grid lg:grid-cols-12 gap-16 items-start">
-          
-          {/* Left: The Sleek Mechanisms List */}
-          <motion.div 
-            initial="hidden" 
-            whileInView="visible" 
-            viewport={{ once: true }} 
-            variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-            className="lg:col-span-5 flex flex-col gap-8"
-          >
-            {PSYCHOLOGY_MECHANISMS.map((item, i) => (
-              <motion.div key={item.name} variants={fadeUp} className="group relative pl-6 cursor-default">
-                <div className="absolute left-0 top-0 bottom-0 w-[1px] bg-white/[0.05] group-hover:bg-[#d18a5e]/50 transition-colors duration-500" />
-                <div className="flex items-baseline gap-4 mb-2">
-                  <span className="font-mono text-[10px] text-white/20 group-hover:text-[#d18a5e]/70 transition-colors">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <h3 className="font-medium text-[16px] text-white/70 group-hover:text-white/95 transition-colors">
-                    {item.name}
-                  </h3>
-                </div>
-                <p className="text-[14px] text-white/30 leading-[1.6] font-light group-hover:text-white/50 transition-colors">
-                  {item.description}
-                </p>
-              </motion.div>
-            ))}
-          </motion.div>
-
-          {/* Right: The Stop-Scroll Grader Glass Terminal */}
-          <motion.div
-            initial={{ opacity: 0, x: 40 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: '-100px' }}
-            transition={{ duration: 1.2, ease: customEase }}
-            className="lg:col-span-7 sticky top-32"
-          >
-            <div className="bg-[#030303] border border-white/[0.05] rounded-[24px] p-10 shadow-[0_40px_80px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.05)] relative overflow-hidden">
-              
-              {/* Terminal Header */}
-              <div className="flex items-center gap-3 border-b border-white/[0.03] pb-6 mb-8">
-                <Terminal className="w-4 h-4 text-[#d18a5e]" />
-                <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-white/40">
-                  {GRADER_DEMO.cardLabel}
-                </span>
-                <div className="ml-auto flex gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-white/[0.05]" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-white/[0.05]" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-white/[0.05]" />
-                </div>
-              </div>
-
-              {/* Verdict Stamp */}
-              <motion.div
-                initial={{ opacity: 0, scale: 1.1 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.6, duration: 0.8, ease: customEase }}
-                className="absolute top-10 right-10 border border-[#d18a5e]/30 text-[#d18a5e] px-4 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-[0.2em] bg-[#d18a5e]/[0.02]"
-              >
-                {GRADER_DEMO.verdict}
-              </motion.div>
-
-              <p className="font-serif italic text-[22px] md:text-[26px] text-white/90 leading-[1.5] mb-8 pr-12">
-                "{GRADER_DEMO.hookText}"
-              </p>
-
-              <div className="inline-flex items-center gap-2 bg-white/[0.03] border border-white/[0.05] text-white/50 text-[10px] font-mono uppercase tracking-[0.15em] px-4 py-2 rounded-full mb-12">
-                <Sparkles className="w-3 h-3 text-[#d18a5e]" />
-                {GRADER_DEMO.badge}
-              </div>
-
-              {/* Progress Bars */}
-              <div className="space-y-6">
-                {GRADER_DEMO.scores.map((stat, i) => (
-                  <div key={stat.label} className="group">
-                    <div className="flex justify-between text-[12px] font-medium text-white/40 mb-2">
-                      <span>{stat.label}</span>
-                      <span className="text-white/80">{stat.score}</span>
-                    </div>
-                    <div className="w-full h-[3px] bg-white/[0.03] rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        whileInView={{ width: stat.width }}
-                        viewport={{ once: true }}
-                        transition={prefersReducedMotion ? { duration: 0 } : { duration: 1.2, delay: 0.2 + (i * 0.1), ease: customEase }}
-                        className="h-full bg-[#d18a5e] rounded-full opacity-60 group-hover:opacity-100 transition-opacity shadow-[0_0_10px_rgba(209,138,94,0.4)]"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-10 pt-8 border-t border-white/[0.03] flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
-                <p className="text-[12px] text-white/30 font-mono tracking-wide">
-                  {GRADER_DEMO.caption}
-                </p>
-              </div>
-
+      <div className="flex flex-col p-8 sm:p-10">
+        <div className="flex items-end justify-between">
+          <div>
+            <div className="text-[14px] text-white/45">Stop-scroll score</div>
+            <div className="mt-1 text-[72px] font-semibold leading-none tracking-[-0.05em] tabular-nums">
+              {done ? Math.round(total * 10) / 10 : '—'}
+              <span className="text-[28px] text-white/35">/50</span>
             </div>
-          </motion.div>
-
+          </div>
+          <motion.span
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={done ? { opacity: 1, scale: 1 } : {}}
+            transition={{ duration: 0.6, delay: 1.1, ease }}
+            className="mb-2 rounded-full bg-white px-4 py-1.5 text-[14px] font-semibold text-black"
+          >
+            {sentence(GRADER_DEMO.verdict)}
+          </motion.span>
         </div>
+
+        <div className="mt-10 space-y-5">
+          {GRADER_DEMO.scores.map((s, i) => (
+            <div key={s.label}>
+              <div className="mb-2 flex justify-between text-[14px]">
+                <span className="text-white/60">{s.label}</span>
+                <span className="tabular-nums text-white">{s.score}</span>
+              </div>
+              <div className="h-[3px] overflow-hidden rounded-full bg-white/[0.08]">
+                <motion.div
+                  className="h-full rounded-full bg-gradient-to-r from-[#FF8A2B] to-[#FFD3A1]"
+                  initial={{ width: 0 }}
+                  animate={done ? { width: s.width } : {}}
+                  transition={{ duration: 1, delay: 0.1 + i * 0.12, ease }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-auto pt-10 text-[14px] leading-relaxed text-white/45">{GRADER_DEMO.caption}</p>
       </div>
-    </section>
+    </div>
+  );
+}
+
+function Mechanisms() {
+  return (
+    <div className="mt-24">
+      <h3 className="max-w-[640px] text-[28px] font-semibold leading-tight tracking-[-0.03em] sm:text-[34px]">
+        The nine mechanisms it writes with, named in every draft.
+      </h3>
+      <div className="mt-10 grid gap-px overflow-hidden rounded-[28px] bg-white/[0.06] sm:grid-cols-2 lg:grid-cols-3">
+        {PSYCHOLOGY_MECHANISMS.map((m) => (
+          <div key={m.name} className="bg-black p-7">
+            <div className="text-[17px] font-semibold text-white">{m.name}</div>
+            <p className="mt-2 text-[15px] leading-[1.6] text-white/50">{m.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -6,6 +6,9 @@ const config: Config = {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './lib/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  // Classes built from data at runtime (draft platform tints, verdict tones)
+  // that the scanner cannot see in source.
+  safelist: ['bg-forge-good', 'bg-forge-warn', 'bg-forge-bad', 'text-forge-good', 'text-forge-warn', 'text-forge-bad'],
   theme: {
     extend: {
       colors: {
@@ -26,13 +29,33 @@ const config: Config = {
           charcoal: '#292827', // Superhuman button dark
           lavender: '#cbb7fb', // Superhuman accent badge
           terracotta: '#c96442', // Claude subtle highlight
-        }
+        },
+
+        // The app's dark system, shared with the landing page. Surfaces step
+        // up in small increments from pure black; colour is reserved for
+        // meaning (ember = Forge, good/warn = state).
+        forge: {
+          ink: '#000000',
+          panel: '#070707',
+          card: '#0E0E0E',
+          raised: '#151515',
+          hover: '#1C1C1C',
+          line: 'rgba(255,255,255,0.08)',
+          ember: '#FF8A2B',
+          ember2: '#E0570A',
+          gold: '#FFB067',
+          steel: '#9AA8B8',
+          good: '#8EE3B0',
+          warn: '#FFB067',
+          bad: '#FF8A65',
+        },
       },
       fontFamily: {
         // We stack Inter for Notion-like UI, falling back to system sans
-        sans: ['Inter', 'SF Pro Text', 'system-ui', 'sans-serif'],
+        // Instrument Sans everywhere, loaded by next/font in app/layout.tsx.
+        sans: ['var(--font-sans)', 'Instrument Sans', 'system-ui', 'sans-serif'],
         // For dramatic, Superhuman-style headings
-        display: ['Inter', 'SF Pro Display', 'system-ui', 'sans-serif'],
+        display: ['var(--font-sans)', 'Instrument Sans', 'system-ui', 'sans-serif'],
         // For literary/Claude moments
         serif: ['Georgia', 'Cambria', 'Times New Roman', 'serif'],
       },

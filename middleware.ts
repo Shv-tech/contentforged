@@ -35,7 +35,7 @@ interface SupabaseCookie {
  * calls in the account page and API routes worked against stale sessions.
  */
 
-const PROTECTED_PREFIXES = ['/dashboard', '/account'];
+const PROTECTED_PREFIXES = ['/dashboard', '/account', '/onboarding', '/capture', '/review', '/drafts', '/admin'];
 const AUTH_ROUTES = new Set(['/login', '/signup']);
 
 /**
@@ -48,7 +48,17 @@ const AUTH_ROUTES = new Set(['/login', '/signup']);
  * succeeding is exactly what you do not want. Bypassing also removes any
  * chance that a middleware error takes down billing.
  */
-const BYPASS_PREFIXES = ['/api/billing/webhook'];
+const BYPASS_PREFIXES = [
+  '/api/billing/webhook',
+  // Inbound webhooks from Resend, Cal.com, Calendly and custom senders.
+  '/api/capture/email',
+  '/api/goals/webhook',
+  // Bearer-key surfaces: there is no session cookie to refresh.
+  '/api/mcp',
+  '/api/v1/',
+  // Short-link redirects are on the hot path of someone else's click.
+  '/l/',
+];
 
 /**
  * Applied to every response. Cheap, and each closes a specific class of
@@ -67,11 +77,11 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
   // image or script a page loads.
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-  // Nothing here uses these, so deny them outright rather than trusting a
-  // future dependency not to ask.
+  // Deny what nothing uses. The microphone is allowed for this origin only:
+  // voice notes and interviews record in the browser.
   response.headers.set(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(), interest-cohort=()'
+    'camera=(), microphone=(self), geolocation=(), interest-cohort=()'
   );
 
   return response;
@@ -164,12 +174,16 @@ export async function middleware(request: NextRequest) {
     // Preserved so login can return the user where they were headed. Only the
     // path and query are kept: putting a full URL in a redirect parameter is
     // an open redirect waiting to happen.
-    redirectUrl.searchParams.set('redirectedFrom', path + request.nextUrl.search);
+    redirectUrl.searchParams.set('next', path + request.nextUrl.search);
     return applySecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
   if (user && isAuthRoute) {
-    return applySecurityHeaders(NextResponse.redirect(new URL('/dashboard', request.url)));
+    // Already signed in: go where the sign-in was meant to lead (an invite,
+    // the capture screen), same-site paths only.
+    const next = request.nextUrl.searchParams.get('next');
+    const destination = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
+    return applySecurityHeaders(NextResponse.redirect(new URL(destination, request.url)));
   }
 
   return applySecurityHeaders(response);

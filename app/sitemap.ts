@@ -1,96 +1,44 @@
-// app/sitemap.ts
-// Next.js auto-serves this at /sitemap.xml
+/**
+ * app/sitemap.ts, served at /sitemap.xml.
+ *
+ * Built from the same sources the pages render from (tool configs, team
+ * pages, blog posts), so it lists exactly the routes that exist. Private
+ * share pages (audits, grade cards, shared chats) are deliberately absent;
+ * they are noindex.
+ */
 
-import { MetadataRoute } from 'next';
-
-// ⚠️ ADJUST THIS IMPORT to point at your actual config-driven tools list
-// (the one that powers app/tools/[slug]/page.tsx). It just needs to export
-// an array where each entry has at least a `slug`, e.g.:
-//   export const tools = [{ slug: 'linkedin-post-generator', updatedAt: '...' }, ...]
-//
-// This was the biggest gap in the old sitemap: it only listed the generic
-// /tools index page, so Google had no direct, guaranteed path to any of
-// your individual tool pages — it could only find them by crawling links
-// on the /tools page itself, which is slower and less reliable, especially
-// for a brand-new domain with almost no crawl history yet.
+import type { MetadataRoute } from 'next';
 import { TOOLS } from '@/lib/tools-config';
+import { getAllPosts } from '@/lib/blog/posts';
+import { TEAMS_DATA } from './(marketing)/lib/teams-data';
 
 const BASE_URL = 'https://forgeyourway.dev';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 
-  const staticRoutes: MetadataRoute.Sitemap = [
-    {
-      url: BASE_URL,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 1.0,
-    },
-    {
-      url: `${BASE_URL}/pricing`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      // Bumped priority + crawl frequency: this is your main growth surface
-      // right now and it's about to gain 20+ child pages.
-      url: `${BASE_URL}/tools`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/for-agencies`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/methodology`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/signup`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.6,
-    },
-    {
-      url: `${BASE_URL}/login`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.3,
-    },
-    {
-      url: `${BASE_URL}/privacy`,
-      lastModified: now,
-      changeFrequency: 'yearly',
-      priority: 0.2,
-    },
-    {
-      url: `${BASE_URL}/terms`,
-      lastModified: now,
-      changeFrequency: 'yearly',
-      priority: 0.2,
-    },
+  const pages: Array<{ path: string; priority: number; changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'] }> = [
+    { path: '', priority: 1, changeFrequency: 'weekly' },
+    { path: '/audit', priority: 0.9, changeFrequency: 'weekly' },
+    { path: '/methodology', priority: 0.7, changeFrequency: 'monthly' },
+    { path: '/blog', priority: 0.7, changeFrequency: 'weekly' },
+    { path: '/tools/image-to-pdf', priority: 0.5, changeFrequency: 'monthly' },
+    { path: '/tools/pdf-to-image', priority: 0.5, changeFrequency: 'monthly' },
+    { path: '/signup', priority: 0.6, changeFrequency: 'monthly' },
+    { path: '/security', priority: 0.3, changeFrequency: 'yearly' },
+    { path: '/privacy', priority: 0.2, changeFrequency: 'yearly' },
+    { path: '/terms', priority: 0.2, changeFrequency: 'yearly' },
   ];
 
-  // One entry per tool page — this is what lets each of the 26 tools get
-  // discovered, crawled, and ranked independently instead of riding on the
-  // homepage's coattails.
-  const toolRoutes: MetadataRoute.Sitemap = TOOLS.map((tool) => ({
-    url: `${BASE_URL}/tools/${tool.slug}`,
-    // ToolConfig may not declare `updatedAt` on the type, so access it
-    // via a safe any-cast to avoid a TS error while still using the value
-    // when present.
-    lastModified: (tool as any).updatedAt ? new Date((tool as any).updatedAt) : now,
-    changeFrequency: 'monthly',
-    priority: 0.8,
-  }));
-
-  return [...staticRoutes, ...toolRoutes];
+  return [
+    ...pages.map((page) => ({ url: `${BASE_URL}${page.path}`, lastModified: now, changeFrequency: page.changeFrequency, priority: page.priority })),
+    ...Object.keys(TEAMS_DATA).map((slug) => ({ url: `${BASE_URL}/teams/${slug}`, lastModified: now, changeFrequency: 'monthly' as const, priority: 0.7 })),
+    ...getAllPosts().map((post) => ({
+      url: `${BASE_URL}/blog/${post.slug}`,
+      lastModified: new Date(post.publishedAt),
+      changeFrequency: 'monthly' as const,
+      priority: 0.6,
+    })),
+    ...TOOLS.map((tool) => ({ url: `${BASE_URL}/tools/${tool.slug}`, lastModified: now, changeFrequency: 'monthly' as const, priority: 0.8 })),
+  ];
 }

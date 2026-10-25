@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   X, ChevronDown, ChevronUp, RefreshCw,
   User as UserIcon, Aperture, FileText,
@@ -16,6 +16,8 @@ import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { ToolHub } from '@/components/ToolHub';
+import { toolById } from '@/lib/forge/entitlements';
+import { COMPOSE_EVENT, takePendingCompose, type ComposeDetail } from '@/components/forge/views/ViewShell';
 import { LimitReachedModal, friendlyChatError, type QuotaSnapshot } from '@/components/LimitReachedModal';
 import {
   ACCEPT_ATTRIBUTE,
@@ -26,6 +28,24 @@ import {
 } from '@/lib/attachments';
 import { firstName } from '@/lib/user-display';
 import toast from 'react-hot-toast';
+import { readEventStream, useDraftStore, useWorkspaceStore } from '@/lib/forge/client';
+import { MARKER, markerBlock, type ChatStreamEvent, type ClarifyingQuestion, type Grade, type PlanProposal } from '@/lib/forge/types';
+import { DraftCardById } from '@/components/forge/drafts/DraftCard';
+import { GradeReveal } from '@/components/forge/drafts/GradeStrip';
+import { QuestionsCard, parseAnswers } from '@/components/forge/chat/QuestionsCard';
+import { PlanCard, formatApprovedPlan, parseApprovedPlan } from '@/components/forge/chat/PlanCard';
+import { MemoryChip } from '@/components/forge/chat/MemoryChip';
+import { ProgressSteps, type StepState } from '@/components/forge/chat/ProgressSteps';
+import { ComposerMenu, storyMenuItem, useStorySearch } from '@/components/forge/chat/ComposerMenu';
+import {
+  activeMention,
+  attachMentionedStories,
+  extractStoryBlocks,
+  insertMention,
+  matchSlashCommands,
+  resolveSlashCommand,
+  type StoryMention,
+} from '@/lib/forge/commands';
 
 interface Message {
   id: string;
@@ -39,12 +59,6 @@ const MODELS = [
   { id: 'claude haiku 4.5', provider: 'anthropic', desc: 'Deep synthesis & strategy' }
 ];
 
-const TOOL_NAMES: Record<string, string> = {
-  'ebook_writer': 'Ebook',
-  'content_analyzer': 'Analysis',
-  'hook_generator': 'Hook',
-  'shadowban_checker': 'Shadowban',
-};
 
 /**
  * Enter sends on a hardware keyboard; on a touch keyboard it inserts a
@@ -91,6 +105,7 @@ interface ParsedFileChip {
 interface ParsedUserMessage {
   quote: string | null;
   files: ParsedFileChip[];
+  stories: string[];
   text: string;
 }
 
@@ -119,7 +134,8 @@ function parseUserMessage(content: string): ParsedUserMessage {
 
   working = working.replace(PARSER_NOTE_PATTERN, '');
 
-  return { quote, files, text: working.trim() };
+  const { text, titles: stories } = extractStoryBlocks(working);
+  return { quote, files, stories, text: text.trim() };
 }
 
 type AssistantSegment =
@@ -199,8 +215,68 @@ const preprocessMath = (text: string) => {
   return text.replace(/\\\[/g, '$$$$').replace(/\\\]/g, '$$$$').replace(/\\\(/g, '$').replace(/\\\)/g, '$');
 };
 
+/**
+ * Empty-state starters. Each one seeds the composer with the opening of a
+ * real request and leaves the cursor at the end, so the user finishes the
+ * sentence instead of sending a vague prompt that Forge would have to
+ * question them about.
+ */
+const STARTERS: ReadonlyArray<{ label: string; prompt: string }> = [
+  { label: 'Grade a hook', prompt: '/grade ' },
+  { label: 'Story to post', prompt: 'Turn this into a LinkedIn post: ' },
+  { label: 'Write a thread', prompt: '/thread ' },
+  { label: 'Write an ebook', prompt: 'Write an ebook about ' },
+];
+
 // ============================================================================
-// GRADER CARD
+// MESSAGE CONTEXT
+//
+// Cards rendered inside a message (questions, plans) need to know whether the
+// conversation has moved past them, and how to send a reply. ReactMarkdown
+// renders them through the `code` component, so that information travels by
+// context rather than props.
+// ============================================================================
+
+interface MessageCardContext {
+  answered: boolean;
+  disabled: boolean;
+  send: (message: string) => void;
+  approvePlan: (plan: PlanProposal, items: string[]) => void;
+}
+
+const CardContext = createContext<MessageCardContext>({
+  answered: true,
+  disabled: true,
+  send: () => undefined,
+  approvePlan: () => undefined,
+});
+
+function safeJson<T>(raw: string): T | null {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function QuestionsMarker({ raw }: { raw: string }) {
+  const ctx = useContext(CardContext);
+  const payload = safeJson<{ intro: string | null; questions: ClarifyingQuestion[] }>(raw);
+  if (!payload || !Array.isArray(payload.questions)) return null;
+  return <QuestionsCard intro={payload.intro} questions={payload.questions} answered={ctx.answered} disabled={ctx.disabled} onSubmit={ctx.send} />;
+}
+
+function PlanMarker({ raw }: { raw: string }) {
+  const ctx = useContext(CardContext);
+  const plan = safeJson<PlanProposal>(raw);
+  if (!plan || !Array.isArray(plan.items)) return null;
+  return <PlanCard plan={plan} answered={ctx.answered} disabled={ctx.disabled} onApprove={ctx.approvePlan} />;
+}
+
+// ============================================================================
+// GRADER CARD (legacy)
+// Messages written before the structured grader carried a ```grader block.
+// They still render here; new grades render as GradeReveal.
 // ============================================================================
 
 const GraderCard = ({ data }: { data: any }) => {
@@ -424,6 +500,10 @@ export function EditorPane() {
   const [isLoading, setIsLoading] = useState(false);
   const [isEncoding, setIsEncoding] = useState(false);
 
+  // The assistant reply while it streams: text and cards so far, and the
+  // progress steps. Null when no turn is running.
+  const [live, setLive] = useState<{ content: string; steps: StepState[] } | null>(null);
+
   // Quota denial state. Held separately from the transcript because hitting a
   // limit is not a conversational event: it should not become a message in
   // the history the model then sees on the next turn.
@@ -449,6 +529,12 @@ export function EditorPane() {
   const [editContent, setEditContent] = useState('');
   const [sessionGreeting, setSessionGreeting] = useState('');
 
+  // Composer shortcuts: "/" commands and "@" story mentions.
+  const [caret, setCaret] = useState(0);
+  const [mentions, setMentions] = useState<StoryMention[]>([]);
+  const [menuIndex, setMenuIndex] = useState(0);
+  const [menuDismissed, setMenuDismissed] = useState(false);
+
   // Drag-and-drop. dragDepth counts enter/leave pairs because both fire for
   // every nested child element the cursor crosses; a naive boolean flickers
   // the overlay off the moment the pointer moves over any inner node.
@@ -466,9 +552,30 @@ export function EditorPane() {
 
   const messages: Message[] = activeSessionId ? (chatHistory[activeSessionId] || []) : [];
   const isChatActive = messages.length > 0;
-  const activeToolName = activeTool ? (TOOL_NAMES[activeTool] || activeTool) : null;
+  const activeToolName = activeTool ? (toolById(activeTool)?.name ?? activeTool) : null;
   const hasPendingInput = Boolean(input.trim() || images.length > 0 || documents.length > 0);
   const isBusy = isLoading || isEncoding;
+
+  const commandMatches = useMemo(() => matchSlashCommands(input), [input]);
+  const mention = useMemo(() => (commandMatches.length ? null : activeMention(input, caret)), [commandMatches, input, caret]);
+  const storySearch = useStorySearch(mention && !menuDismissed ? mention.query : null);
+  const menu = menuDismissed
+    ? null
+    : commandMatches.length > 0
+      ? {
+          title: 'Commands',
+          empty: '',
+          loading: false,
+          items: commandMatches.map((c) => ({ id: c.name, primary: c.label, secondary: c.description, meta: c.argument })),
+        }
+      : mention
+        ? {
+            title: 'Story Bank',
+            empty: mention.query ? 'No stories match. Save one with /story.' : 'Your Story Bank is empty. Save one with /story.',
+            loading: storySearch.loading,
+            items: storySearch.stories.map(storyMenuItem),
+          }
+        : null;
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -478,7 +585,8 @@ export function EditorPane() {
   }, [input]);
 
   useEffect(() => {
-    if (!greetingName || greetingName === 'There') return;
+    // displayName falls back to 'there' when nothing is known about the user.
+    if (!greetingName || greetingName.toLowerCase() === 'there') return;
     const hour = new Date().getHours();
     const name = greetingName;
     const timeGreeting =
@@ -762,6 +870,8 @@ export function EditorPane() {
     userMessageId?: string;
     /** Database row id of the user message, for the same reconciliation. */
     userRowId?: string;
+    /** Tool for this turn only (a slash command), in place of the selected one. */
+    tool?: string | null;
   }
 
   const executeAI = async (
@@ -770,106 +880,141 @@ export function EditorPane() {
     options: ExecuteOptions = {}
   ) => {
     const { pendingDocuments = [], userMessageId, userRowId } = options;
+    const turnTool = options.tool !== undefined ? options.tool : activeTool;
+
+    // The live reply is built exactly as the server builds the stored one:
+    // streamed text plus a marker block for each card. Rendering it with the
+    // same renderer means a card never jumps or re-renders differently once
+    // the turn is saved.
+    let liveContent = '';
+    let liveSteps: StepState[] = [];
+    const seenDrafts = new Set<string>();
+    const publish = () => setLive({ content: liveContent, steps: liveSteps });
+    publish();
+
+    const appendAssistant = async (content: string) => {
+      if (!currentSessionId) return;
+      const currentMsgs = useAppStore.getState().chatHistory[currentSessionId] || [];
+      useAppStore.getState().setChatHistory(currentSessionId, [
+        ...currentMsgs,
+        { id: `${Date.now()}`, role: 'assistant', content },
+      ]);
+      await supabase.from('chat_messages').insert({ session_id: currentSessionId, role: 'assistant', content });
+    };
 
     try {
       abortControllerRef.current = new AbortController();
       const lastMsg = historyToProcess[historyToProcess.length - 1];
       const currentImages = lastMsg?.attachments || [];
+      const lastUserText = lastMsg ? parseUserMessage(lastMsg.content).text : '';
 
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: historyToProcess,
+          messages: historyToProcess.map(({ role, content }) => ({ role, content })),
           images: currentImages,
           attachments: pendingDocuments.map(toRawAttachment),
-          activeTool,
+          activeTool: turnTool,
+          sessionId: currentSessionId ?? null,
         }),
-        signal: abortControllerRef.current.signal
+        signal: abortControllerRef.current.signal,
       });
 
-      const data = await res.json();
-
-      // 429 is a quota denial, which is a normal product state rather than a
-      // failure. Surfaced as a modal with a reset countdown instead of a red
-      // error in the transcript, and deliberately not appended to the chat
-      // history.
-      if (res.status === 429) {
-        setLimitState({
-          reason: data.reason ?? 'window_exceeded',
-          quota: data.quota ?? null,
-          upgradeRequired: Boolean(data.upgradeRequired),
-        });
-        return;
-      }
-
-      if (!res.ok) throw new Error(data.error);
-
-      // The server inlines parsed attachment text into the user's message.
-      // Persisting that version keeps the document readable to the model on
-      // every later turn; without it an upload would be visible exactly once.
-      if (data.userContent && currentSessionId && userMessageId) {
-        const msgs = useAppStore.getState().chatHistory[currentSessionId] || [];
-        useAppStore.getState().setChatHistory(
-          currentSessionId,
-          msgs.map((m: Message) => (m.id === userMessageId ? { ...m, content: data.userContent } : m))
-        );
-        if (userRowId) {
-          await supabase
-            .from('chat_messages')
-            .update({ content: data.userContent })
-            .eq('id', userRowId);
+      // Failures before the stream opens arrive as plain JSON.
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 402) {
+          toast(data.error ?? 'That tool is on a higher plan.', { icon: null });
+          return;
         }
+        throw new Error(data.error || `Request failed (${res.status})`);
       }
 
-      let replyText: string = data.reply;
-      const renderRegex = /<render\s+platform=["'](.*?)["'][^>]*>([\s\S]*?)<\/render>/i;
-      const renderMatch = replyText.match(renderRegex);
+      let finalReply: string | null = null;
+      let streamError: Extract<ChatStreamEvent, { type: 'error' }> | null = null;
 
-      if (renderMatch) {
-        const platform = renderMatch[1].toLowerCase() as 'linkedin' | 'twitter' | 'ebook' | 'facebook';
-        const content = renderMatch[2].trim();
-        if (setRenderData) setRenderData(content, platform);
-        replyText = replyText.replace(renderMatch[0], `\n\n✨ *I've pushed the finalized draft to your Live Render canvas.*`);
-      }
-
-      if (currentSessionId) {
-        const currentMsgs = useAppStore.getState().chatHistory[currentSessionId] || [];
-        useAppStore.getState().setChatHistory(currentSessionId, [
-          ...currentMsgs,
-          { id: Date.now().toString(), role: 'assistant', content: replyText }
-        ]);
-        await supabase.from('chat_messages').insert({
-          session_id: currentSessionId,
-          role: 'assistant',
-          content: replyText
-        });
-      }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        if (currentSessionId) {
-          const currentMsgs = useAppStore.getState().chatHistory[currentSessionId] || [];
-          useAppStore.getState().setChatHistory(currentSessionId, [
-            ...currentMsgs,
-            { id: Date.now().toString(), role: 'assistant', content: `*Generation stopped by user.*` }
-          ]);
-        }
-        return;
-      }
-      if (currentSessionId) {
-        const currentMsgs = useAppStore.getState().chatHistory[currentSessionId] || [];
-        useAppStore.getState().setChatHistory(currentSessionId, [
-          ...currentMsgs,
-          {
-            id: Date.now().toString(),
-            role: 'assistant',
-            // Translated before display. A raw provider error names the model
-            // vendor and gives the user nothing they can act on.
-            content: friendlyChatError(error?.message ?? ''),
+      await readEventStream(res, (event) => {
+        switch (event.type) {
+          case 'step': {
+            const existing = liveSteps.findIndex((step) => step.id === event.id);
+            liveSteps =
+              existing >= 0
+                ? liveSteps.map((step, i) => (i === existing ? { ...step, state: event.state } : step))
+                : [...liveSteps, { id: event.id, label: event.label, state: event.state }];
+            break;
           }
-        ]);
+          case 'text':
+            liveContent += event.delta;
+            break;
+          case 'draft':
+            useDraftStore.getState().upsert(event.draft);
+            if (!seenDrafts.has(event.draft.id)) {
+              seenDrafts.add(event.draft.id);
+              liveContent += markerBlock(MARKER.draft, { id: event.draft.id });
+            }
+            break;
+          case 'questions':
+            liveContent += markerBlock(MARKER.questions, { intro: event.intro, questions: event.questions });
+            break;
+          case 'plan':
+            liveContent += markerBlock(MARKER.plan, event.plan);
+            break;
+          case 'memory':
+            liveContent += markerBlock(MARKER.memory, { kind: event.kind, id: event.id, label: event.label });
+            break;
+          case 'grade':
+            liveContent = `${event.text}${markerBlock(MARKER.grade, { grade: event.grade, cardId: event.cardId, hook: lastUserText })}`;
+            break;
+          case 'done':
+            finalReply = event.reply;
+            if (event.quota) useAppStore.getState().applyQuotaSnapshot(event.quota as Partial<QuotaSnapshot>);
+            if (event.userContent && currentSessionId && userMessageId) {
+              const msgs = useAppStore.getState().chatHistory[currentSessionId] || [];
+              useAppStore.getState().setChatHistory(
+                currentSessionId,
+                msgs.map((m: Message) => (m.id === userMessageId ? { ...m, content: event.userContent! } : m))
+              );
+              if (userRowId) {
+                void supabase.from('chat_messages').update({ content: event.userContent }).eq('id', userRowId);
+              }
+            }
+            break;
+          case 'error':
+            streamError = event;
+            break;
+        }
+        publish();
+      });
+
+      const failure = streamError as Extract<ChatStreamEvent, { type: 'error' }> | null;
+      if (failure) {
+        // Quota denial is a product state, not a failure: shown as a modal
+        // with a reset countdown and never written into the transcript.
+        if (failure.status === 429) {
+          setLimitState({
+            reason: (failure.reason as 'window_exceeded' | 'monthly_exceeded' | 'no_profile') ?? 'window_exceeded',
+            quota: (failure.quota as QuotaSnapshot) ?? null,
+            upgradeRequired: Boolean(failure.upgradeRequired),
+          });
+          return;
+        }
+        // Keep whatever was written before the failure, then the reason.
+        const partial = liveContent.trim();
+        await appendAssistant(partial ? `${partial}\n\n*${failure.message}*` : failure.message);
+        return;
       }
+
+      if (finalReply !== null) await appendAssistant(finalReply);
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        const partial = liveContent.trim();
+        await appendAssistant(partial ? `${partial}\n\n*Stopped.*` : '*Stopped.*');
+        return;
+      }
+      await appendAssistant(friendlyChatError(error?.message ?? ''));
     } finally {
+      setLive(null);
       setIsLoading(false);
     }
   };
@@ -882,14 +1027,19 @@ export function EditorPane() {
   const dispatchMessage = async (
     content: string,
     attachedImages: string[] = [],
-    attachedDocuments: PendingDocument[] = []
+    attachedDocuments: PendingDocument[] = [],
+    turn: { ebookChapters?: string[]; ebookTopic?: string; tool?: string | null } = {}
   ) => {
-    let currentSessionId = activeSessionId;
+    // Read from the store, not the render closure: a compose request from
+    // another view can change the session and tool in the same tick.
+    const latest = useAppStore.getState();
+    const turnTool = turn.tool !== undefined ? turn.tool : latest.activeTool;
+    let currentSessionId = latest.activeSessionId;
 
     if (!currentSessionId) {
       const { data: sessionData } = await supabase
         .from('chat_sessions')
-        .insert({ user_id: user?.id, title: 'New Workspace' })
+        .insert({ user_id: user?.id, title: 'New chat', workspace_id: useWorkspaceStore.getState().activeId })
         .select().single();
       if (sessionData) {
         currentSessionId = sessionData.id;
@@ -936,7 +1086,12 @@ export function EditorPane() {
       userRowId = inserted?.id;
     }
 
-    if (activeTool === 'ebook_writer') {
+    if (turn.ebookChapters && turn.ebookChapters.length > 0) {
+      await handleEbookGeneration(turn.ebookTopic ?? content, currentSessionId as string, turn.ebookChapters);
+      return;
+    }
+
+    if (turnTool === 'ebook_writer') {
       await handleEbookGeneration(content, currentSessionId as string);
       return;
     }
@@ -945,6 +1100,7 @@ export function EditorPane() {
       pendingDocuments: attachedDocuments,
       userMessageId: messageId,
       userRowId,
+      tool: turnTool,
     });
   };
 
@@ -987,7 +1143,22 @@ export function EditorPane() {
     await dispatchMessage(prompt);
   };
 
-  const handleEbookGeneration = async (topic: string, sessionId: string) => {
+  /**
+   * An approved plan is sent back as a message, so the model writes to the
+   * agreed outline. An approved ebook outline goes straight to the ebook
+   * writer with those chapters, skipping its own outline step.
+   */
+  const handlePlanApproval = async (plan: PlanProposal, items: string[]) => {
+    if (isBusy || items.length === 0) return;
+    const message = formatApprovedPlan(plan, items);
+    if (plan.kind === 'ebook') {
+      await dispatchMessage(message, [], [], { ebookChapters: items, ebookTopic: plan.title });
+      return;
+    }
+    await dispatchMessage(message);
+  };
+
+  const handleEbookGeneration = async (topic: string, sessionId: string, approvedChapters?: string[]) => {
     // Declared outside the try so the catch handler can report failures into
     // the transcript, not just a toast that vanishes.
     const updateChat = (text: string) => {
@@ -1003,39 +1174,42 @@ export function EditorPane() {
       abortControllerRef.current = new AbortController();
       const activeProvider = MODELS.find(m => m.id === selectedModel)?.provider || 'anthropic';
 
-      updateChat(`*Architecting book structure for: "${topic}"...*`);
+      let chapters: string[] = approvedChapters ?? [];
 
-      const outRes = await fetch('/api/ebook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step: 'outline', topic, provider: activeProvider }),
-        signal: abortControllerRef.current.signal
-      });
-      const outlineData = await outRes.json();
+      if (chapters.length === 0) {
+        updateChat(`*Outlining "${topic}"*`);
 
-      // Ebook generation is quota-gated too. Without this branch a denial
-      // mid-book surfaces as a raw error string in the transcript, which is
-      // the exact behaviour the modal exists to replace.
-      if (outRes.status === 429) {
-        setLimitState({
-          reason: outlineData.reason ?? 'monthly_exceeded',
-          quota: outlineData.quota ?? null,
-          upgradeRequired: Boolean(outlineData.upgradeRequired),
+        const outRes = await fetch('/api/ebook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: 'outline', topic, provider: activeProvider }),
+          signal: abortControllerRef.current.signal
         });
-        setIsLoading(false);
-        return;
+        const outlineData = await outRes.json();
+
+        // Ebook generation is quota-gated too. Without this branch a denial
+        // mid-book surfaces as a raw error string in the transcript, which is
+        // the exact behaviour the modal exists to replace.
+        if (outRes.status === 429) {
+          setLimitState({
+            reason: outlineData.reason ?? 'monthly_exceeded',
+            quota: outlineData.quota ?? null,
+            upgradeRequired: Boolean(outlineData.upgradeRequired),
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        if (!outRes.ok) throw new Error(outlineData.error || 'Could not outline the book.');
+        chapters = Array.isArray(outlineData.chapters) ? outlineData.chapters : [];
       }
-
-      if (!outRes.ok) throw new Error(outlineData.error || 'Could not architect the outline.');
-
-      const chapters: string[] = Array.isArray(outlineData.chapters) ? outlineData.chapters : [];
       if (chapters.length === 0) throw new Error('The outline came back empty.');
 
       let compiledBook = "";
 
       for (let i = 0; i < chapters.length; i++) {
         const chapTitle = chapters[i];
-        updateChat(`*Drafting Chapter ${i + 1} of ${chapters.length}: ${chapTitle}...*`);
+        updateChat(`*Writing chapter ${i + 1} of ${chapters.length}: ${chapTitle}*`);
         const chapRes = await fetch('/api/ebook', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1071,7 +1245,7 @@ export function EditorPane() {
         word_count: compiledBook.split(/\s+/).length,
       });
 
-      const displayPayload = `\n\n✨ *I've pushed the finalized eBook draft to your Live Render canvas — it's also saved in My Ebooks.*`;
+      const displayPayload = `*"${bookTitle}" is ready. It is open in the preview panel and saved in My Ebooks.*`;
       updateChat(displayPayload);
       await supabase.from('chat_messages').insert({ session_id: sessionId, role: 'assistant', content: displayPayload });
       if (setRenderData) setRenderData(finalBook, 'ebook');
@@ -1092,10 +1266,75 @@ export function EditorPane() {
     }
   };
 
+  const syncCaret = (el: HTMLTextAreaElement) => setCaret(el.selectionStart ?? el.value.length);
+
+  const placeCaret = (position: number) => {
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(position, position);
+      setCaret(position);
+    });
+  };
+
+  const pickMenuItem = (index: number) => {
+    if (commandMatches.length > 0) {
+      const command = commandMatches[index];
+      if (!command) return;
+      const next = `${command.label} `;
+      setInput(next);
+      placeCaret(next.length);
+    } else if (mention) {
+      const story = storySearch.stories[index];
+      if (!story) return;
+      const result = insertMention(input, mention.start, caret, story);
+      setInput(result.text);
+      setMentions((prev) => (prev.some((m) => m.id === story.id) ? prev : [...prev, { id: story.id, title: story.title, body: story.body }]));
+      placeCaret(result.caret);
+    }
+    setMenuIndex(0);
+  };
+
+  /** Arrow keys, Enter and Tab drive the menu while it is open. */
+  const handleMenuKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (!menu) return false;
+    const count = menu.items.length;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setMenuDismissed(true);
+      return true;
+    }
+    if (count === 0) return false;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setMenuIndex((i) => (i + (e.key === 'ArrowDown' ? 1 : count - 1)) % count);
+      return true;
+    }
+    if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+      e.preventDefault();
+      pickMenuItem(Math.min(menuIndex, count - 1));
+      return true;
+    }
+    return false;
+  };
+
   const handleSend = async () => {
     if (!hasPendingInput || isBusy) return;
 
-    const typed = input.trim();
+    let typed = input.trim();
+    let tool: string | undefined;
+    const command = resolveSlashCommand(typed);
+    if (command) {
+      if (!command.argument) {
+        toast(`Add ${command.command.argument} after ${command.command.label}.`, { icon: null });
+        return;
+      }
+      typed = command.command.expand(command.argument);
+      tool = command.command.tool;
+    }
+    typed = attachMentionedStories(typed, mentions).text;
+
     const content = quote
       ? `[QUOTED FROM YOUR PREVIOUS RESPONSE]\n${quote}\n[/QUOTED]\n${typed}`
       : typed;
@@ -1109,9 +1348,33 @@ export function EditorPane() {
     setImages([]);
     setDocuments([]);
     setQuote(null);
+    setMentions([]);
 
-    await dispatchMessage(content, outgoingImages, outgoingDocuments);
+    await dispatchMessage(content, outgoingImages, outgoingDocuments, tool ? { tool } : {});
   };
+
+  // Requests from other views ("Write about this", Cmd+K) to start in chat.
+  // Held in a ref so the listener always sees current state without
+  // re-subscribing on every render.
+  const composeRef = useRef<(detail: ComposeDetail) => void>(() => undefined);
+  composeRef.current = (detail: ComposeDetail) => {
+    if (detail.send && !isBusy) {
+      void dispatchMessage(detail.text, [], [], detail.tool !== undefined ? { tool: detail.tool } : {});
+      return;
+    }
+    setInput(detail.text);
+    placeCaret(detail.text.length);
+  };
+
+  useEffect(() => {
+    const run = () => {
+      const detail = takePendingCompose();
+      if (detail) composeRef.current(detail);
+    };
+    run();
+    window.addEventListener(COMPOSE_EVENT, run);
+    return () => window.removeEventListener(COMPOSE_EVENT, run);
+  }, []);
 
   // ==========================================================================
   // MARKDOWN RENDERING
@@ -1119,7 +1382,8 @@ export function EditorPane() {
 
   const renderCodeBlock = useCallback((props: any) => {
     const { children, className, node, ...rest } = props;
-    const match = /language-(\w+)/.exec(className || '');
+    // [\w-]: marker languages contain a hyphen (forge-draft).
+    const match = /language-([\w-]+)/.exec(className || '');
     const isInline = !match && !className?.includes('language-');
 
     if (isInline) {
@@ -1131,7 +1395,23 @@ export function EditorPane() {
     }
 
     const language = match?.[1]?.toLowerCase() || 'code';
-    const rawText = Array.isArray(children) ? children.join('') : String(children);
+    const rawText = (Array.isArray(children) ? children.join('') : String(children)).replace(/\n$/, '');
+
+    // Rich content persisted as marker blocks (see lib/forge/types MARKER).
+    if (language === MARKER.draft) {
+      const id = safeJson<{ id?: string }>(rawText)?.id;
+      return id ? <DraftCardById id={id} /> : null;
+    }
+    if (language === MARKER.questions) return <QuestionsMarker raw={rawText} />;
+    if (language === MARKER.plan) return <PlanMarker raw={rawText} />;
+    if (language === MARKER.memory) {
+      const memory = safeJson<{ kind: 'rule' | 'story'; id: string; label: string }>(rawText);
+      return memory ? <MemoryChip kind={memory.kind} id={memory.id} label={memory.label} /> : null;
+    }
+    if (language === MARKER.grade) {
+      const payload = safeJson<{ grade: Grade; cardId: string | null; hook: string }>(rawText);
+      return payload ? <GradeReveal grade={payload.grade} cardId={payload.cardId} hook={payload.hook} /> : null;
+    }
 
     if (language === 'grader') {
       try {
@@ -1189,6 +1469,47 @@ export function EditorPane() {
     // handleDirectionSelect is stable enough for this purpose; isBusy is the
     // value that must stay current so option buttons disable mid-generation.
   }, [isBusy]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const markdownComponents = useMemo(
+    () => ({
+      code: renderCodeBlock,
+      // Fenced blocks render their own containers (code panels and cards), so
+      // the default <pre> wrapper would only nest a card inside a <pre>.
+      pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    }),
+    [renderCodeBlock]
+  );
+
+  const renderAssistantSegments = (content: string) =>
+    parseAssistantMessage(content).segments.map((segment, idx) =>
+      segment.kind === 'canvas' ? (
+        <CanvasBlock key={idx} title={segment.title} content={segment.value} />
+      ) : (
+        <div
+          key={idx}
+          className="prose prose-invert prose-sm max-w-none min-w-0 break-words text-[15.5px] prose-p:leading-relaxed prose-headings:font-semibold prose-headings:tracking-[-0.01em] prose-a:text-forge-gold prose-a:break-all prose-strong:text-white prose-table:block prose-table:overflow-x-auto"
+        >
+          <ReactMarkdown
+            // @ts-ignore - plugin typing mismatch between remark and react-markdown versions
+            remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+            components={markdownComponents}
+          >
+            {preprocessMath(segment.value)}
+          </ReactMarkdown>
+        </div>
+      )
+    );
+
+  const sendFromCard = useCallback(
+    (message: string) => {
+      if (isBusy) return;
+      void dispatchMessage(message);
+    },
+    // dispatchMessage closes over current state; isBusy gates re-entry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isBusy, activeSessionId, activeTool]
+  );
 
   // ==========================================================================
   // RENDER
@@ -1297,15 +1618,23 @@ export function EditorPane() {
         {!isChatActive ? (
           <div className="flex-1 flex flex-col items-center justify-center w-full min-h-full px-4 animate-in fade-in duration-500">
             <h1 className="text-[26px] sm:text-[28px] md:text-[40px] font-normal text-[#f5f5f5] tracking-tight mb-8 text-center px-2 break-words">
-              {sessionGreeting || `Hey there, ${greetingName}`}
+              {sessionGreeting || (greetingName.toLowerCase() === 'there' ? 'What are we writing today?' : `Hey there, ${greetingName}`)}
             </h1>
           </div>
         ) : (
           <div className="flex-1 flex flex-col w-full min-h-full min-w-0">
             <div className="flex-1 min-h-0" />
             <div ref={transcriptRef} className="max-w-3xl mx-auto w-full min-w-0 px-3 md:px-0 space-y-8 md:space-y-10 pb-12">
-              {messages.map((msg: Message) => {
+              {messages.map((msg: Message, msgIndex: number) => {
                 const isUser = msg.role === 'user';
+                const cardContext: MessageCardContext = {
+                  answered: msgIndex < messages.length - 1,
+                  disabled: isBusy,
+                  send: sendFromCard,
+                  approvePlan: handlePlanApproval,
+                };
+                const answers = isUser ? parseAnswers(msg.content) : null;
+                const approvedPlan = isUser ? parseApprovedPlan(msg.content) : null;
                 const parsedUser = isUser ? parseUserMessage(msg.content) : null;
                 const parsedAssistant = !isUser ? parseAssistantMessage(msg.content) : null;
                 const isExpanded = expandedThoughts[msg.id];
@@ -1348,6 +1677,21 @@ export function EditorPane() {
                                 : <FileText className="w-3.5 h-3.5 text-[#d18a5e] shrink-0" />}
                               <span className="max-w-[160px] truncate">{file.name}</span>
                             </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {parsedUser && parsedUser.stories.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-2 justify-end">
+                          {parsedUser.stories.map((title) => (
+                            <span
+                              key={title}
+                              className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] py-1 pl-2.5 pr-3 text-[12px] text-white/80"
+                              title="From your Story Bank"
+                            >
+                              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-forge-ember" />
+                              <span className="max-w-[200px] truncate">{title}</span>
+                            </span>
                           ))}
                         </div>
                       )}
@@ -1412,27 +1756,24 @@ export function EditorPane() {
                             }`}
                           >
                             {isUser ? (
-                              parsedUser?.text
-                            ) : (
-                              parsedAssistant?.segments.map((segment, idx) =>
-                                segment.kind === 'canvas' ? (
-                                  <CanvasBlock key={idx} title={segment.title} content={segment.value} />
-                                ) : (
-                                  <div
-                                    key={idx}
-                                    className="prose prose-invert prose-sm max-w-none min-w-0 break-words prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-400 prose-a:break-all prose-pre:bg-[#111] prose-pre:border prose-pre:border-[#333] prose-table:block prose-table:overflow-x-auto"
-                                  >
-                                    <ReactMarkdown
-                                      // @ts-ignore - plugin typing mismatch between remark and react-markdown versions
-                                      remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
-                                      rehypePlugins={[rehypeKatex]}
-                                      components={{ code: renderCodeBlock }}
-                                    >
-                                      {preprocessMath(segment.value)}
-                                    </ReactMarkdown>
-                                  </div>
-                                )
+                              answers ? (
+                                <span className="flex flex-col gap-1.5">
+                                  {answers.map((pair, i) => (
+                                    <span key={i} className="block">
+                                      <span className="text-white/45">{pair.question} </span>
+                                      {pair.answer}
+                                    </span>
+                                  ))}
+                                </span>
+                              ) : approvedPlan ? (
+                                <span>
+                                  Approved the plan for <span className="font-medium">{approvedPlan.title}</span> ({approvedPlan.items.length} {approvedPlan.items.length === 1 ? 'item' : 'items'})
+                                </span>
+                              ) : (
+                                parsedUser?.text
                               )
+                            ) : (
+                              <CardContext.Provider value={cardContext}>{renderAssistantSegments(msg.content)}</CardContext.Provider>
                             )}
                           </div>
 
@@ -1473,13 +1814,19 @@ export function EditorPane() {
               })}
 
               {isLoading && (
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-transparent flex items-center justify-center shrink-0">
+                <div className="flex gap-3 sm:gap-4 min-w-0">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
                     <Aperture className="w-5 h-5 text-[#d18a5e] animate-[spin_3s_linear_infinite]" />
                   </div>
-                  <div className="flex flex-col gap-2 mt-1.5">
-                    <div className="h-3 w-32 bg-[#222] rounded-full animate-pulse"></div>
-                    <div className="h-3 w-48 bg-[#111] rounded-full animate-pulse"></div>
+                  <div className="flex flex-col min-w-0 max-w-[92%] md:max-w-[85%] flex-1 pt-1" data-message-role="assistant">
+                    <ProgressSteps steps={live?.steps ?? [{ id: 'start', label: 'Starting', state: 'active' }]} />
+                    {live && live.content.trim() && (
+                      <div className="text-[#e0e0e0]">
+                        <CardContext.Provider value={{ answered: false, disabled: true, send: sendFromCard, approvePlan: handlePlanApproval }}>
+                          {renderAssistantSegments(live.content)}
+                        </CardContext.Provider>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1529,7 +1876,19 @@ export function EditorPane() {
               isDragging ? 'border-[#d18a5e]' : 'border-[#333]'
             } ${isChatActive ? 'rounded-[28px] min-h-[56px] pl-2 pr-2' : 'rounded-[28px] min-h-[56px] pl-4 sm:pl-6 pr-2'}`}>
 
-              {(images.length > 0 || documents.length > 0) && (
+              {menu && (
+                <ComposerMenu
+                  title={menu.title}
+                  items={menu.items}
+                  activeIndex={Math.min(menuIndex, Math.max(menu.items.length - 1, 0))}
+                  loading={menu.loading}
+                  empty={menu.empty}
+                  onPick={pickMenuItem}
+                  onHover={setMenuIndex}
+                />
+              )}
+
+              {!menu && (images.length > 0 || documents.length > 0) && (
                 <div className="absolute bottom-full left-0 right-0 mb-3 flex gap-2 flex-wrap z-50">
                   {images.map((img: string, idx: number) => (
                     <div key={`img-${idx}`} className="relative inline-block group shrink-0">
@@ -1582,17 +1941,33 @@ export function EditorPane() {
               )}
 
               {activeToolName && (
-                <div className="bg-[#2a2a2a] text-white text-[13px] font-medium px-3 py-1.5 mb-2 rounded-[10px] shrink-0 mr-2 flex items-center max-w-[120px] truncate">
-                  {activeToolName}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => useAppStore.getState().setActiveTool(null)}
+                  title={`${activeToolName}. Click to turn off.`}
+                  className="group/tool mb-2.5 mr-2 flex h-8 max-w-[160px] shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.05] pl-3 pr-2 text-[12.5px] font-medium text-white"
+                >
+                  <span className="truncate">{activeToolName}</span>
+                  <X className="h-3 w-3 shrink-0 text-white/40 group-hover/tool:text-white" aria-hidden />
+                </button>
               )}
 
               <textarea
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  syncCaret(e.target);
+                  setMenuDismissed(false);
+                  setMenuIndex(0);
+                }}
+                onSelect={(e) => syncCaret(e.currentTarget)}
+                onBlur={() => setMenuDismissed(true)}
+                onFocus={() => setMenuDismissed(false)}
                 onPaste={handlePaste}
+                aria-autocomplete="list"
                 onKeyDown={(e) => {
+                  if (handleMenuKey(e)) return;
                   // Send on Enter only with a hardware keyboard. See
                   // isHardwareKeyboard above for why.
                   if (e.key === 'Enter' && !e.shiftKey && isHardwareKeyboard()) {
@@ -1600,7 +1975,7 @@ export function EditorPane() {
                     handleSend();
                   }
                 }}
-                placeholder={isEncoding ? 'Reading files...' : 'Ask Forge...'}
+                placeholder={isEncoding ? 'Reading files...' : 'Ask Forge, / for commands, @ for a story'}
                 rows={1}
                 enterKeyHint="enter"
                 // 16px on mobile: below that, iOS Safari zooms the page in on
@@ -1660,14 +2035,22 @@ export function EditorPane() {
 
           {!isChatActive && (
             <div className="flex flex-wrap justify-center gap-x-6 sm:gap-x-8 gap-y-3 md:gap-[60px] mt-[24px] md:mt-[30px] px-2">
-              {['Write Ebook', 'Content Analysis', 'Linkedin post'].map((suggestion) => (
+              {STARTERS.map((starter) => (
                 <button
-                  key={suggestion}
+                  key={starter.label}
                   type="button"
-                  onClick={() => setInput(suggestion)}
+                  onClick={() => {
+                    setInput(starter.prompt);
+                    requestAnimationFrame(() => {
+                      const el = textareaRef.current;
+                      if (!el) return;
+                      el.focus();
+                      el.setSelectionRange(starter.prompt.length, starter.prompt.length);
+                    });
+                  }}
                   className="text-[14px] text-[#888] font-medium py-1 cursor-pointer hover:text-white transition-colors"
                 >
-                  {suggestion}
+                  {starter.label}
                 </button>
               ))}
             </div>

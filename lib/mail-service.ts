@@ -614,7 +614,19 @@ function renderPost(event: ScheduledPostEvent, timezone: string): string {
       ${subheading(esc(event.title))}
       ${hook}
       ${draft}
+      ${xComposeLink(event)}
     </div>`;
+}
+
+/**
+ * For X posts, a link that opens X's own composer with the post filled in,
+ * so publishing from the email is one tap. Threads are left to the app,
+ * because X's composer takes one post at a time.
+ */
+function xComposeLink(event: ScheduledPostEvent): string {
+  if (event.platform !== 'X' || !event.post_content || event.post_content.length > 280) return '';
+  const href = `https://x.com/intent/post?text=${encodeURIComponent(event.post_content)}`;
+  return `<p style="margin:14px 0 0 0;font-family:${FONT};font-size:13px;"><a href="${esc(href)}" style="color:${C.accent};text-decoration:none;font-weight:600;">Open in X with this post</a></p>`;
 }
 
 export const sendScheduledPostEmail = async (
@@ -648,5 +660,286 @@ export const sendScheduledPostEmail = async (
       body,
       footerNote: 'Sent because you scheduled these in Forge. Change or cancel them in your calendar.',
     }),
+  });
+};
+
+// ============================================================================
+// COMPETITOR WATCH: WEEKLY DIGEST
+// ============================================================================
+
+export interface DigestEmailPost {
+  handle: string;
+  text: string;
+  url: string;
+  lift: number;
+  likes: number;
+  replies: number;
+}
+
+export const sendCompetitorDigestEmail = async (
+  email: string,
+  name: string,
+  posts: DigestEmailPost[],
+  openings: Array<{ label: string; medianLift: number }>
+): Promise<boolean> => {
+  if (posts.length === 0) return false;
+
+  const items = posts
+    .slice(0, 5)
+    .map(
+      (post) => `
+      <div style="margin:0 0 28px 0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px 0;">
+          <tr>
+            <td style="padding-right:10px;font-family:${FONT};font-size:13px;font-weight:600;color:${C.ink};">@${esc(post.handle)}</td>
+            <td style="font-family:${FONT};font-size:12px;font-weight:600;color:${C.accent};">${esc(post.lift)}x their usual</td>
+          </tr>
+        </table>
+        ${panel(esc(post.text.length > 420 ? `${post.text.slice(0, 417)}...` : post.text))}
+        <p style="margin:8px 0 0 0;font-family:${FONT};font-size:12px;color:${C.muted};">${esc(post.likes)} likes, ${esc(post.replies)} replies. <a href="${esc(post.url)}" style="color:${C.accent};text-decoration:none;">Open on X</a></p>
+      </div>`
+    )
+    .join('');
+
+  const openingLine =
+    openings.length > 0
+      ? para(`Openings that worked for them: ${openings.slice(0, 3).map((o) => `${esc(o.label.toLowerCase())} (${esc(o.medianLift)}x)`).join(', ')}.`)
+      : '';
+
+  const body =
+    heading('What worked for the accounts you watch') +
+    para(`Hi ${esc(name || 'there')}. Ranked by how far each post beat that account's own usual this week.`) +
+    openingLine +
+    rule('8px 0 28px 0') +
+    items +
+    button('Write your take in Forge', appUrl('/dashboard?view=signals'));
+
+  return send({
+    to: email,
+    from: FROM.system,
+    subject: `This week: @${posts[0].handle} did ${posts[0].lift}x their usual`,
+    html: shell({
+      preheader: 'The best posts from the accounts you watch, and why they worked.',
+      body,
+      footerNote: 'Sent weekly because you watch accounts in Forge. Remove them under Signals to stop.',
+    }),
+  });
+};
+
+// ============================================================================
+// CLIENT APPROVALS
+// ============================================================================
+
+export const sendApprovalRequestEmail = async (args: {
+  to: string;
+  clientName: string;
+  senderName: string;
+  platform: string;
+  excerpt: string;
+  url: string;
+}): Promise<boolean> => {
+  const body =
+    heading('A post is ready for your approval') +
+    para(`${esc(args.senderName)} drafted this ${esc(args.platform)} post for ${esc(args.clientName)} and would like your sign-off.`) +
+    panel(esc(args.excerpt)) +
+    `<div style="height:24px"></div>` +
+    button('Review and approve', args.url) +
+    small('You can approve it or ask for changes. No account needed. The link expires in 30 days.');
+
+  return send({
+    to: args.to,
+    from: FROM.system,
+    subject: `Approve this ${args.platform} post for ${args.clientName}`,
+    html: shell({ preheader: 'One click to approve or ask for changes.', body, footerNote: `Sent on behalf of ${args.senderName} using Forge.` }),
+  });
+};
+
+export const sendApprovalDecisionEmail = async (args: {
+  to: string;
+  name: string;
+  clientName: string;
+  approved: boolean;
+  comment: string | null;
+  excerpt: string;
+}): Promise<boolean> => {
+  const body =
+    heading(args.approved ? `${esc(args.clientName)} approved the post` : `${esc(args.clientName)} asked for changes`) +
+    para(args.approved ? 'It is ready to schedule or post.' : 'Their note is below. Edit the draft and send it again.') +
+    (args.comment ? panel(esc(args.comment)) : '') +
+    `<div style="height:16px"></div>` +
+    panel(esc(args.excerpt), true) +
+    `<div style="height:24px"></div>` +
+    button('Open in Forge', appUrl('/dashboard?view=drafts'));
+
+  return send({
+    to: args.to,
+    from: FROM.system,
+    subject: args.approved ? `Approved: ${args.excerpt.slice(0, 60)}` : `Changes requested: ${args.excerpt.slice(0, 60)}`,
+    html: shell({ preheader: args.approved ? 'Ready to post.' : 'Your client left a note.', body }),
+  });
+};
+
+// ============================================================================
+// THE WEEKLY PLAN
+//
+// Sent because the person turned the weekly plan on; they turn it off in
+// Account, Notifications, or in the plan's own settings.
+// ============================================================================
+
+export interface WeeklyPlanEmailDraft {
+  platform: string;
+  title: string;
+  opening: string;
+  slot: string | null;
+}
+
+export const sendWeeklyPlanEmail = async (args: {
+  to: string;
+  firstName: string;
+  brandName: string | null;
+  drafts: WeeklyPlanEmailDraft[];
+  reviewUrl: string;
+  note: string | null;
+}): Promise<boolean> => {
+  const count = args.drafts.length;
+  const items = args.drafts
+    .map(
+      (draft) => `
+      <div style="margin:0 0 14px 0;padding:16px 18px;background-color:${C.panel};border:1px solid #1f1f1f;border-radius:12px;">
+        <div style="font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${C.accent};margin:0 0 6px 0;">${esc(draft.platform)}${draft.slot ? ` &nbsp;·&nbsp; ${esc(draft.slot)}` : ''}</div>
+        <div style="font-family:${FONT};font-size:15px;line-height:1.6;color:${C.ink};">${esc(draft.opening)}</div>
+      </div>`
+    )
+    .join('');
+
+  const body =
+    badge('Your week') +
+    heading(count > 0 ? `${count} draft${count === 1 ? '' : 's'}, ready when you are` : 'Nothing to plan from yet') +
+    para(
+      count > 0
+        ? `Hi ${esc(args.firstName)}. Forge wrote this week${args.brandName ? ` for ${esc(args.brandName)}` : ''} from what you captured, what your audience asked and what has worked for you. Each one is graded and timed. Approve, edit or skip; about ten minutes.`
+        : `Hi ${esc(args.firstName)}. There was nothing new to write from this week. Record a voice note or forward an email to Forge, and next week's plan writes itself from it.`
+    ) +
+    items +
+    (args.note ? small(esc(args.note)) : '') +
+    `<div style="height:8px"></div>` +
+    button(count > 0 ? 'Review your week' : 'Capture something', args.reviewUrl);
+
+  return send({
+    to: args.to,
+    from: FROM.system,
+    subject: count > 0 ? `Your week is ready: ${count} draft${count === 1 ? '' : 's'}` : 'Your weekly plan is waiting for material',
+    html: shell({
+      preheader: count > 0 ? 'Approve, edit or skip. About ten minutes.' : 'One voice note is enough to start.',
+      body,
+      footerNote: 'Sent because the weekly plan is on. Turn it off in Account, Notifications.',
+    }),
+  });
+};
+
+// ============================================================================
+// COLLABORATION
+// ============================================================================
+
+export const sendDraftCommentEmail = async (args: {
+  to: string;
+  authorName: string;
+  workspaceName: string | null;
+  excerpt: string;
+  quote: string | null;
+  comment: string;
+  url: string;
+}): Promise<boolean> => {
+  const body =
+    heading(`${esc(args.authorName)} commented on a draft`) +
+    para(args.workspaceName ? `In ${esc(args.workspaceName)}.` : 'On one of your drafts.') +
+    (args.quote ? panel(`&ldquo;${esc(args.quote)}&rdquo;`, true) : '') +
+    panel(esc(args.comment)) +
+    small(esc(args.excerpt)) +
+    `<div style="height:12px"></div>` +
+    button('Open the draft', args.url);
+
+  return send({
+    to: args.to,
+    from: FROM.system,
+    subject: `${args.authorName} commented: ${args.comment.slice(0, 60)}`,
+    html: shell({ preheader: args.comment.slice(0, 120), body, footerNote: 'Sent because you work on this draft. Turn comment emails off in Account, Notifications.' }),
+  });
+};
+
+export const sendResultEmail = async (args: { to: string; firstName: string; label: string; title: string; detail: string; url: string; cta: string }): Promise<boolean> => {
+  const body = badge(args.label) + heading(esc(args.title)) + para(`Hi ${esc(args.firstName)}. ${esc(args.detail)}`) + button(args.cta, args.url);
+  return send({
+    to: args.to,
+    from: FROM.system,
+    subject: args.title,
+    html: shell({ preheader: args.detail.slice(0, 120), body, footerNote: 'Sent because results emails are on. Turn them off in Account, Notifications.' }),
+  });
+};
+
+export const sendWorkspaceInviteEmail = async (args: {
+  to: string;
+  inviterName: string;
+  workspaceName: string;
+  roleLabel: string;
+  roleDescription: string;
+  url: string;
+}): Promise<boolean> => {
+  const body =
+    badge('Invitation') +
+    heading(`Join ${esc(args.workspaceName)} on Forge`) +
+    para(`${esc(args.inviterName)} invited you as ${esc(args.roleLabel.toLowerCase())}. ${esc(args.roleDescription)}`) +
+    button('Accept the invitation', args.url) +
+    small('The link works once and expires in 14 days. If you were not expecting this, you can ignore it.');
+
+  return send({
+    to: args.to,
+    from: FROM.system,
+    subject: `${args.inviterName} invited you to ${args.workspaceName} on Forge`,
+    html: shell({ preheader: `Join as ${args.roleLabel.toLowerCase()}.`, body, footerNote: `Sent on behalf of ${args.inviterName}.` }),
+  });
+};
+
+export const sendClientReportEmail = async (args: {
+  to: string;
+  workspaceName: string;
+  senderName: string;
+  period: string;
+  headline: string;
+  url: string;
+}): Promise<boolean> => {
+  const body =
+    badge(esc(args.period)) +
+    heading(`${esc(args.workspaceName)}: the month in posts`) +
+    para(esc(args.headline)) +
+    button('Read the report', args.url) +
+    small(`Prepared by ${esc(args.senderName)} with Forge. No account needed to read it.`);
+
+  return send({
+    to: args.to,
+    from: FROM.system,
+    subject: `${args.workspaceName}: ${args.period} report`,
+    html: shell({ preheader: args.headline.slice(0, 120), body, footerNote: `Sent on behalf of ${args.senderName}.` }),
+  });
+};
+
+// ============================================================================
+// ACCOUNT
+// ============================================================================
+
+export const sendAccountDeletedEmail = async (args: { to: string; firstName: string }): Promise<boolean> => {
+  const body =
+    heading('Your Forge account is deleted') +
+    para(
+      `Hi ${esc(args.firstName)}. As you asked, your account and everything in it has been deleted: drafts, Story Bank, voice samples, captures, results and connected accounts. Any subscription was cancelled.`
+    ) +
+    para('Payment records are kept by our payment processor as tax law requires. Nothing else remains with us.') +
+    small('If you did not ask for this, reply to this email straight away.');
+
+  return send({
+    to: args.to,
+    from: FROM.system,
+    subject: 'Your Forge account is deleted',
+    html: shell({ preheader: 'Everything in it has been removed.', body, footerNote: 'Sent once, to confirm a deletion you requested.' }),
   });
 };

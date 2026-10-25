@@ -2,10 +2,9 @@ import { Redis } from "@upstash/redis";
 
 const isProduction = process.env.NODE_ENV === "production";
 
-// Strict environment check: fail loud if missing in production
-if (isProduction && (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN)) {
-  throw new Error("FATAL: Missing Upstash Redis environment variables in production.");
-}
+// Missing Redis in production fails at the first request (see
+// consumeRateLimit), not at import: an import-time throw breaks `next build`,
+// which loads every route module without production secrets.
 
 const redis =
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
@@ -47,7 +46,7 @@ export async function consumeRateLimit(
   } else {
     // Dev fallback guardrail
     if (isProduction) {
-      throw new Error("Cannot use memory store in production environment.");
+      throw new Error("Upstash Redis is not configured (UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN). Free tool limits cannot be enforced.");
     }
     const now = Date.now();
     const existing = memoryStore.get(key);

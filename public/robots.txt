@@ -13,6 +13,8 @@ Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 # ── Core search engines ─────────────────────────────────────────────────────
 User-agent: Googlebot
@@ -20,12 +22,16 @@ Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: Bingbot
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 # ── AI answer/search (citation) engines ─────────────────────────────────────
 # Allowing these is what makes Forge eligible to be cited in ChatGPT Search,
@@ -35,42 +41,56 @@ Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: ChatGPT-User
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: Claude-SearchBot
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: Claude-User
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: PerplexityBot
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: Perplexity-User
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: Amazonbot
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 # ── AI training crawlers ─────────────────────────────────────────────────────
 # Allowing these means Forge's content can end up in a model's baseline
@@ -80,36 +100,48 @@ Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: ClaudeBot
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: anthropic-ai
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: Google-Extended
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: Applebot-Extended
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 User-agent: CCBot
 Allow: /
 Disallow: /dashboard/
 Disallow: /account/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /approve/
 
 # Sitemap
 Sitemap: https://forgeyourway.dev/sitemap.xml

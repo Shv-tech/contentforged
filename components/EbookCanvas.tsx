@@ -1,20 +1,20 @@
 'use client';
 
 /**
- * EbookCanvas â€” Production-Grade Ebook Renderer
- * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * EbookCanvas — Production-Grade Ebook Renderer
+ * ─────────────────────────────────────────────
  * Fixed:
- * â€¢ normalizeMarkdown() â€” inserts blank lines before all block-level elements
+ * • normalizeMarkdown() — inserts blank lines before all block-level elements
  *   so ReactMarkdown always sees valid CommonMark/GFM structure
- * â€¢ Mermaid fenced code blocks now reliably detected and rendered
- * â€¢ GFM tables render correctly (blank line injected before every `|` row)
- * â€¢ H2 / H3 headings render correctly (blank lines before every `#` run)
- * â€¢ Content pagination is markdown-aware: never breaks mid-table or mid-heading
- * â€¢ Content area uses proper flex+scroll so text is never clipped by overflow:hidden
- * â€¢ Print root now normalizes content identically so PDF output is clean
- * â€¢ Mermaid render is debounced and uses a stable unique id to prevent collisions
- * â€¢ TypeScript types tightened throughout; no `any` on ReactMarkdown code prop
- * â€¢ Minor: TOC "Section X" label falls back to first heading found in content
+ * • Mermaid fenced code blocks now reliably detected and rendered
+ * • GFM tables render correctly (blank line injected before every `|` row)
+ * • H2 / H3 headings render correctly (blank lines before every `#` run)
+ * • Content pagination is markdown-aware: never breaks mid-table or mid-heading
+ * • Content area uses proper flex+scroll so text is never clipped by overflow:hidden
+ * • Print root now normalizes content identically so PDF output is clean
+ * • Mermaid render is debounced and uses a stable unique id to prevent collisions
+ * • TypeScript types tightened throughout; no `any` on ReactMarkdown code prop
+ * • Minor: TOC "Section X" label falls back to first heading found in content
  */
 
 import React, {
@@ -45,9 +45,9 @@ mermaid.initialize({
   securityLevel: 'loose',
 });
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // TYPES
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 type PageKind = 'cover' | 'chapter' | 'content';
 
@@ -72,9 +72,9 @@ interface Theme {
   borderColor: string;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// MARKDOWN NORMALIZER  â† THE CORE FIX
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// MARKDOWN NORMALIZER  → THE CORE FIX
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Ensures every block-level markdown element is preceded by a blank line,
@@ -82,17 +82,17 @@ interface Theme {
  *
  * The previous regex-based approach (`([^\n])\n(\|)`) inserted `\n\n` before
  * every line starting with `|`, including rows INSIDE a table. GFM tables
- * require all rows to be consecutive â€” a blank line between rows breaks the
+ * require all rows to be consecutive — a blank line between rows breaks the
  * table into fragments that render as raw text. This line-by-line version
  * correctly inserts a blank only before the FIRST `|` row of each table.
  *
  * Rules:
- *  1. Blank line before ATX headings   (# â€¦ ######)
+ *  1. Blank line before ATX headings   (# … ######)
  *  2. Blank line before the FIRST row of a table block  (|)
- *     â€” never between rows that are already inside a table
+ *     — never between rows that are already inside a table
  *  3. Blank line before opening fenced code blocks  (``` or ~~~)
  *  4. Blank line after  closing fenced code blocks
- *  5. Collapse 3+ consecutive blank lines â†’ exactly 2  (cosmetic)
+ *  5. Collapse 3+ consecutive blank lines → exactly 2  (cosmetic)
  */
 function normalizeMarkdown(raw: string): string {
   // Normalise line endings
@@ -110,7 +110,7 @@ function normalizeMarkdown(raw: string): string {
     // Track fenced code blocks so we never mangle content inside them
     if (/^(`{3,}|~{3,})/.test(trimmed)) {
       if (!inFencedBlock) {
-        // Opening fence â€” insert blank line before it if needed
+        // Opening fence — insert blank line before it if needed
         if (prevTrimmed !== '') {
           out.push('');
         }
@@ -129,7 +129,7 @@ function normalizeMarkdown(raw: string): string {
       continue;
     }
 
-    // Inside a fenced block â€” pass through verbatim
+    // Inside a fenced block — pass through verbatim
     if (inFencedBlock) {
       out.push(line);
       continue;
@@ -156,13 +156,13 @@ function normalizeMarkdown(raw: string): string {
     out.push(line);
   }
 
-  // Collapse 3+ blank lines â†’ 2
+  // Collapse 3+ blank lines → 2
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // THEME ENGINE
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 const THEMES: Record<string, Theme> = {
   crimson: {
@@ -288,9 +288,9 @@ function detectTheme(title: string, content: string): Theme {
   return THEMES.crimson;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // MERMAID DIAGRAM RENDERER
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Counter for stable unique IDs (avoids Math.random collisions in fast renders)
 let mermaidCounter = 0;
@@ -336,9 +336,9 @@ const MermaidBlock = ({ code }: { code: string }) => {
   );
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // MARKDOWN-AWARE PAGINATION HELPER
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Returns the first heading text found in a markdown string, or undefined.
@@ -371,7 +371,7 @@ function paginateMarkdown(md: string, charLimit = 2400): string[] {
 
     if (!inFence) {
       if (fenceCount % 2 === 1) {
-        // Opening fence without close â€” start accumulating
+        // Opening fence without close — start accumulating
         inFence = true;
         fenceAccum = block;
       } else {
@@ -387,7 +387,7 @@ function paginateMarkdown(md: string, charLimit = 2400): string[] {
       }
     }
   }
-  if (fenceAccum) blocks.push(fenceAccum); // unclosed fence â€” push anyway
+  if (fenceAccum) blocks.push(fenceAccum); // unclosed fence — push anyway
 
   // Now accumulate blocks into pages
   const pages: string[] = [];
@@ -398,7 +398,7 @@ function paginateMarkdown(md: string, charLimit = 2400): string[] {
     const separator = current ? '\n\n' : '';
 
     // If adding this block would overflow, flush current page first
-    // Exception: never start a new page on a heading alone â€” keep heading with next block
+    // Exception: never start a new page on a heading alone — keep heading with next block
     if (
       current &&
       !isHeading &&
@@ -415,9 +415,9 @@ function paginateMarkdown(md: string, charLimit = 2400): string[] {
   return pages;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // CONTENT PARSER
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 function parseContent(content: string): EbookPage[] {
   const pages: EbookPage[] = [];
@@ -439,7 +439,7 @@ function parseContent(content: string): EbookPage[] {
   }
   if (currentChunk.length > 0) chapterChunks.push(currentChunk.join('\n'));
 
-  // STEP 3: Fallback â€” no chapters found, paginate whole doc
+  // STEP 3: Fallback — no chapters found, paginate whole doc
   if (chapterChunks.length === 1 && !/^# /m.test(normalised)) {
     const paginated = paginateMarkdown(normalised);
     for (const pg of paginated) {
@@ -493,9 +493,9 @@ function parseContent(content: string): EbookPage[] {
   return pages;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // SHARED REACT-MARKDOWN COMPONENTS FACTORY
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Centralised component map so both ContentPage and PrintRoot use identical
@@ -732,7 +732,7 @@ function makeComponents(theme: Theme): Components {
       />
     ),
 
-    // â”€â”€ Code blocks & inline code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Code blocks & inline code ──────────────────────────────────────────
     code: ({
       children,
       className,
@@ -748,7 +748,7 @@ function makeComponents(theme: Theme): Components {
         );
       }
 
-      // Inline code â€” no `inline` prop from remark; detect by absence of newlines
+      // Inline code — no `inline` prop from remark; detect by absence of newlines
       const isInline = !String(children).includes('\n') && !className;
       if (isInline) {
         return (
@@ -792,9 +792,9 @@ function makeComponents(theme: Theme): Components {
   };
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // COVER PAGE
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 function CoverPage({
   mainTitle,
@@ -908,9 +908,9 @@ function CoverPage({
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // CHAPTER TITLE PAGE
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 function ChapterPage({ page, theme }: { page: EbookPage; theme: Theme }) {
   const numStr = String(page.chapterNum ?? 1).padStart(2, '0');
@@ -979,7 +979,7 @@ function ChapterPage({ page, theme }: { page: EbookPage; theme: Theme }) {
               .trim()
               .substring(0, 180)
               .trimEnd()}
-            â€¦
+            …
           </p>
         )}
       </div>
@@ -987,9 +987,9 @@ function ChapterPage({ page, theme }: { page: EbookPage; theme: Theme }) {
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // CONTENT PAGE
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 function ContentPage({
   page,
@@ -1055,9 +1055,9 @@ function ContentPage({
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // TABLE OF CONTENTS PANEL
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 function TOCPanel({
   pages,
@@ -1119,7 +1119,7 @@ function TOCPanel({
             className="text-[10px] font-bold w-5 text-center flex-none"
             style={{ color: theme.mutedText }}
           >
-            â€”
+            —
           </span>
           <span
             className="text-[13px] font-semibold"
@@ -1176,9 +1176,9 @@ function TOCPanel({
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // PDF PRINT STYLESHEET
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 function injectPrintStyles(theme: Theme) {
   const id = 'ebook-print-css';
@@ -1199,7 +1199,7 @@ function injectPrintStyles(theme: Theme) {
 
       /*
        * Fixed pages (cover + chapter title slides) stay exactly one A4 page.
-       * Content is intentionally clipped here â€” these are full-bleed decorative pages.
+       * Content is intentionally clipped here — these are full-bleed decorative pages.
        */
       .ebook-fixed-page {
         width: 210mm;
@@ -1405,9 +1405,9 @@ function injectPrintStyles(theme: Theme) {
   document.head.appendChild(style);
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // HIDDEN PRINT ROOT
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 function PrintRoot({
   mainTitle,
@@ -1539,9 +1539,9 @@ function PrintRoot({
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function EbookCanvas({
   title,
@@ -1556,7 +1556,7 @@ export default function EbookCanvas({
   const [showTOC, setShowTOC] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Parse title â†’ main + subtitle
+  // Parse title → main + subtitle
   const colonIdx = title.indexOf(':');
   const mainTitle = colonIdx > 0 ? title.slice(0, colonIdx).trim() : title;
   const subTitle = colonIdx > 0 ? title.slice(colonIdx + 1).trim() : '';
@@ -1576,7 +1576,7 @@ export default function EbookCanvas({
   const pages = useMemo(() => parseContent(sanitizedContent), [sanitizedContent]);
   const totalPages = pages.length + 1; // +1 for cover
 
-  // â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Navigation ────────────────────────────────────────────────────────────
 
   const navigate = useCallback(
     (newDir: number) => {
@@ -1608,11 +1608,11 @@ export default function EbookCanvas({
     return () => window.removeEventListener('keydown', handler);
   }, [navigate]);
 
-  // â”€â”€ PDF Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── PDF Export ────────────────────────────────────────────────────────────
 
   const handleExport = useCallback(() => {
     setIsExporting(true);
-    const toastId = toast.loading('Compiling PDFâ€¦');
+    const toastId = toast.loading('Compiling PDF…');
 
     try {
       const printContents = printRef.current?.innerHTML;
@@ -1718,7 +1718,7 @@ export default function EbookCanvas({
       iframeDoc.close();
 
       iframe.onload = () => {
-        toast.success('Ready â€” choose "Save as PDF" in the print dialog.', {
+        toast.success('Ready — choose "Save as PDF" in the print dialog.', {
           id: toastId,
         });
         iframe.contentWindow?.focus();
@@ -1735,7 +1735,7 @@ export default function EbookCanvas({
     }
   }, [mainTitle, theme]);
 
-  // â”€â”€ Page flip animation variants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Page flip animation variants ─────────────────────────────────────────
 
   const variants: Variants = {
     enter: (dir: number) => ({
@@ -1765,7 +1765,7 @@ export default function EbookCanvas({
     }),
   };
 
-  // â”€â”€ Render a single page by index â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Render a single page by index ────────────────────────────────────────
 
   const renderPage = (idx: number) => {
     if (idx === 0) {
@@ -1794,7 +1794,7 @@ export default function EbookCanvas({
 
   const progress = (currentPage / Math.max(totalPages - 1, 1)) * 100;
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -1879,7 +1879,7 @@ export default function EbookCanvas({
               style={{ background: theme.accent }}
             >
               <Download className="w-3.5 h-3.5" />
-              {isExporting ? 'Preparingâ€¦' : 'Export PDF'}
+              {isExporting ? 'Preparing…' : 'Export PDF'}
             </button>
           </div>
         </div>

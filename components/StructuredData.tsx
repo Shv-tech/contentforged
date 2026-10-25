@@ -26,15 +26,9 @@ export default function StructuredData() {
         '@type': 'Organization',
         name: 'SHV Groups Pvt Ltd',
       },
-      // Add your real social/profile URLs here — this is what lets Google
-      // (and AI models) confidently link "Forge/Forge" to a single
-      // verified entity instead of guessing among the many unrelated
-      // products also named "Forge".
-      // sameAs: [
-      //   'https://x.com/yourhandle',
-      //   'https://www.linkedin.com/company/yourcompany',
-      //   'https://github.com/yourorg',
-      // ],
+      // Links the name "Forge" to one verified entity rather than the many
+      // unrelated products that share it.
+      sameAs: ['https://x.com/forgeyourway', 'https://www.linkedin.com/company/forgeyourway'],
     },
     {
       '@context': 'https://schema.org',
@@ -50,11 +44,12 @@ export default function StructuredData() {
       operatingSystem: 'Web',
       url: BASE_URL,
       description:
-        'AI content operating system that remembers your Brand DNA, scores every post before you publish, and plans a 90-day LinkedIn/Instagram content calendar.',
+        'Forge learns your voice from your own posts, writes in it, grades every draft before you post, and learns from what performs.',
       offers: {
         '@type': 'Offer',
-        url: `${BASE_URL}/pricing`,
-        // priceCurrency / price: fill in from your actual pricing tiers.
+        url: `${BASE_URL}/#pricing`,
+        price: '0',
+        priceCurrency: 'USD',
       },
     },
   ];

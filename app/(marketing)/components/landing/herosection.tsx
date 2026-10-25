@@ -1,134 +1,57 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { motion, useScroll, useTransform, useReducedMotion, Variants, useMotionValue, useSpring } from 'framer-motion';
-import { 
-  ArrowRight, 
-  Menu, 
-  MessageSquarePlus, 
-  Search, 
-  Book, 
-  Calendar, 
-  Settings, 
-  Plus, 
-  ArrowUp, 
-  PanelRight 
-} from 'lucide-react';
+import Image from 'next/image';
+import { motion, useScroll, useTransform, useReducedMotion, useInView, AnimatePresence } from 'framer-motion';
+import { MessageSquarePlus, Search, Book, Calendar, Plus, ArrowUp, Check } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { HERO } from '../../lib/landing-data';
-import { MouseEvent } from 'react';
+import { HERO, HERO_DEMO } from '../../lib/landing-data';
+import { pillWhite, focusRing } from './forge-art';
 
-// Cinematic cubic-bezier easing
-const customEase = [0.16, 1, 0.3, 1] as any;
+const ease = [0.16, 1, 0.3, 1] as any;
 
-const staggerContainer: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.1 },
-  },
-};
-
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 30 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 1, ease: customEase },
-  },
-};
-
-const lineReveal: Variants = {
-  hidden: { opacity: 0, y: '0.6em', filter: 'blur(8px)', clipPath: 'inset(0 0 100% 0)' },
-  visible: {
-    opacity: 1,
-    y: 0,
-    filter: 'blur(0px)',
-    clipPath: 'inset(0 0 -100% 0)',
-    transition: { duration: 1.2, ease: customEase },
-  },
-};
-
+/**
+ * The hero is the page's one orchestrated moment: the headline arrives, then
+ * the workspace rises out of molten light and settles flat as you scroll.
+ * Inside it, Forge is shown working (typed, written, graded, scheduled) until
+ * a real screen recording is dropped into HERO.recordingSrc.
+ */
 export default function HeroSection() {
   const { user } = useAppStore();
-  const prefersReducedMotion = useReducedMotion();
-  const { scrollYProgress } = useScroll();
-  
-  // Fade out the hero core on scroll
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
-  const heroY = useTransform(scrollYProgress, [0, 1], [0, 150]);
+  const reduce = useReducedMotion();
+  const frameRef = useRef<HTMLDivElement>(null);
 
-  // 3D Tilt Logic for the Dashboard
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const mouseXSpring = useSpring(mouseX, { stiffness: 100, damping: 30 });
-  const mouseYSpring = useSpring(mouseY, { stiffness: 100, damping: 30 });
-  
-  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ['4deg', '-4deg']);
-  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ['-4deg', '4deg']);
+  const { scrollYProgress } = useScroll({ target: frameRef, offset: ['start end', 'center center'] });
+  const rotateX = useTransform(scrollYProgress, [0, 1], reduce ? [0, 0] : [22, 0]);
+  const scale = useTransform(scrollYProgress, [0, 1], reduce ? [1, 1] : [0.88, 1]);
 
-  const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
-    if (prefersReducedMotion) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    mouseX.set(x / width - 0.5);
-    mouseY.set(y / height - 0.5);
-  };
-
-  const scrollToHow = (e: React.MouseEvent) => {
+  const goToGrader = (e: React.MouseEvent) => {
     e.preventDefault();
-    document.getElementById('how')?.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('try')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
-    <section className="relative pt-40 px-6 flex flex-col items-center text-center max-w-[1200px] mx-auto z-10 overflow-hidden">
-      
-      {/* --- THE OMNI-CORE (Video Background) --- */}
-<motion.div
-  style={{ y: heroY, opacity: heroOpacity }}
-  className="absolute inset-0 pointer-events-none -z-10 flex justify-center items-center overflow-hidden"
->
-  <video 
-  autoPlay 
-  loop 
-  muted 
-  playsInline 
-  // Changed positioning here to pull it UP behind the headline
-  className="w-[1200px] h-[1200px] max-w-none object-cover opacity-55 mix-blend-screen absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-[30%]"
-  style={{ 
-    maskImage: 'radial-gradient(circle, black 30%, transparent 70%)',
-    WebkitMaskImage: 'radial-gradient(circle, black 30%, transparent 70%)'
-  }} 
->
-  <source src="/assets/video4.mp4" type="video/mp4" />
-</video>
+    <section className="relative overflow-hidden">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[900px] overflow-hidden">
+        <video
+          autoPlay loop muted playsInline preload="metadata"
+          className="absolute left-1/2 top-[-120px] h-[1100px] w-[1100px] max-w-none -translate-x-1/2 object-cover opacity-35 mix-blend-screen"
+          style={{ maskImage: 'radial-gradient(circle, black 25%, transparent 65%)', WebkitMaskImage: 'radial-gradient(circle, black 25%, transparent 65%)' }}
+        >
+          <source src="/assets/video4.mp4" type="video/mp4" />
+        </video>
+      </div>
 
-        {/* Fallback ambient glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#d18a5e] rounded-full opacity-[0.03] blur-[100px]" />
-      </motion.div>
-
-      {/* --- HEADLINE BLOCK --- */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={staggerContainer}
-        className="flex flex-col items-center relative z-20"
-      >
-        
-
-        <h1 className="font-medium text-[52px] md:text-[90px] tracking-[-0.04em] text-white/95 leading-[1.05] mb-8 max-w-[1000px]">
+      <div className="relative z-10 mx-auto max-w-[1240px] px-5 pt-40 text-center sm:px-8 sm:pt-52">
+        <h1 className="mx-auto max-w-[1200px] text-[50px] font-semibold leading-[0.96] tracking-[-0.055em] text-white sm:text-[80px] lg:text-[100px] xl:text-[108px]">
           {HERO.headlineLines.map((line, i) => (
             <motion.span
               key={line}
-              variants={lineReveal}
-              className={
-                i === HERO.headlineLines.length - 1
-                  ? 'block text-[#d18a5e] drop-shadow-[0_0_30px_rgba(209,138,94,0.15)]'
-                  : 'block'
-              }
+              className="block"
+              initial={reduce ? false : { opacity: 0, y: 28, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              transition={{ duration: 1.1, delay: 0.1 + i * 0.12, ease }}
             >
               {line}
             </motion.span>
@@ -136,191 +59,176 @@ export default function HeroSection() {
         </h1>
 
         <motion.p
-          variants={fadeUp}
-          className="text-[18px] md:text-[20px] text-white/95 max-w-[680px] leading-relaxed mb-14 font-light"
+          className="mx-auto mt-8 max-w-[560px] text-[19px] leading-[1.5] text-white/60 sm:text-[22px]"
+          initial={reduce ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 0.4, ease }}
         >
           {HERO.subheadline}
         </motion.p>
 
         <motion.div
-          variants={fadeUp}
-          className="flex flex-col sm:flex-row items-center justify-center gap-6 relative z-10 mb-12"
+          className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-5"
+          initial={reduce ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 0.55, ease }}
         >
-          <Link
-            href={user ? '/dashboard' : '/signup'}
-            className="group relative inline-flex items-center gap-3 bg-white/[0.03] border border-white/[0.08] text-white font-medium px-8 py-4 rounded-full hover:bg-white/[0.08] transition-colors duration-300 backdrop-blur-md"
-          >
-            <span>{user ? 'Enter Workspace' : HERO.ctaPrimary}</span>
-            <ArrowRight className="w-4 h-4 text-white/60 transition-transform group-hover:translate-x-1 group-hover:text-white" />
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-[#d18a5e]/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <Link href={user ? '/dashboard' : '/signup'} className={`${pillWhite} px-7 py-3.5 text-[16px]`}>
+            {user ? 'Open your workspace' : HERO.ctaPrimary}
           </Link>
-
-          <a
-            href="#how"
-            onClick={scrollToHow}
-            className="inline-flex items-center gap-2 text-[14px] font-medium text-white/40 hover:text-white/80 transition-colors px-2 py-4"
-          >
+          <a href="#try" onClick={goToGrader} className={`rounded-full px-4 py-3 text-[16px] text-white/70 transition hover:text-white ${focusRing}`}>
             {HERO.ctaSecondary}
           </a>
         </motion.div>
-      </motion.div>
-
-      
-
-      {/* --- 3D FLOATING DASHBOARD SHOWCASE --- */}
-      <motion.div
-        initial={{ opacity: 0, y: 80 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-100px' }}
-        transition={{ duration: 1.2, ease: customEase }}
-        className="w-full max-w-[1200px] relative pb-40 perspective-[2000px]"
-        onMouseMove={handleMouseMove}
-      >
-        <motion.div 
-          style={{ rotateX, rotateY }}
-          className="w-full h-[700px] bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-[24px] shadow-[0_40px_80px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.1)] flex overflow-hidden relative text-left font-sans"
-        >{/* The "Glass" shine: A subtle top-border highlight */}
-           <div className="absolute inset-10 bg-gradient-to-b from-white/[20] to-transparent pointer-events-none" />
-          
-          {/* Sidebar */}
-          <div className="w-[280px] bg-[#050505] border-r border-white/[0.04] hidden md:flex flex-col z-10 shrink-0">
-            <div className="p-6 flex justify-end">
-              <Menu className="w-5 h-5 text-white/40" />
-            </div>
-            
-            <div className="px-4 space-y-1.5">
-              <div className="flex items-center gap-3 px-3 py-2.5 bg-white/[0.06] rounded-[8px] text-white/90 text-[13px] font-medium border border-white/[0.02]">
-                <MessageSquarePlus className="w-4 h-4 text-white/70" />
-                New chat
-              </div>
-              <div className="flex items-center gap-3 px-3 py-2.5 text-white/50 text-[13px] hover:text-white/80 transition-colors">
-                <Search className="w-4 h-4" /> Search chat
-              </div>
-              <div className="flex items-center gap-3 px-3 py-2.5 text-white/50 text-[13px] hover:text-white/80 transition-colors">
-                <Book className="w-4 h-4" /> My Ebooks
-              </div>
-              <div className="flex items-center gap-3 px-3 py-2.5 text-white/50 text-[13px] hover:text-white/80 transition-colors">
-                <Calendar className="w-4 h-4" /> Calendar
-              </div>
-            </div>
-
-            <div className="mt-8 px-7">
-              <span className="text-[10px] text-white/30 uppercase tracking-[0.1em] font-medium">Recents</span>
-            </div>
-            
-            <div className="mt-3 px-4 flex-1 overflow-hidden space-y-1">
-              {[
-                'New Workspace', 
-                'hey how are youDocument ...', 
-                'heyDocument Analysis', 
-                'Is A/B testing really worth it...', 
-                'New Workspace', 
-                'say sorry to me mDocumen...', 
-                'make ebook how to find a g...'
-              ].map((item, i) => (
-                 <div key={i} className="px-3 py-2 text-[12px] text-white/40 whitespace-nowrap overflow-hidden text-ellipsis hover:text-white/80 cursor-default">
-                   {item}
-                 </div>
-              ))}
-            </div>
-
-            {/* User Profile Footer */}
-            <div className="p-4">
-              <div className="flex items-center gap-3 bg-[#0a0a0a] border border-white/[0.04] p-3 rounded-[12px]">
-                <div className="w-9 h-9 rounded-[8px] bg-[#d18a5e]/10 text-[#d18a5e] flex items-center justify-center text-[13px] font-medium shrink-0">
-                  C
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <div className="text-[13px] text-white/90 font-medium truncate">YOU</div>
-                  <div className="text-[10px] text-white/40 tracking-wider uppercase mt-0.5">PRO</div>
-                </div>
-                <Settings className="w-4 h-4 text-white/40 shrink-0" />
-              </div>
-            </div>
-          </div>
-
-          {/* Main Canvas Area */}
-          <div className="flex-1 bg-[#000] relative flex flex-col items-center justify-center overflow-hidden">
-            
-            {/* Immersive Center Glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[#d18a5e] opacity-[0.07] blur-[120px] rounded-full pointer-events-none" />
-            
-            {/* Top Right Panel Icon */}
-            <div className="absolute top-6 right-6 w-9 h-9 rounded-full border border-white/[0.05] flex items-center justify-center bg-white/[0.02]">
-              <PanelRight className="w-4 h-4 text-white/50" />
-            </div>
-
-            {/* Center Text */}
-            <h2 className="text-[28px] md:text-[34px] text-white/95 font-medium tracking-tight mb-[140px] relative z-10">
-              The canvas is yours, Yes YOU!
-            </h2>
-
-            {/* Bottom Input UI */}
-            <div className="absolute bottom-12 w-full max-w-[640px] px-6">
-              <div className="flex items-center gap-3 mb-5">
-                <button className="w-11 h-11 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.08] transition-colors shrink-0">
-                  <Plus className="w-5 h-5" />
-                </button>
-                <div className="flex-1 h-12 bg-white/[0.03] border border-white/[0.06] rounded-full flex items-center px-5 relative group transition-colors hover:border-white/[0.1]">
-                  <span className="text-white/40 text-[14px]">Ask Forge...</span>
-                  <button className="absolute right-1.5 w-9 h-9 rounded-full bg-white/[0.08] flex items-center justify-center text-white/50 group-hover:text-white transition-colors">
-                    <ArrowUp className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center justify-center gap-8 text-[12.5px] text-white/40">
-                <span className="hover:text-white/80 transition-colors cursor-default">Write Ebook</span>
-                <span className="hover:text-white/80 transition-colors cursor-default">Content Analysis</span>
-                <span className="hover:text-white/80 transition-colors cursor-default">Linkedin post</span>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      </motion.div>
-
-
-        {/* --- SOCIAL PROOF MARQUEE --- */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 1.5, ease: customEase }}
-        className="w-full max-w-[1200px] mb-32 relative z-10"
-      >
-        <p className="text-[11px] text-white/30 font-mono uppercase tracking-[0.2em] mb-8">
-          {HERO.socialProofLabel}
-        </p>
-        <div
-  className="relative overflow-hidden flex items-center"
-  style={{
-    maskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)',
-    WebkitMaskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)',
-  }}
->
-  <div className="flex animate-[cf-marquee_40s_linear_infinite] whitespace-nowrap gap-24 items-center opacity-40">
-    {[...HERO.logos, ...HERO.logos].map((logo, i) => (
-      <div key={`${logo.name}-${i}`} className="flex items-center gap-3">
-        <img 
-          src={logo.src} 
-          alt={logo.name} 
-          className="h-6 w-auto object-contain brightness-0 invert opacity-70 hover:opacity-100 transition-opacity duration-300" 
-        />
-        <span className="text-[16px] font-medium text-white tracking-tight">
-          {logo.displayName}
-        </span>
       </div>
-    ))}
-  </div>
-</div>
-      </motion.div>
 
-
-      <style jsx global>{`
-        @keyframes cf-marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-      `}</style>
+      <div ref={frameRef} className="relative mx-auto mt-20 max-w-[1240px] px-5 pb-16 sm:px-8" style={{ perspective: 1600 }}>
+        {/* Molten light behind the workspace */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-[-12%] top-[-140px] bottom-[-60px]"
+          style={{ maskImage: 'radial-gradient(62% 58% at 50% 42%, black 30%, transparent 78%)', WebkitMaskImage: 'radial-gradient(62% 58% at 50% 42%, black 30%, transparent 78%)' }}>
+          <Image src="/assets/art/molten.jpg" alt="" fill sizes="100vw" className="object-cover" style={{ objectPosition: '50% 80%' }} priority />
+        </div>
+        <motion.div
+          style={{ rotateX, scale, transformOrigin: '50% 100%' }}
+          className="relative overflow-hidden rounded-[22px] border border-white/[0.1] bg-[#050505] shadow-[0_60px_140px_-30px_rgba(0,0,0,1)]"
+        >
+          {HERO.recordingSrc ? (
+            <video src={HERO.recordingSrc} autoPlay loop muted playsInline className="block h-auto w-full" aria-label="Forge workspace demo" />
+          ) : (
+            <WorkspaceFilm />
+          )}
+        </motion.div>
+      </div>
     </section>
+  );
+}
+
+// ─── The coded demo ──────────────────────────────────────────────────────────
+
+const LOOP = 15000;
+
+function useClock(active: boolean) {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    let raf = 0; const start = performance.now();
+    const tick = (now: number) => { setT((now - start) % LOOP); raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active]);
+  return t;
+}
+
+function WorkspaceFilm() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: '-10% 0px' });
+  const reduce = useReducedMotion();
+  const t = useClock(inView && !reduce);
+  const time = reduce ? 13000 : t;
+
+  const prompt = HERO_DEMO.prompt;
+  const typed = Math.min(prompt.length, Math.floor(Math.max(0, time - 600) / 45));
+  const sent = time > 3400;
+  const fullResponse = HERO_DEMO.response.join('\n\n');
+  const streamed = Math.min(fullResponse.length, Math.floor(Math.max(0, time - 4200) / 22));
+  const graded = time > 9400;
+  const scheduled = time > 11000;
+
+  return (
+    <div ref={ref} className="flex h-[440px] text-left sm:h-[640px]" aria-label="Forge writing, grading and scheduling a post" role="img">
+      <div className="hidden w-[240px] shrink-0 flex-col border-r border-white/[0.05] bg-[#070707] md:flex">
+        <div className="flex items-center gap-2.5 px-5 pt-5">
+          <Image src="/logos/forge.svg" alt="" width={20} height={20} />
+          <span className="text-[13px] font-semibold tracking-[0.16em] text-white/85">FORGE</span>
+        </div>
+        <div className="mt-5 space-y-1 px-3">
+          <div className="flex items-center gap-3 rounded-lg bg-white/[0.06] px-3 py-2.5 text-[13px] text-white/90">
+            <MessageSquarePlus className="h-4 w-4 text-white/60" /> New chat
+          </div>
+          {[[Search, 'Search'], [Book, 'Ebooks'], [Calendar, 'Calendar']].map(([Icon, label]: any) => (
+            <div key={label} className="flex items-center gap-3 px-3 py-2.5 text-[13px] text-white/45">
+              <Icon className="h-4 w-4" /> {label}
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 px-6 text-[11.5px] text-white/30">Recent</div>
+        <div className="mt-2 space-y-0.5 px-3">
+          {['Launch thread for Thursday', 'Why we price per seat', 'Hiring carousel', 'Newsletter intro, issue 14'].map((r) => (
+            <div key={r} className="truncate px-3 py-1.5 text-[12.5px] text-white/40">{r}</div>
+          ))}
+        </div>
+        <div className="mt-auto p-3">
+          <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
+            <div className="text-[11.5px] text-white/40">Brand DNA</div>
+            <div className="mt-1 text-[12.5px] text-white/80">Direct, specific, a little dry</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative flex flex-1 flex-col overflow-hidden bg-black">
+        <AnimatePresence>
+          {scheduled && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, ease }}
+              className="absolute right-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/10 bg-[#111]/90 px-3.5 py-2 text-[12.5px] text-white/85 backdrop-blur"
+            >
+              <Calendar className="h-3.5 w-3.5 text-[#FFB067]" /> {HERO_DEMO.scheduled}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="flex-1 space-y-5 overflow-hidden px-5 pt-16 sm:px-12 sm:pt-20">
+          {sent && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}
+              className="ml-auto max-w-[80%] rounded-2xl rounded-br-md bg-white/[0.08] px-4 py-2.5 text-[14px] text-white/90 sm:text-[15px]">
+              {prompt}
+            </motion.div>
+          )}
+          {time > 3900 && (
+            <div className="flex gap-3">
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06]">
+                <Image src="/logos/forge.svg" alt="" width={16} height={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="whitespace-pre-line text-[15px] leading-[1.6] text-white/90 sm:text-[17px]">
+                  {fullResponse.slice(0, streamed)}
+                  {streamed < fullResponse.length && <span className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[0.15em] bg-white/80" />}
+                </p>
+                {graded && (
+                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }}
+                    className="mt-5 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] py-2 pl-2 pr-4">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-[#FFB067] to-[#E0570A] text-[13px] font-semibold text-black tabular-nums">
+                      {HERO_DEMO.score}
+                    </span>
+                    <span className="text-[13px] text-white/70">
+                      Stop-scroll score out of 50.
+                      <span className="ml-1.5 inline-flex items-center gap-1 text-white"><Check className="h-3.5 w-3.5" />{HERO_DEMO.verdict}</span>
+                    </span>
+                  </motion.div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 pb-6 sm:px-12 sm:pb-10">
+          <div className="flex items-center gap-3">
+            <div className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.03] sm:flex">
+              <Plus className="h-5 w-5 text-white/50" />
+            </div>
+            <div className="relative flex h-12 flex-1 items-center rounded-full border border-white/[0.09] bg-white/[0.03] pl-5 pr-14">
+              <span className={`truncate text-[14px] ${sent ? 'text-white/35' : 'text-white/85'}`}>
+                {sent ? 'Ask Forge anything' : prompt.slice(0, typed)}
+                {!sent && typed < prompt.length && <span className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[0.15em] bg-white/80" />}
+              </span>
+              <div className={`absolute right-1.5 flex h-9 w-9 items-center justify-center rounded-full transition ${typed >= prompt.length && !sent ? 'bg-white text-black' : 'bg-white/10 text-white/50'}`}>
+                <ArrowUp className="h-4 w-4" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

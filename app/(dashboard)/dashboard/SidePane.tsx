@@ -1,413 +1,376 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { MoreVertical, Trash2, Edit2, Share2 } from 'lucide-react';
-import { useAppStore } from '@/lib/store';
-import { createClient } from '@/lib/supabase-browser';
+/**
+ * The navigation column: new chat, the views, Recents, and the account.
+ *
+ * Recents are ordered by last activity (chat_sessions.last_message_at, kept
+ * current by the chat route), not creation time, and grouped by when they
+ * were last used. The previous ordering by created_at buried a conversation
+ * the user was still working in under every chat started since.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { MoreVertical, Edit2, Share2, Trash2 } from 'lucide-react';
+import { useAppStore, type SidebarView } from '@/lib/store';
+import { createClient } from '@/lib/supabase-browser';
 import { displayName, userInitial } from '@/lib/user-display';
 import { PLANS } from '@/lib/billing/plans';
+import { cn, focusRing, useDismiss } from '@/components/forge/ui';
+import { WorkspaceSwitcher } from '@/components/forge/workspaces/WorkspaceSwitcher';
+import { useWorkspaceStore } from '@/lib/forge/client';
+
+interface SessionRow {
+  id: string;
+  title: string;
+  created_at: string;
+  last_message_at: string | null;
+}
+
+const NAV: ReadonlyArray<{ view: SidebarView; label: string; icon: string }> = [
+  { view: 'search', label: 'Search', icon: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-4-4' },
+  { view: 'inbox', label: 'Inbox', icon: 'M4 13.5 6.5 5h11l2.5 8.5V19H4v-5.5ZM4 13.5h4.5l1.5 2.5h4l1.5-2.5H20' },
+  { view: 'plan', label: 'This week', icon: 'M4 6h16v14H4V6ZM4 10h16M8 3v4M16 3v4M8 14l2.5 2.5L16 13' },
+  { view: 'drafts', label: 'Drafts', icon: 'M5 4h10l4 4v12H5V4ZM15 4v4h4M8.5 12h7M8.5 16h5' },
+  { view: 'brand', label: 'Brand', icon: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17ZM8.5 14c.9 1.2 2 1.8 3.5 1.8s2.6-.6 3.5-1.8M9 9.5h.01M15 9.5h.01' },
+  { view: 'signals', label: 'Signals', icon: 'M4 18a8 8 0 0 1 16 0M7.5 18a4.5 4.5 0 0 1 9 0M12 18h.01M12 4v3' },
+  { view: 'playbook', label: 'Playbook', icon: 'M4 20V10M10 20V4M16 20v-7M21 20H3' },
+  { view: 'formats', label: 'Formats', icon: 'M4 5h7v6H4V5ZM13 5h7v3h-7V5ZM13 10h7v9h-7v-9ZM4 13h7v6H4v-6Z' },
+  { view: 'team', label: 'Team', icon: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM3 20c.6-3.4 3-5.5 6-5.5s5.4 2.1 6 5.5M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14.8c1.7.7 2.8 2.5 3 5.2' },
+  { view: 'calendar', label: 'Calendar', icon: 'M4 6h16v14H4V6ZM4 10h16M8 3v4M16 3v4' },
+  { view: 'ebooks', label: 'Ebooks', icon: 'M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15ZM5 19.5A1.5 1.5 0 0 0 6.5 21H19' },
+];
+
+function NavIcon({ d }: { d: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[19px] w-[19px] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={d} />
+    </svg>
+  );
+}
+
+/** "Today", "Yesterday", "This week", "This month", "Older". */
+function activityGroup(iso: string, now: Date): string {
+  const date = new Date(iso);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const day = 86_400_000;
+  const t = date.getTime();
+  if (t >= startOfToday) return 'Today';
+  if (t >= startOfToday - day) return 'Yesterday';
+  if (t >= startOfToday - 6 * day) return 'This week';
+  if (t >= startOfToday - 29 * day) return 'This month';
+  return 'Older';
+}
 
 export function SidebarPane() {
-  const {
-    user,
-    activeSessionId,
-    setActiveSessionId,
-    isSidebarOpen,
-    toggleSidebar,
-    sidebarView,
-    plan,
-    setSidebarView,
-  } = useAppStore();
+  const { user, activeSessionId, setActiveSessionId, isSidebarOpen, toggleSidebar, sidebarView, plan, setSidebarView } = useAppStore();
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+  const workspaceId = useWorkspaceStore((s) => s.activeId);
+  const workspacesLoaded = useWorkspaceStore((s) => s.loaded);
 
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editSessionTitle, setEditSessionTitle] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
 
   const menuRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
-  const supabase = createClient();
+
+  const closeMenu = useCallback(() => {
+    setMenuOpen(null);
+    setConfirmDelete(false);
+  }, []);
+  useDismiss(menuOpen !== null, closeMenu, [menuRef]);
 
   /**
-   * Closes the drawer after a navigation action, on mobile only.
-   *
-   * On a phone the sidebar covers the content it navigates to, so leaving it
-   * open after a selection means the user taps a chat and appears to land
-   * nowhere. On desktop it is a persistent column and must stay put.
+   * On a phone the sidebar covers what it navigates to, so it closes after a
+   * choice. On desktop it is a persistent column and stays.
    */
   const closeOnMobile = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768 && isSidebarOpen) {
-      toggleSidebar();
-    }
+    if (typeof window !== 'undefined' && window.innerWidth < 768 && isSidebarOpen) toggleSidebar();
   };
 
-  const fetchSessions = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('chat_sessions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    if (data) setSessions(data);
+  const fetchSessions = useCallback(async () => {
+    if (!user || !workspacesLoaded) return;
+    const base = supabase.from('chat_sessions').select('id, title, created_at, last_message_at').eq('user_id', user.id);
+    // Each brand has its own Recents.
+    const scoped = workspaceId ? base.eq('workspace_id', workspaceId) : base.is('workspace_id', null);
+    const { data } = await scoped
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(150);
+    if (data) setSessions(data as SessionRow[]);
+  }, [supabase, user, workspaceId, workspacesLoaded]);
+
+  useEffect(() => {
+    void fetchSessions();
+    const refresh = () => void fetchSessions();
+    window.addEventListener('refresh-sidebar', refresh);
+    return () => window.removeEventListener('refresh-sidebar', refresh);
+  }, [fetchSessions, activeSessionId]);
+
+  useEffect(() => {
+    if (editingId) editInputRef.current?.focus();
+  }, [editingId]);
+
+  const grouped = useMemo(() => {
+    const now = new Date();
+    const groups: Array<{ label: string; items: SessionRow[] }> = [];
+    for (const session of sessions) {
+      const label = activityGroup(session.last_message_at ?? session.created_at, now);
+      const last = groups[groups.length - 1];
+      if (last && last.label === label) last.items.push(session);
+      else groups.push({ label, items: [session] });
+    }
+    return groups;
+  }, [sessions]);
+
+  const newChat = () => {
+    // A session row is created when the first message is sent, so an
+    // abandoned "New chat" never leaves an empty entry in Recents.
+    setActiveSessionId(null);
+    setSidebarView('chat');
+    closeOnMobile();
   };
 
-  useEffect(() => {
-    fetchSessions();
-    window.addEventListener('refresh-sidebar', fetchSessions);
-    return () => window.removeEventListener('refresh-sidebar', fetchSessions);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, supabase, activeSessionId]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(null);
-      }
-    };
-
-    if (menuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [menuOpen]);
-
-  useEffect(() => {
-    if (editingSessionId && editInputRef.current) {
-      editInputRef.current.focus();
-    }
-  }, [editingSessionId]);
-
-  const handleNewWorkspace = async () => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('chat_sessions')
-      .insert({ user_id: user.id, title: 'New Workspace' })
-      .select()
-      .single();
-
-    if (error) {
-      toast.error('Database Error: Could not create workspace. Check RLS policies.');
-      return;
-    }
-    if (data) {
-      setSessions([data, ...sessions]);
-      setActiveSessionId(data.id);
-      setSidebarView('chat');
-    }
+  const open = (view: SidebarView) => {
+    setSidebarView(view);
+    closeOnMobile();
   };
 
   const deleteSession = async (id: string) => {
     if (!user) return;
-
-    // Scoped by user_id as well as id. RLS enforces ownership, but a delete
-    // that depends solely on a policy being correct has no second line of
-    // defence if that policy is ever changed.
-    const { error } = await supabase
-      .from('chat_sessions')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
-
+    // Scoped by user_id as well as id: RLS enforces ownership, and this is
+    // the second line of defence if a policy ever changes.
+    const { error } = await supabase.from('chat_sessions').delete().eq('id', id).eq('user_id', user.id);
     if (error) {
-      toast.error('Could not delete that workspace.');
+      toast.error('Could not delete that conversation.');
       return;
     }
-
-    setSessions(sessions.filter((s) => s.id !== id));
+    setSessions((prev) => prev.filter((s) => s.id !== id));
     if (activeSessionId === id) setActiveSessionId(null);
-    setMenuOpen(null);
+    closeMenu();
   };
 
-  const handleShareSession = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-
-    const { data, error } = await supabase
-      .from('chat_sessions')
-      .update({ is_public: true })
-      .eq('id', id)
-      .select('share_token')
-      .single();
-
+  const shareSession = async (id: string) => {
+    const { data, error } = await supabase.from('chat_sessions').update({ is_public: true }).eq('id', id).select('share_token').single();
+    closeMenu();
     if (error || !data) {
-      toast.error('Failed to generate secure share link.');
+      toast.error('Could not create a share link.');
       return;
     }
-
-    const shareUrl = `${window.location.origin}/share/${data.share_token}`;
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success('Secure share link copied!');
+      await navigator.clipboard.writeText(`${window.location.origin}/share/${data.share_token}`);
+      toast.success('Share link copied. Anyone with it can read this conversation.');
     } catch {
-      toast.error('Failed to copy link');
+      toast.error('Could not copy the link.');
     }
-    setMenuOpen(null);
-  };
-
-  const startRenaming = (e: React.MouseEvent, id: string, currentTitle: string) => {
-    e.stopPropagation();
-    setEditingSessionId(id);
-    setEditSessionTitle(currentTitle);
-    setMenuOpen(null);
   };
 
   const saveRename = async (id: string) => {
-    if (!editSessionTitle.trim()) {
-      setEditingSessionId(null);
+    const title = editTitle.trim();
+    setEditingId(null);
+    if (!title) return;
+    const { error } = await supabase.from('chat_sessions').update({ title }).eq('id', id);
+    if (error) {
+      toast.error('Could not rename that conversation.');
       return;
     }
-
-    const newTitle = editSessionTitle.trim();
-
-    const { error } = await supabase
-      .from('chat_sessions')
-      .update({ title: newTitle })
-      .eq('id', id);
-
-    if (!error) {
-      setSessions(sessions.map((s) => (s.id === id ? { ...s, title: newTitle } : s)));
-    } else {
-      toast.error('Failed to rename workspace.');
-    }
-
-    setEditingSessionId(null);
+    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
   };
 
-  // Deliberately NOT `if (!isSidebarOpen) return null`.
-  //
-  // On mobile the sidebar is an overlay that slides in, and an element that
-  // unmounts cannot animate out. It stays mounted and is translated off-screen
-  // instead, which also keeps the scroll position of the Recents list when it
-  // is reopened.
-  //
-  // On desktop it still collapses to zero width so the editor reclaims the
-  // space, which is the behaviour that already existed.
-
-  // Derived through the shared helper so the sidebar, the editor greeting and
-  // the account page cannot disagree. The previous version read
-  // user.user_metadata.full_name, a field the client user object does not
-  // carry, so it always fell through to the email prefix even when the user
-  // had set a name for themselves.
-  const userName = displayName(user).split(' ')[0];
-  const initial = userInitial(user);
-
-  // The plan label was hardcoded to "PRO" for every visitor, including users
-  // on the free tier, which advertised a paid plan to people who had not
-  // bought one. It now reflects the plan the server actually granted.
-  const planLabel = (PLANS[plan]?.name ?? 'Free').toUpperCase();
+  const name = displayName(user);
+  const planLabel = PLANS[plan]?.name ?? 'Free';
 
   return (
     <>
-      <style>{`
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
+      {/* Scrim: mobile only, while the drawer is open. */}
+      {isSidebarOpen && <div onClick={() => toggleSidebar()} className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[2px] md:hidden" aria-hidden />}
 
       {/*
-        Scrim. Mobile only, and only while the drawer is open.
-
-        Tapping anywhere outside the sidebar closes it, which is the gesture
-        people expect from a drawer. Without it the only way out is the small
-        hamburger, which is a poor target on a phone.
+        Stays mounted when closed so it can animate out on mobile and keep the
+        Recents scroll position. On desktop it collapses to zero width.
       */}
-      {isSidebarOpen && (
-        <div
-          onClick={() => toggleSidebar()}
-          className="md:hidden fixed inset-0 z-30 bg-black/60 backdrop-blur-[2px] animate-in fade-in duration-200"
-          aria-hidden="true"
-        />
-      )}
-
       <aside
-        className={`
-          bg-[#060606] border-r border-[#141414] flex flex-col font-sans
-          p-[24px_20px_20px_20px]
-          transition-transform duration-300 ease-out
-          fixed inset-y-0 left-0 z-40 w-[280px] max-w-[85vw]
-          md:static md:z-20 md:translate-x-0 md:flex-shrink-0
-          md:transition-all
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          ${isSidebarOpen ? 'md:w-[270px]' : 'md:w-0 md:p-0 md:overflow-hidden md:border-r-0'}
-        `}
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 flex w-[280px] max-w-[85vw] flex-col border-r border-white/[0.05] bg-forge-panel font-sans transition-transform duration-300 ease-out',
+          'md:static md:z-20 md:flex-shrink-0 md:translate-x-0 md:transition-all',
+          isSidebarOpen ? 'translate-x-0 md:w-[272px]' : '-translate-x-full md:w-0 md:overflow-hidden md:border-r-0'
+        )}
         style={{ height: '100dvh' }}
+        aria-label="Navigation"
       >
-
-        <div className="flex justify-end mb-6 shrink-0">
-          <button
-            onClick={() => toggleSidebar()}
-            // Enlarged tap target. A 20px icon is below the ~44px minimum that
-            // reads as reliably tappable on a touch screen; negative margin
-            // keeps the visual position unchanged on desktop.
-            className="text-[#666] hover:text-white transition-colors p-2 -m-2"
-            title="Collapse sidebar"
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="12" x2="21" y2="12"></line>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="3" y1="18" x2="21" y2="18"></line>
+        <div className="flex shrink-0 items-center justify-between px-4 pb-3 pt-5">
+          <WorkspaceSwitcher />
+          <button onClick={() => toggleSidebar()} className={cn('-m-2 rounded-full p-2 text-white/40 transition-colors hover:text-white', focusRing)} title="Collapse sidebar" aria-label="Collapse sidebar">
+            <svg viewBox="0 0 24 24" className="h-[19px] w-[19px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+              <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+              <path d="M9.5 4.5v15" />
             </svg>
           </button>
         </div>
 
-        <div className="flex flex-col gap-[26px] mb-[45px]">
-
+        <div className="shrink-0 px-3">
           <button
-            onClick={handleNewWorkspace}
-            className="flex items-center gap-[14px] px-[16px] py-[12px] rounded-[12px] text-[15px] font-bold text-[#e0e0e0] transition-colors -ml-[16px]"
-            style={{
-              background: 'linear-gradient(180deg, rgba(30,30,30,0.8) 0%, rgba(15,15,15,0.8) 100%)',
-            }}
+            onClick={newChat}
+            className={cn(
+              'flex h-11 w-full items-center gap-3 rounded-[14px] border border-white/[0.07] bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-3.5 text-[14.5px] font-semibold text-white transition-colors hover:border-white/[0.14]',
+              focusRing
+            )}
           >
-            <svg viewBox="0 0 24 24" width="20" height="20" stroke="#888" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-              <line x1="9" y1="12" x2="15" y2="12"></line>
-              <line x1="12" y1="9" x2="12" y2="15"></line>
+            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-forge-gold" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <path d="M12 5v14M5 12h14" />
             </svg>
             New chat
           </button>
 
-          <nav className="flex flex-col gap-[28px]">
-            <button onClick={() => { setSidebarView('search'); closeOnMobile(); }} className={`flex items-center gap-[14px] text-[15px] font-medium transition-colors text-left ${sidebarView === 'search' ? 'text-white' : 'text-[#888] hover:text-[#ddd]'}`}>
-              <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                <circle cx="10" cy="10" r="3"></circle>
-                <line x1="12.1" y1="12.1" x2="15" y2="15"></line>
-              </svg>
-              Search chat
-            </button>
-            <button onClick={() => { setSidebarView('ebooks'); closeOnMobile(); }} className={`flex items-center gap-[14px] text-[15px] font-medium transition-colors text-left ${sidebarView === 'ebooks' ? 'text-white' : 'text-[#888] hover:text-[#ddd]'}`}>
-              <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-              </svg>
-              My Ebooks
-            </button>
-            <button onClick={() => { setSidebarView('calendar'); closeOnMobile(); }} className={`flex items-center gap-[14px] text-[15px] font-medium transition-colors text-left ${sidebarView === 'calendar' ? 'text-white' : 'text-[#888] hover:text-[#ddd]'}`}>
-              <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
-              </svg>
-              Calendar
-            </button>
+          <nav className="mt-4 flex flex-col gap-0.5">
+            {NAV.map((item) => {
+              const active = sidebarView === item.view;
+              return (
+                <button
+                  key={item.view}
+                  onClick={() => open(item.view)}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'flex h-10 items-center gap-3 rounded-[12px] px-3 text-left text-[14.5px] font-medium transition-colors',
+                    active ? 'bg-white/[0.06] text-white' : 'text-white/55 hover:bg-white/[0.03] hover:text-white/90',
+                    focusRing
+                  )}
+                >
+                  <NavIcon d={item.icon} />
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
         </div>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <span className="text-[13px] font-semibold text-[#666] mb-[20px] tracking-[0.3px]">Recents</span>
+        <div className="mt-5 flex min-h-0 flex-1 flex-col">
+          <div className="custom-scrollbar flex-1 overflow-y-auto px-3 pb-4">
+            {sessions.length === 0 && <p className="px-3 pt-2 text-[13px] leading-relaxed text-white/35">Conversations you start appear here.</p>}
+            {grouped.map((group) => (
+              <section key={group.label} className="mb-4">
+                <h3 className="mb-1 px-3 text-[11.5px] font-semibold text-white/30">{group.label}</h3>
+                <ul className="flex flex-col">
+                  {group.items.map((session) => {
+                    const active = activeSessionId === session.id && sidebarView === 'chat';
+                    return (
+                      <li key={session.id} className="group relative">
+                        {editingId === session.id ? (
+                          <input
+                            ref={editInputRef}
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onBlur={() => saveRename(session.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void saveRename(session.id);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                            className="h-9 w-full rounded-[10px] border border-white/15 bg-white/[0.04] px-3 text-[14px] text-white outline-none"
+                            aria-label="Conversation title"
+                          />
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setActiveSessionId(session.id);
+                              setSidebarView('chat');
+                              closeOnMobile();
+                            }}
+                            className={cn(
+                              'flex h-9 w-full items-center rounded-[10px] pl-3 pr-9 text-left text-[14px] transition-colors',
+                              active ? 'bg-white/[0.06] text-white' : 'text-white/70 hover:bg-white/[0.03] hover:text-white',
+                              focusRing
+                            )}
+                          >
+                            <span className="truncate">{session.title}</span>
+                          </button>
+                        )}
 
-          <div className="flex-1 overflow-y-auto flex flex-col gap-[18px] hide-scrollbar pb-4">
-            {sessions.map((session) => (
-              <div
-                key={session.id}
-                className="group relative flex items-center justify-between cursor-pointer"
-                onClick={() => {
-                  setActiveSessionId(session.id);
-                  setSidebarView('chat');
-                  closeOnMobile();
-                }}
-              >
-                {editingSessionId === session.id ? (
-                  <input
-                    ref={editInputRef}
-                    type="text"
-                    value={editSessionTitle}
-                    onChange={(e) => setEditSessionTitle(e.target.value)}
-                    onBlur={() => saveRename(session.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        saveRename(session.id);
-                      } else if (e.key === 'Escape') {
-                        setEditingSessionId(null);
-                      }
-                    }}
-                    className="flex-1 bg-[#1a1a1a] text-white text-[14px] font-medium outline-none border border-[#333] rounded px-2 py-0.5 w-[140px] mr-2"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <div className={`text-[15px] font-medium truncate transition-colors flex-1 pr-2 ${activeSessionId === session.id ? 'text-white' : 'text-[#e0e0e0] hover:text-white'}`}>
-                    {session.title}
-                  </div>
-                )}
+                        {editingId !== session.id && (
+                          <button
+                            onClick={() => {
+                              setConfirmDelete(false);
+                              setMenuOpen(menuOpen === session.id ? null : session.id);
+                            }}
+                            className={cn(
+                              'absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-white/45 transition hover:text-white',
+                              menuOpen === session.id ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100'
+                            )}
+                            aria-label={`Options for ${session.title}`}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                        )}
 
-                {!editingSessionId && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === session.id ? null : session.id); }}
-                    className={`p-1 rounded-md opacity-0 group-hover:opacity-100 transition text-[#888] hover:text-white ${menuOpen === session.id ? 'opacity-100' : ''}`}
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-                )}
-
-                {menuOpen === session.id && (
-                  <div
-                    ref={menuRef}
-                    className="absolute right-0 top-8 w-[200px] bg-[#1c1c1c] border border-[#2a2a2a] shadow-[0_8px_30px_rgb(0,0,0,0.4)] rounded-[12px] py-2 z-50"
-                  >
-                    <button
-                      onClick={(e) => startRenaming(e, session.id, session.title)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] font-medium text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white transition-colors"
-                    >
-                      <Edit2 className="w-4 h-4 text-[#888]" /> Rename
-                    </button>
-
-                    <button
-                      onClick={(e) => handleShareSession(e, session.id)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] font-medium text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white transition-colors"
-                    >
-                      <Share2 className="w-4 h-4 text-[#888]" /> Share conversation
-                    </button>
-
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteSession(session.id); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] font-medium text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white transition-colors mt-2"
-                    >
-                      <Trash2 className="w-4 h-4 text-[#888]" /> Delete
-                    </button>
-                  </div>
-                )}
-              </div>
+                        {menuOpen === session.id && (
+                          <div ref={menuRef} className="absolute right-0 top-9 z-50 w-[210px] rounded-[14px] border border-white/[0.08] bg-forge-raised py-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.55)]">
+                            <MenuItem
+                              icon={<Edit2 className="h-4 w-4" />}
+                              label="Rename"
+                              onClick={() => {
+                                setEditingId(session.id);
+                                setEditTitle(session.title);
+                                closeMenu();
+                              }}
+                            />
+                            <MenuItem icon={<Share2 className="h-4 w-4" />} label="Copy share link" onClick={() => shareSession(session.id)} />
+                            <MenuItem
+                              icon={<Trash2 className="h-4 w-4" />}
+                              label={confirmDelete ? 'Delete for good' : 'Delete'}
+                              danger={confirmDelete}
+                              onClick={() => (confirmDelete ? deleteSession(session.id) : setConfirmDelete(true))}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
             ))}
           </div>
         </div>
 
-        {/*
-          The whole card navigates to the account page. It was already styled
-          with cursor-pointer but only the gear icon carried the click handler,
-          so most of the target looked interactive and did nothing.
-        */}
-        <button
-          type="button"
-          onClick={() => router.push('/account')}
-          className="mt-[20px] w-full text-left border border-[#222] hover:border-[#333] rounded-[12px] p-[12px_14px] flex items-center gap-[12px] cursor-pointer transition-colors"
-          style={{ background: 'linear-gradient(180deg, #181818 0%, #0d0d0d 100%)' }}
-        >
-          <div className="w-[30px] h-[30px] rounded-full flex items-center justify-center text-[14px] font-medium text-[#ffc4a3] bg-[#4a2411] shrink-0">
-            {initial}
-          </div>
-
-          <div className="flex flex-col flex-1 leading-tight min-w-0">
-            <span className="text-[14px] font-medium text-white mb-[2px] truncate">{userName}</span>
-            <span className="text-[10px] font-medium text-[#777] tracking-[0.5px]">{planLabel}</span>
-          </div>
-
-          <span className="text-[#888] hover:text-white transition flex items-center justify-center shrink-0">
-            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        <div className="shrink-0 border-t border-white/[0.05] p-3">
+          <button
+            type="button"
+            onClick={() => router.push('/account')}
+            className={cn('flex w-full items-center gap-3 rounded-[14px] p-2.5 text-left transition-colors hover:bg-white/[0.04]', focusRing)}
+            aria-label="Account and settings"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-forge-ember to-forge-ember2 text-[13.5px] font-semibold text-black">
+              {userInitial(user)}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col leading-tight">
+              <span className="truncate text-[14px] font-medium text-white">{name}</span>
+              <span className="text-[12px] text-white/40">{planLabel}</span>
+            </span>
+            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-white/40" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
             </svg>
-          </span>
-        </button>
-
+          </button>
+        </div>
       </aside>
     </>
+  );
+}
+
+function MenuItem({ icon, label, onClick, danger = false }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center gap-3 px-3.5 py-2.5 text-[13.5px] font-medium transition-colors hover:bg-white/[0.05]',
+        danger ? 'text-forge-bad' : 'text-white/80 hover:text-white'
+      )}
+    >
+      <span className={danger ? 'text-forge-bad' : 'text-white/45'}>{icon}</span>
+      {label}
+    </button>
   );
 }

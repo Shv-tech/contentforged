@@ -56,6 +56,9 @@ export interface AppUser {
   fullName: string | null;
 }
 
+/** The main column's views, chosen from the sidebar. */
+export type SidebarView = 'chat' | 'search' | 'inbox' | 'plan' | 'drafts' | 'brand' | 'signals' | 'playbook' | 'formats' | 'team' | 'calendar' | 'ebooks';
+
 interface AppState {
   user: AppUser | null;
 
@@ -84,7 +87,7 @@ interface AppState {
   setActiveSessionId: (id: string | null) => void;
   isSidebarOpen: boolean;
   toggleSidebar: () => void;
-  sidebarView: 'chat' | 'search' | 'ebooks' | 'calendar';
+  sidebarView: SidebarView;
   setSidebarView: (view: AppState['sidebarView']) => void;
 
   renderContent: string | null;

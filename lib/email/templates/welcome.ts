@@ -54,9 +54,8 @@ export function getWelcomeEmailHtml({ firstName, appUrl, unsubscribeUrl }: Welco
           </tr>
           <tr>
             <td style="padding:0;">
-              <!-- Note: Ensure this image is hosted publicly! -->
-              <img src="https://raw.githubusercontent.com/Shv-tech/contentforged/main/workspacesingularity.png"
-                   width="600" alt="Welcome to your workspace singularity"
+              <img src="${appUrl}/assets/email/workspace.jpg"
+                   width="600" alt="The Forge workspace"
                    style="width:100%;max-width:600px;height:auto;display:block;border:0;" />
             </td>
           </tr>

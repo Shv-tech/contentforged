@@ -1,124 +1,209 @@
-// MyEbooksPane.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Search, BookOpen, Download, Share2, MoreVertical, Trash2, X, Loader2 } from 'lucide-react';
+/**
+ * Ebooks written with the Ebook Writer, and guides compiled from the
+ * brand's own posts. Open one to read it page by page and download it as a
+ * PDF from the reader.
+ */
+
+import { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { X } from 'lucide-react';
 import { createClient } from '@/lib/supabase-browser';
 import { useAppStore } from '@/lib/store';
-import toast from 'react-hot-toast';
-import EbookCanvas from '@/components/EbookCanvas';
+import dynamic from 'next/dynamic';
+import { Button, EmptyState, Plate, Popover, Spinner, relativeTime, type PlateName } from '@/components/forge/ui';
+import { ViewShell, composeInChat } from '@/components/forge/views/ViewShell';
+import { CompileDialog } from '@/components/forge/longform/CompileDialog';
+
+// The reader pulls in Mermaid and the PDF exporter; it loads only when a
+// book is opened, not with the workspace.
+const EbookCanvas = dynamic(() => import('@/components/EbookCanvas'), { ssr: false });
 
 interface Ebook {
-  id: string; title: string; content: string; word_count: number;
-  is_public: boolean; share_token: string; created_at: string;
+  id: string;
+  title: string;
+  content: string;
+  word_count: number;
+  is_public: boolean;
+  share_token: string;
+  created_at: string;
 }
+
+const COVERS: readonly PlateName[] = ['molten', 'ingot', 'sparks', 'quench', 'steel', 'slag'];
 
 export function MyEbooksPane() {
   const { user } = useAppStore();
-  const [ebooks, setEbooks] = useState<Ebook[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [ebooks, setEbooks] = useState<Ebook[] | null>(null);
   const [query, setQuery] = useState('');
   const [reading, setReading] = useState<Ebook | null>(null);
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const supabase = createClient();
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [compiling, setCompiling] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
-    const { data } = await supabase.from('ebooks').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-    setEbooks(data || []);
-    setLoading(false);
-  };
+    const { data, error } = await createClient().from('ebooks').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+    if (error) toast.error('Could not load your ebooks.');
+    setEbooks((data as Ebook[] | null) ?? []);
+  }, [user]);
 
-  useEffect(() => { load(); }, [user]);
-
-  const filtered = ebooks.filter(e => e.title.toLowerCase().includes(query.toLowerCase()));
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const toggleShare = async (ebook: Ebook) => {
     const next = !ebook.is_public;
-    const { error } = await supabase.from('ebooks').update({ is_public: next }).eq('id', ebook.id);
-    if (error) { toast.error('Could not update sharing.'); return; }
-    setEbooks(prev => prev.map(e => e.id === ebook.id ? { ...e, is_public: next } : e));
+    const { error } = await createClient().from('ebooks').update({ is_public: next }).eq('id', ebook.id);
+    if (error) {
+      toast.error('Could not update sharing.');
+      return;
+    }
+    setEbooks((prev) => prev?.map((e) => (e.id === ebook.id ? { ...e, is_public: next } : e)) ?? null);
     if (next) {
-      navigator.clipboard.writeText(`${window.location.origin}/share/ebook/${ebook.share_token}`);
-      toast.success('Public link copied to clipboard.');
-    } else toast.success('Ebook is now private.');
-    setMenuOpenId(null);
+      await navigator.clipboard.writeText(`${window.location.origin}/share/ebook/${ebook.share_token}`);
+      toast.success('Public link copied. Anyone with it can read this ebook.');
+    } else {
+      toast.success('This ebook is private again.');
+    }
   };
 
-  const deleteEbook = async (id: string) => {
-    await supabase.from('ebooks').delete().eq('id', id);
-    setEbooks(prev => prev.filter(e => e.id !== id));
-    setMenuOpenId(null);
+  const remove = async (id: string) => {
+    const { error } = await createClient().from('ebooks').delete().eq('id', id);
+    if (error) {
+      toast.error('Could not delete the ebook.');
+      return;
+    }
+    setEbooks((prev) => prev?.filter((e) => e.id !== id) ?? null);
+    setConfirming(null);
   };
 
   if (reading) {
     return (
-      <div className="relative w-full h-full min-w-0 overflow-hidden">
-        <button onClick={() => setReading(null)} className="absolute top-4 left-4 sm:top-5 sm:left-5 z-[70] flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/90 backdrop-blur-md shadow-md text-[13px] font-semibold text-gray-800 hover:bg-white transition">
-          <X className="w-4 h-4" /> Close
+      <div className="relative h-full w-full min-w-0 overflow-hidden bg-forge-ink">
+        <button
+          onClick={() => setReading(null)}
+          className="absolute left-4 top-4 z-[70] flex items-center gap-2 rounded-full border border-white/10 bg-black/70 px-4 py-2.5 text-[13px] font-semibold text-white backdrop-blur-md hover:bg-black"
+        >
+          <X className="h-4 w-4" /> Close
         </button>
         <EbookCanvas title={reading.title} content={reading.content} />
       </div>
     );
   }
 
+  const filtered = (ebooks ?? []).filter((e) => e.title.toLowerCase().includes(query.trim().toLowerCase()));
+
   return (
-    <div className="w-full h-full min-w-0 overflow-y-auto overflow-x-hidden custom-scrollbar bg-[#000] px-4 sm:px-8 pt-6 sm:pt-8 pb-16">
-      <div className="max-w-5xl mx-auto">
-        <div className="relative max-w-xl mx-auto mb-8 sm:mb-10">
+    <ViewShell
+      title="Ebooks"
+      subtitle="Written chapter by chapter from an outline you approved, or compiled from the posts you have already written."
+      width="wide"
+      actions={
+        <>
+          <Button variant="secondary" size="md" onClick={() => setCompiling(true)}>
+            Compile from my posts
+          </Button>
+          <Button variant="primary" size="md" onClick={() => composeInChat({ fresh: true, tool: 'ebook_writer', text: 'Write an ebook about ' })}>
+            New ebook
+          </Button>
+        </>
+      }
+    >
+      <CompileDialog
+        open={compiling}
+        onClose={() => setCompiling(false)}
+        onCompiled={async (ebookId) => {
+          if (!user) return;
+          const { data } = await createClient().from('ebooks').select('*').eq('id', ebookId).maybeSingle();
+          await load();
+          if (data) {
+            setCompiling(false);
+            setReading(data as Ebook);
+          }
+        }}
+      />
+      {ebooks === null ? (
+        <div className="flex items-center gap-2 py-16 text-[13.5px] text-white/45">
+          <Spinner /> Loading
+        </div>
+      ) : ebooks.length === 0 ? (
+        <EmptyState
+          plate="ingot"
+          title="No ebooks yet"
+          body="Tell Forge the topic. It proposes an outline for you to edit and approve, then writes every chapter in your voice."
+          action={
+            <Button variant="primary" size="sm" onClick={() => composeInChat({ fresh: true, tool: 'ebook_writer', text: 'Write an ebook about ' })}>
+              Start one
+            </Button>
+          }
+        />
+      ) : (
+        <>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search Ebook..."
-            // 16px on mobile stops iOS Safari zooming the page on focus.
-            className="w-full bg-[#161616] border border-[#2a2a2a] rounded-full pl-5 sm:pl-6 pr-14 py-3.5 text-[16px] sm:text-[14px] text-white placeholder:text-[#666] outline-none focus:border-[#444] transition"
+            placeholder="Search ebooks"
+            aria-label="Search ebooks"
+            className="mb-6 h-10 w-full rounded-full border border-white/[0.08] bg-white/[0.03] px-4 text-[16px] text-white outline-none placeholder:text-white/35 focus:border-white/20 sm:w-[300px] sm:text-[14px]"
           />
-          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'radial-gradient(circle at center, #bf671d 0%, #3b1803 100%)' }}>
-            <Search className="w-4 h-4 text-white" />
-          </div>
-        </div>
-
-        {loading && <div className="flex justify-center pt-20"><Loader2 className="w-5 h-5 text-[#444] animate-spin" /></div>}
-
-        {!loading && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center pt-20 text-center gap-3 px-4">
-            <BookOpen className="w-9 h-9 text-[#2a2a2a]" />
-            <p className="text-[14px] text-[#666]">{query ? `No ebooks match "${query}"` : 'No ebooks yet — use the Ebook Writer tool in chat to create one.'}</p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-6 sm:gap-y-8">
-          {filtered.map(ebook => (
-            <div key={ebook.id} className="group relative min-w-0">
-              <button onClick={() => setReading(ebook)} className="w-full aspect-square rounded-2xl flex items-center justify-center text-center p-4 sm:p-5 shadow-lg transition-transform group-hover:scale-[1.02]" style={{ background: 'radial-gradient(circle at 30% 20%, #c9711f 0%, #3b1803 70%, #1a0a02 100%)' }}>
-                <span className="text-[13px] sm:text-[15px] font-semibold text-white/95 leading-snug line-clamp-4">{ebook.title}</span>
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === ebook.id ? null : ebook.id); }} className="absolute top-1.5 right-1.5 p-2 rounded-md text-white/70 hover:text-white hover:bg-black/30 transition" aria-label="Ebook options">
-                <MoreVertical className="w-4 h-4" />
-              </button>
-              {menuOpenId === ebook.id && (
-                <>
-                  {/* Tap-anywhere-to-dismiss. Without it a phone user has no way to close the menu. */}
-                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpenId(null)} />
-                  {/*
-                    right-0 rather than a fixed offset, so the menu on the
-                    rightmost column of a two-up mobile grid stays inside the
-                    viewport instead of widening the page.
-                  */}
-                  <div className="absolute top-11 right-1.5 z-20 w-[170px] max-w-[calc(100vw-2rem)] bg-[#1c1c1c] border border-[#2a2a2a] rounded-xl shadow-2xl py-1.5">
-                    <button onClick={() => setReading(ebook)} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] text-[#e0e0e0] hover:bg-[#2a2a2a]"><BookOpen className="w-3.5 h-3.5 text-[#888]" /> Read</button>
-                    <button onClick={() => setReading(ebook)} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] text-[#e0e0e0] hover:bg-[#2a2a2a]"><Download className="w-3.5 h-3.5 text-[#888]" /> Download PDF</button>
-                    <button onClick={() => toggleShare(ebook)} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] text-[#e0e0e0] hover:bg-[#2a2a2a]"><Share2 className="w-3.5 h-3.5 text-[#888]" /> {ebook.is_public ? 'Unshare' : 'Share'}</button>
-                    <button onClick={() => deleteEbook(ebook.id)} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] text-red-400 hover:bg-[#2a2a2a]"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+          {filtered.length === 0 && <p className="py-10 text-center text-[14px] text-white/45">No ebooks match.</p>}
+          <ul className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+            {filtered.map((ebook, index) => (
+              <li key={ebook.id} className="min-w-0">
+                <button type="button" onClick={() => setReading(ebook)} className="group block w-full text-left">
+                  <Plate name={COVERS[index % COVERS.length]} className="flex aspect-[3/4] flex-col justify-end rounded-[18px] p-4 transition-transform group-hover:-translate-y-0.5" dim={0.7}>
+                    <span className="relative line-clamp-4 text-[15px] font-semibold leading-snug tracking-[-0.01em] text-white">{ebook.title}</span>
+                    <span className="relative mt-2 text-[11px] text-white/60">{Math.round(ebook.word_count / 250)} pages</span>
+                  </Plate>
+                </button>
+                <div className="mt-3 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13.5px] font-medium text-white">{ebook.title}</p>
+                    <p className="text-[12px] text-white/40">
+                      {relativeTime(ebook.created_at)}
+                      {ebook.is_public ? ' · shared' : ''}
+                    </p>
                   </div>
-                </>
-              )}
-              <p className="mt-3 text-[13px] font-medium text-[#ccc] text-center truncate px-1">{ebook.title}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+                  <Popover
+                    align="end"
+                    trigger={({ toggle }) => (
+                      <button type="button" onClick={toggle} className="rounded-md p-1 text-white/45 hover:text-white" aria-label={`Options for ${ebook.title}`}>
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+                          <circle cx="5" cy="12" r="1.7" />
+                          <circle cx="12" cy="12" r="1.7" />
+                          <circle cx="19" cy="12" r="1.7" />
+                        </svg>
+                      </button>
+                    )}
+                  >
+                    {(close) => (
+                      <div className="flex flex-col">
+                        {[
+                          { label: 'Read and download', run: () => setReading(ebook) },
+                          { label: ebook.is_public ? 'Stop sharing' : 'Copy share link', run: () => toggleShare(ebook) },
+                          confirming === ebook.id ? { label: 'Delete for good', run: () => remove(ebook.id), danger: true } : { label: 'Delete', run: () => setConfirming(ebook.id), keepOpen: true },
+                        ].map((item) => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => {
+                              if (!('keepOpen' in item)) close();
+                              void item.run();
+                            }}
+                            className={`rounded-xl px-3 py-2 text-left text-[13.5px] hover:bg-white/[0.06] ${'danger' in item ? 'text-forge-bad' : 'text-white/80 hover:text-white'}`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </Popover>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </ViewShell>
   );
 }

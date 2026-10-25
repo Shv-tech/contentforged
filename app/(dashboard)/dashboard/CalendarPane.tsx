@@ -1,16 +1,25 @@
-// CalendarPane.tsx
 'use client';
+
+/**
+ * The calendar: everything scheduled, by month. Events created from a draft
+ * (draft_id) open as the draft card itself, so the post is edited in one
+ * place and the calendar never holds a stale copy of its text.
+ */
 
 import { useEffect, useMemo, useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, X, Share2, Loader2, Trash2, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase-browser';
 import { useAppStore } from '@/lib/store';
 import toast from 'react-hot-toast';
+import { firstName } from '@/lib/user-display';
+import { DraftCardById } from '@/components/forge/drafts/DraftCard';
+import { Dialog } from '@/components/forge/ui';
 
 interface CalEvent {
   id: string; title: string; description: string | null; start_date: string;
   type: string; platform: string | null; color: string; is_public: boolean;
   share_token: string; reminder_minutes_before: number | null;
+  draft_id: string | null;
 }
 
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -22,7 +31,8 @@ const TYPES = [
 ];
 
 export function CalendarPane() {
-  const { user } = useAppStore();
+  const { user, isSidebarOpen, toggleSidebar } = useAppStore();
+  const [draftEvent, setDraftEvent] = useState<CalEvent | null>(null);
   const [cursor, setCursor] = useState(new Date());
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +87,10 @@ export function CalendarPane() {
   };
 
   const openEditEvent = (ev: CalEvent) => {
+    if (ev.draft_id) {
+      setDraftEvent(ev);
+      return;
+    }
     const d = new Date(ev.start_date);
     setModalDate(d);
     setEditing(ev);
@@ -101,7 +115,7 @@ export function CalendarPane() {
     else await supabase.from('calendar_events').insert(payload);
 
     setSaving(false); setModalDate(null); setEditing(null); load();
-    toast.success(editing ? 'Event updated.' : 'Scheduled — confirmation email on its way.');
+    toast.success(editing ? 'Event updated.' : 'Scheduled. A confirmation email is on its way.');
   };
 
   const deleteEvent = async () => {
@@ -121,11 +135,22 @@ export function CalendarPane() {
     // min-w-0 + overflow-x-hidden keep a seven-column grid from widening the
     // pane on a narrow screen. px drops to 12px on phones so each day cell has
     // room to render its chips.
-    <div className="w-full h-full min-w-0 overflow-y-auto overflow-x-hidden custom-scrollbar bg-[#000] flex flex-col lg:flex-row gap-8 px-3 sm:px-6 md:px-10 pt-6 sm:pt-8 pb-16">
+    <div className="w-full h-full min-w-0 overflow-y-auto overflow-x-hidden custom-scrollbar bg-forge-ink flex flex-col lg:flex-row gap-8 px-3 sm:px-6 md:px-10 pt-6 sm:pt-8 pb-16">
+      <button
+        type="button"
+        onClick={() => toggleSidebar()}
+        className={`fixed left-4 top-3 z-20 rounded-full border border-white/[0.08] bg-forge-raised p-2.5 text-white/55 hover:text-white ${isSidebarOpen ? 'md:hidden' : ''}`}
+        aria-label="Open navigation"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+          <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+          <path d="M9.5 4.5v15" />
+        </svg>
+      </button>
       <div className="flex-1 min-w-0 max-w-3xl mx-auto lg:mx-0 w-full">
         <div className="relative max-w-xl mx-auto mb-8">
           {/* text-[16px] on mobile: anything smaller makes iOS Safari zoom the page in on focus. */}
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search Schedule..." className="w-full bg-[#161616] border border-[#2a2a2a] rounded-full pl-5 sm:pl-6 pr-14 py-3.5 text-[16px] sm:text-[14px] text-white placeholder:text-[#666] outline-none focus:border-[#444] transition" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the calendar" className="w-full bg-[#161616] border border-[#2a2a2a] rounded-full pl-5 sm:pl-6 pr-14 py-3.5 text-[16px] sm:text-[14px] text-white placeholder:text-[#666] outline-none focus:border-[#444] transition" />
           <div className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'radial-gradient(circle at center, #bf671d 0%, #3b1803 100%)' }}>
             <Search className="w-4 h-4 text-white" />
           </div>
@@ -133,12 +158,12 @@ export function CalendarPane() {
 
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1))} className="p-2 -m-1 text-[#666] hover:text-white transition" aria-label="Previous month"><ChevronLeft className="w-4 h-4" /></button>
-          <h2 className="font-serif text-[15px] text-[#ddd] tracking-wide">{monthLabel}</h2>
+          <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-white">{monthLabel}</h2>
           <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1))} className="p-2 -m-1 text-[#666] hover:text-white transition" aria-label="Next month"><ChevronRight className="w-4 h-4" /></button>
         </div>
 
         <div className="grid grid-cols-7 mb-3">
-          {DAYS.map(d => <div key={d} className="font-serif text-[10px] sm:text-[12px] text-[#888] tracking-[1px] sm:tracking-[2px] text-center">{d}</div>)}
+          {DAYS.map(d => <div key={d} className="text-[10px] sm:text-[11px] font-semibold text-white/35 tracking-[0.08em] text-center">{d}</div>)}
         </div>
 
         {loading ? (
@@ -152,7 +177,7 @@ export function CalendarPane() {
                 <div key={i} className="flex flex-col items-center gap-1.5 min-h-[56px] sm:min-h-[64px] min-w-0">
                   {day && (
                     <>
-                      <button onClick={() => openNewEvent(day)} className={`font-serif text-[15px] sm:text-[18px] w-8 h-8 rounded-full flex items-center justify-center transition shrink-0 ${isToday ? 'bg-[#bf671d] text-white' : 'text-[#ccc] hover:bg-[#1a1a1a]'}`}>{day}</button>
+                      <button onClick={() => openNewEvent(day)} className={`text-[14px] sm:text-[15px] font-medium tabular-nums w-8 h-8 rounded-full flex items-center justify-center transition shrink-0 ${isToday ? 'bg-[#bf671d] text-white' : 'text-[#ccc] hover:bg-[#1a1a1a]'}`}>{day}</button>
                       <div className="flex flex-col gap-1 w-full min-w-0 px-0.5 sm:px-1">
                         {/* One chip per cell on phones — two 10px labels inside a ~45px column is unreadable. */}
                         {dayEvents.slice(0, 1).map(ev => (
@@ -174,7 +199,7 @@ export function CalendarPane() {
       </div>
 
       <div className="w-full lg:w-[300px] shrink-0 pt-2">
-        <h3 className="text-[14px] text-[#bbb] mb-5">Hey {(user as any)?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'}, your schedule for this week</h3>
+        <h3 className="text-[14px] text-white/70 mb-5">{firstName(user).toLowerCase() === 'there' ? 'This week' : `${firstName(user)}, here is your week`}</h3>
         <div className="space-y-4">
           {weekEvents.length === 0 && <p className="text-[13px] text-[#555]">Nothing scheduled this week.</p>}
           {weekEvents.map(ev => {
@@ -187,7 +212,7 @@ export function CalendarPane() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-white truncate">{ev.title}</p>
-                  <button onClick={() => openEditEvent(ev)} className="text-[11px] text-[#888] hover:text-[#bbb] transition">view details</button>
+                  <button onClick={() => openEditEvent(ev)} className="text-[11px] text-white/45 hover:text-white transition">{ev.draft_id ? 'Open draft' : 'Details'}</button>
                 </div>
                 {/*
                   Always visible on touch devices. opacity-0 group-hover reveals
@@ -200,6 +225,10 @@ export function CalendarPane() {
         </div>
       </div>
 
+      <Dialog open={draftEvent !== null} onClose={() => { setDraftEvent(null); void load(); }} title={draftEvent ? new Date(draftEvent.start_date).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' }) : ''} className="max-w-[680px]">
+        {draftEvent?.draft_id && <DraftCardById id={draftEvent.draft_id} />}
+      </Dialog>
+
       {modalDate && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4" onClick={() => setModalDate(null)}>
           {/*
@@ -209,7 +238,7 @@ export function CalendarPane() {
           */}
           <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-md bg-[#111] border border-[#2a2a2a] rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain custom-scrollbar">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[15px] font-semibold text-white min-w-0 truncate">{editing ? 'Edit Event' : 'New Event'} · {modalDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h3>
+              <h3 className="text-[15px] font-semibold text-white min-w-0 truncate">{editing ? 'Edit event' : 'New event'} · {modalDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h3>
               <button onClick={() => setModalDate(null)} className="text-[#666] hover:text-white p-1 -m-1 shrink-0" aria-label="Close"><X className="w-4 h-4" /></button>
             </div>
             <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Event title" className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-2.5 text-[16px] sm:text-[14px] text-white placeholder:text-[#666] outline-none focus:border-[#444]" />
@@ -235,7 +264,7 @@ export function CalendarPane() {
             <div className="flex gap-2 pt-2">
               {editing && <button onClick={deleteEvent} className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-red-400 border border-red-500/20 hover:bg-red-500/10 transition flex items-center gap-1.5 shrink-0"><Trash2 className="w-3.5 h-3.5" /> Delete</button>}
               <button onClick={saveEvent} disabled={saving || !form.title.trim()} className="flex-1 py-2.5 rounded-xl text-[14px] font-semibold text-white transition disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: 'radial-gradient(circle at center, #bf671d 0%, #3b1803 100%)' }}>
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? 'Save Changes' : 'Schedule It'}
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? 'Save' : 'Schedule'}
               </button>
             </div>
           </div>

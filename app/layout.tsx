@@ -1,6 +1,6 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import { rootMetadata } from '@/lib/seo';
 
 // @ts-ignore: allow side-effect CSS import in Next.js app directory
@@ -13,7 +13,18 @@ import { Analytics } from '@vercel/analytics/next';
 import { AuthProvider } from '@/components/AuthProvider';
 import StructuredData from '@/components/StructuredData';
 
-const inter = Inter({ subsets: ['latin'] });
+// One typeface across the marketing site and the app, exposed as a CSS
+// variable so Tailwind's font-sans resolves to it everywhere. Instrument
+// Sans (SIL Open Font License, app/fonts/OFL.txt) is self-hosted as a
+// variable font: builds never depend on reaching Google Fonts, and pages
+// make no third-party font request.
+const sans = localFont({
+  src: './fonts/instrument-sans-latin-wght-normal.woff2',
+  weight: '400 700',
+  style: 'normal',
+  variable: '--font-sans',
+  display: 'swap',
+});
 
 const BASE_URL = 'https://forgeyourway.dev';
 
@@ -29,11 +40,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
 
   title: {
-    default: 'Forge — AI Content Strategy Platform for Creators & Agencies',
+    default: 'Forge: AI content that sounds like you',
     template: '%s | Forge',
   },
   description:
-    'Forge is the AI content operating system that remembers your Brand DNA, scores every post before you publish, plans your LinkedIn and Instagram calendar 90 days out, and gets measurably smarter every session. 26 precision tools. Used by 10,000+ creators.',
+    'Forge learns your voice from your own posts, writes in it, grades every draft before you post, and learns from what actually performs. Drafts, scheduling and results for X, LinkedIn, Threads and Bluesky.',
 
   keywords: [
     'AI content tool', 'AI content strategy', 'LinkedIn AI writer',
@@ -51,33 +62,26 @@ export const metadata: Metadata = {
   creator: 'Forge by SHV Groups',
   publisher: 'SHV Groups Pvt Ltd',
 
-  // ⚠️ These hreflang alternates only help SEO if /en-US and /en-IN are
-  // real, distinct routes in this app. If they're not (i.e. this is a
-  // single-locale site), remove this block — a hreflang pointing at a
-  // page that doesn't exist gets flagged as an error in Search Console
-  // and can hurt more than having no hreflang at all.
+  // Single-locale site: canonical only. Locale alternates pointed at
+  // /en-US and /en-IN, which do not exist, and Search Console flags that.
   alternates: {
     canonical: '/',
-    languages: {
-      'en-US': '/en-US',
-      'en-IN': '/en-IN',
-    },
   },
 
   openGraph: {
     type: 'website',
     url: BASE_URL,
     siteName: 'Forge',
-    title: 'Forge — Your AI Validates. Forge Fixes.',
+    title: 'Forge: AI content that sounds like you',
     description:
-      'The first content AI that remembers your Brand DNA, tells you when your hook is weak before you publish, and plans your next 90 days of content in one conversation. 26 tools. No fluff.',
+      'Forge learns your voice, writes in it, and tells you when a post is not ready yet. Then it learns from what you actually post.',
     images: [
       {
-        url: '/og-image.png',
+        url: '/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Forge — The Content Operating System',
-        type: 'image/png',
+        alt: 'Forge: AI content that sounds like you',
+        type: 'image/jpeg',
       },
     ],
     locale: 'en_US',
@@ -85,12 +89,11 @@ export const metadata: Metadata = {
 
   twitter: {
     card: 'summary_large_image',
-    site: '@forge',
-    creator: '@forge',
-    title: 'Forge — The Content OS for Serious Creators',
-    description:
-      'Brand DNA memory. Calendar agent. Stop-Scroll Grader. 26 precision tools. The AI that tells you the truth about your content.',
-    images: ['/og-image.png'],
+    site: '@forgeyourway',
+    creator: '@forgeyourway',
+    title: 'Forge: AI content that sounds like you',
+    description: 'Learns your voice, grades every draft before you post, and learns from your results.',
+    images: ['/og-image.jpg'],
   },
 
   robots: {
@@ -131,7 +134,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body className={inter.className}>
+      <body className={`${sans.className} ${sans.variable}`}>
 
         {/* Site-wide JSON-LD for SEO + AI answer engines (ChatGPT, Claude,
             Gemini/AI Overviews, Perplexity) — see components/StructuredData.tsx */}
@@ -142,32 +145,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </AuthProvider>
         
-        {/* Upgraded Enterprise Toaster */}
+        {/* Toasts match the app: a dark pill, quiet icons. Upsells use the
+            neutral style, never the error style. */}
         <Toaster
           position="top-center"
           toastOptions={{
             duration: 3500,
             style: {
-              background: '#111827', /* Tailwind gray-900 */
+              background: '#141414',
               color: '#ffffff',
+              border: '1px solid rgba(255,255,255,0.08)',
               fontSize: '14px',
               fontWeight: 500,
-              borderRadius: '10px',
-              padding: '12px 16px',
-              boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+              borderRadius: '999px',
+              padding: '10px 16px',
+              boxShadow: '0 20px 50px -20px rgba(0,0,0,0.9)',
             },
-            success: {
-              iconTheme: {
-                primary: '#22c55e', /* Tailwind green-500 */
-                secondary: '#ffffff',
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: '#ef4444', /* Tailwind red-500 */
-                secondary: '#ffffff',
-              },
-            },
+            success: { iconTheme: { primary: '#ffffff', secondary: '#141414' } },
+            error: { iconTheme: { primary: '#ff8a65', secondary: '#141414' } },
           }}
         />
 
