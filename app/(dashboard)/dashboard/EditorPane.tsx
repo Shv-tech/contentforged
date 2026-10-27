@@ -517,6 +517,29 @@ export function EditorPane() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // The composer grows (a quote, attachments, a wrapped placeholder on a
+  // phone), so the conversation reserves exactly its height plus a gap.
+  // A fixed padding left the last reply's actions hidden under it.
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerHeight, setComposerHeight] = useState(0);
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => setComposerHeight(Math.ceil(entry.target.getBoundingClientRect().height)));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // The full placeholder wraps to two lines on a phone; a short one keeps the box compact.
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 639px)');
+    const update = () => setNarrow(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -1580,6 +1603,8 @@ export function EditorPane() {
         </button>
       )}
 
+      {/* On a phone the floating buttons sit over the conversation; a fade keeps text from showing through them. */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-30 h-20 bg-gradient-to-b from-black via-black/85 to-transparent md:hidden" />
       <div className="absolute top-4 left-4 right-4 z-40 flex justify-between items-center pointer-events-none">
         <div className="pointer-events-auto">
           {/*
@@ -1613,6 +1638,7 @@ export function EditorPane() {
       <div
         ref={scrollContainerRef}
         className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden custom-scrollbar pt-20 pb-[190px] md:pb-[220px] flex flex-col"
+        style={composerHeight ? { paddingBottom: composerHeight + 32 } : undefined}
       >
 
         {!isChatActive ? (
@@ -1836,7 +1862,7 @@ export function EditorPane() {
         )}
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 z-40 w-full flex flex-col items-center bg-[#000000] pt-4 px-3 md:px-0 border-t border-[#111]"
+      <div ref={composerRef} className="absolute bottom-0 left-0 right-0 z-40 w-full flex flex-col items-center bg-[#000000] pt-4 px-3 md:px-0 border-t border-[#111]"
         style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-[720px] mx-auto relative">
 
@@ -1975,7 +2001,7 @@ export function EditorPane() {
                     handleSend();
                   }
                 }}
-                placeholder={isEncoding ? 'Reading files...' : 'Ask Forge, / for commands, @ for a story'}
+                placeholder={isEncoding ? 'Reading files...' : narrow ? 'Ask Forge, or type /' : 'Ask Forge, / for commands, @ for a story'}
                 rows={1}
                 enterKeyHint="enter"
                 // 16px on mobile: below that, iOS Safari zooms the page in on

@@ -217,125 +217,132 @@ export function SidebarPane() {
           </button>
         </div>
 
-        <div className="shrink-0 px-3">
-          <button
-            onClick={newChat}
-            className={cn(
-              'flex h-11 w-full items-center gap-3 rounded-[14px] border border-white/[0.07] bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-3.5 text-[14.5px] font-semibold text-white transition-colors hover:border-white/[0.14]',
-              focusRing
-            )}
-          >
-            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-forge-gold" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            New chat
-          </button>
+        {/*
+          On a phone the links alone fill the screen, so the links and the
+          conversation list scroll together; otherwise the list is squeezed to
+          nothing. From md up the links stay put and only the list scrolls.
+        */}
+        <div className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain md:overflow-visible">
+          <div className="shrink-0 px-3">
+            <button
+              onClick={newChat}
+              className={cn(
+                'flex h-11 w-full items-center gap-3 rounded-[14px] border border-white/[0.07] bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-3.5 text-[14.5px] font-semibold text-white transition-colors hover:border-white/[0.14]',
+                focusRing
+              )}
+            >
+              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-forge-gold" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              New chat
+            </button>
 
-          <nav className="mt-4 flex flex-col gap-0.5">
-            {NAV.map((item) => {
-              const active = sidebarView === item.view;
-              return (
-                <button
-                  key={item.view}
-                  onClick={() => open(item.view)}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'flex h-10 items-center gap-3 rounded-[12px] px-3 text-left text-[14.5px] font-medium transition-colors',
-                    active ? 'bg-white/[0.06] text-white' : 'text-white/55 hover:bg-white/[0.03] hover:text-white/90',
-                    focusRing
-                  )}
-                >
-                  <NavIcon d={item.icon} />
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
+            <nav className="mt-4 flex flex-col gap-0.5">
+              {NAV.map((item) => {
+                const active = sidebarView === item.view;
+                return (
+                  <button
+                    key={item.view}
+                    onClick={() => open(item.view)}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'flex h-10 items-center gap-3 rounded-[12px] px-3 text-left text-[14.5px] font-medium transition-colors',
+                      active ? 'bg-white/[0.06] text-white' : 'text-white/55 hover:bg-white/[0.03] hover:text-white/90',
+                      focusRing
+                    )}
+                  >
+                    <NavIcon d={item.icon} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
 
-        <div className="mt-5 flex min-h-0 flex-1 flex-col">
-          <div className="custom-scrollbar flex-1 overflow-y-auto px-3 pb-4">
-            {sessions.length === 0 && <p className="px-3 pt-2 text-[13px] leading-relaxed text-white/35">Conversations you start appear here.</p>}
-            {grouped.map((group) => (
-              <section key={group.label} className="mb-4">
-                <h3 className="mb-1 px-3 text-[11.5px] font-semibold text-white/30">{group.label}</h3>
-                <ul className="flex flex-col">
-                  {group.items.map((session) => {
-                    const active = activeSessionId === session.id && sidebarView === 'chat';
-                    return (
-                      <li key={session.id} className="group relative">
-                        {editingId === session.id ? (
-                          <input
-                            ref={editInputRef}
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            onBlur={() => saveRename(session.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') void saveRename(session.id);
-                              if (e.key === 'Escape') setEditingId(null);
-                            }}
-                            className="h-9 w-full rounded-[10px] border border-white/15 bg-white/[0.04] px-3 text-[14px] text-white outline-none"
-                            aria-label="Conversation title"
-                          />
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setActiveSessionId(session.id);
-                              setSidebarView('chat');
-                              closeOnMobile();
-                            }}
-                            className={cn(
-                              'flex h-9 w-full items-center rounded-[10px] pl-3 pr-9 text-left text-[14px] transition-colors',
-                              active ? 'bg-white/[0.06] text-white' : 'text-white/70 hover:bg-white/[0.03] hover:text-white',
-                              focusRing
-                            )}
-                          >
-                            <span className="truncate">{session.title}</span>
-                          </button>
-                        )}
-
-                        {editingId !== session.id && (
-                          <button
-                            onClick={() => {
-                              setConfirmDelete(false);
-                              setMenuOpen(menuOpen === session.id ? null : session.id);
-                            }}
-                            className={cn(
-                              'absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-white/45 transition hover:text-white',
-                              menuOpen === session.id ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100'
-                            )}
-                            aria-label={`Options for ${session.title}`}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-                        )}
-
-                        {menuOpen === session.id && (
-                          <div ref={menuRef} className="absolute right-0 top-9 z-50 w-[210px] rounded-[14px] border border-white/[0.08] bg-forge-raised py-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.55)]">
-                            <MenuItem
-                              icon={<Edit2 className="h-4 w-4" />}
-                              label="Rename"
-                              onClick={() => {
-                                setEditingId(session.id);
-                                setEditTitle(session.title);
-                                closeMenu();
+          <div className="mt-5 flex flex-col md:min-h-0 md:flex-1">
+            <div className="custom-scrollbar px-3 pb-4 md:flex-1 md:overflow-y-auto">
+              {sessions.length === 0 && <p className="px-3 pt-2 text-[13px] leading-relaxed text-white/35">Conversations you start appear here.</p>}
+              {grouped.map((group) => (
+                <section key={group.label} className="mb-4">
+                  <h3 className="mb-1 px-3 text-[11.5px] font-semibold text-white/30">{group.label}</h3>
+                  <ul className="flex flex-col">
+                    {group.items.map((session) => {
+                      const active = activeSessionId === session.id && sidebarView === 'chat';
+                      return (
+                        <li key={session.id} className="group relative">
+                          {editingId === session.id ? (
+                            <input
+                              ref={editInputRef}
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              onBlur={() => saveRename(session.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') void saveRename(session.id);
+                                if (e.key === 'Escape') setEditingId(null);
                               }}
+                              className="h-9 w-full rounded-[10px] border border-white/15 bg-white/[0.04] px-3 text-[14px] text-white outline-none"
+                              aria-label="Conversation title"
                             />
-                            <MenuItem icon={<Share2 className="h-4 w-4" />} label="Copy share link" onClick={() => shareSession(session.id)} />
-                            <MenuItem
-                              icon={<Trash2 className="h-4 w-4" />}
-                              label={confirmDelete ? 'Delete for good' : 'Delete'}
-                              danger={confirmDelete}
-                              onClick={() => (confirmDelete ? deleteSession(session.id) : setConfirmDelete(true))}
-                            />
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setActiveSessionId(session.id);
+                                setSidebarView('chat');
+                                closeOnMobile();
+                              }}
+                              className={cn(
+                                'flex h-9 w-full items-center rounded-[10px] pl-3 pr-9 text-left text-[14px] transition-colors',
+                                active ? 'bg-white/[0.06] text-white' : 'text-white/70 hover:bg-white/[0.03] hover:text-white',
+                                focusRing
+                              )}
+                            >
+                              <span className="truncate">{session.title}</span>
+                            </button>
+                          )}
+
+                          {editingId !== session.id && (
+                            <button
+                              onClick={() => {
+                                setConfirmDelete(false);
+                                setMenuOpen(menuOpen === session.id ? null : session.id);
+                              }}
+                              className={cn(
+                                'absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-white/45 transition hover:text-white',
+                                menuOpen === session.id ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100'
+                              )}
+                              aria-label={`Options for ${session.title}`}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          )}
+
+                          {menuOpen === session.id && (
+                            <div ref={menuRef} className="absolute right-0 top-9 z-50 w-[210px] rounded-[14px] border border-white/[0.08] bg-forge-raised py-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.55)]">
+                              <MenuItem
+                                icon={<Edit2 className="h-4 w-4" />}
+                                label="Rename"
+                                onClick={() => {
+                                  setEditingId(session.id);
+                                  setEditTitle(session.title);
+                                  closeMenu();
+                                }}
+                              />
+                              <MenuItem icon={<Share2 className="h-4 w-4" />} label="Copy share link" onClick={() => shareSession(session.id)} />
+                              <MenuItem
+                                icon={<Trash2 className="h-4 w-4" />}
+                                label={confirmDelete ? 'Delete for good' : 'Delete'}
+                                danger={confirmDelete}
+                                onClick={() => (confirmDelete ? deleteSession(session.id) : setConfirmDelete(true))}
+                              />
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
+            </div>
           </div>
         </div>
 
