@@ -187,8 +187,12 @@ export function SidebarPane() {
 
   return (
     <>
-      {/* Scrim: mobile only, while the drawer is open. */}
-      {isSidebarOpen && <div onClick={() => toggleSidebar()} className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[2px] md:hidden" aria-hidden />}
+      {/*
+        Scrim: mobile only, while the drawer is open. The drawer and scrim sit
+        above everything in the main column (its composer and floating
+        buttons use z-40 to z-70), so the drawer is never covered on a phone.
+      */}
+      {isSidebarOpen && <div onClick={() => toggleSidebar()} className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-[2px] md:hidden" aria-hidden />}
 
       {/*
         Stays mounted when closed so it can animate out on mobile and keep the
@@ -196,7 +200,7 @@ export function SidebarPane() {
       */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-[280px] max-w-[85vw] flex-col border-r border-white/[0.05] bg-forge-panel font-sans transition-transform duration-300 ease-out',
+          'fixed inset-y-0 left-0 z-[90] flex w-[280px] max-w-[85vw] flex-col border-r border-white/[0.05] bg-forge-panel font-sans transition-transform duration-300 ease-out',
           'md:static md:z-20 md:flex-shrink-0 md:translate-x-0 md:transition-all',
           isSidebarOpen ? 'translate-x-0 md:w-[272px]' : '-translate-x-full md:w-0 md:overflow-hidden md:border-r-0'
         )}

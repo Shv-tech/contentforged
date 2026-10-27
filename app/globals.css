@@ -9,11 +9,33 @@
   }
 
   html {
+    /*
+     * Forge is dark everywhere. Declaring it lets the browser draw its own
+     * controls dark too: the option list of a select, scrollbars, date
+     * pickers, audio players. Without it a select opens a white list.
+     */
+    color-scheme: dark;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     background-color: var(--bg-canvas);
     color: var(--text-main);
+  }
+
+  /*
+   * Chrome on Windows paints the open list from each option's own colours,
+   * and options inherit white text from the dark control. Give the list a
+   * dark ground explicitly so it never shows white on white.
+   */
+  select option,
+  select optgroup {
+    background-color: #111111;
+    color: #ffffff;
+  }
+
+  select optgroup {
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 600;
   }
 
   body {

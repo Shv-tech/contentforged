@@ -28,9 +28,17 @@ export function displayName(user: AppUser | null | undefined): string {
   return 'there';
 }
 
-/** First name only, for greetings and compact UI. */
+/** Titles that come before a name and are never what a person is called on their own. */
+const HONORIFICS = new Set(['dr', 'mr', 'mrs', 'ms', 'mx', 'miss', 'prof', 'sir', 'shri', 'smt', 'sri']);
+
+/**
+ * First name only, for greetings and compact UI. A leading title is
+ * skipped, so "Dr. Senku" is greeted as "Senku", not "Dr.".
+ */
 export function firstName(user: AppUser | null | undefined): string {
-  return displayName(user).split(' ')[0];
+  const words = displayName(user).split(/\s+/).filter(Boolean);
+  const first = words.find((word) => !HONORIFICS.has(word.replace(/\./g, '').toLowerCase()));
+  return first ?? words[0] ?? 'there';
 }
 
 /** Single initial for avatars. */
