@@ -4,6 +4,33 @@ Releases are listed newest first. Apply each one you have not applied yet, in or
 
 ---
 
+## The languages release
+
+Forge used to write in English, Hindi and Hinglish. It now writes in 41 languages, all defined in `lib/forge/languages.ts`:
+
+- **Ten mixes with English, in Roman script:** Hinglish, Tenglish, Tanglish, Banglish, Marathi-English, Kanglish, Manglish, Gujarati-English, Punjabi-English and Taglish.
+- **Ten Indian languages in their own script:** Hindi, Bengali, Telugu, Tamil, Marathi, Gujarati, Kannada, Malayalam, Punjabi and Urdu.
+- **Twenty world languages:** Spanish, Portuguese, French, German, Italian, Dutch, Swedish, Polish, Turkish, Indonesian, Vietnamese, Russian, Ukrainian, Greek, Arabic, Hebrew, Thai, Japanese, Korean and Chinese.
+
+Every language listed is one Whisper transcribes, so voice notes work in all of them.
+
+### 1. Database
+
+Run `supabase/migrations/20261110000000_forge_languages.sql` after `20261101000000_forge_platform.sql`. It replaces the three language checks (profiles, workspaces, drafts) with one list kept in `forge_writing_languages()`. Existing values are all still valid, so no row changes. It is safe to re-run. To add a language later, add it to `lib/forge/languages.ts` and to that function, then run the file again.
+
+### 2. What changes for people
+
+- **Settings.** The writing language under Brand settings is now a grouped picker.
+- **Measuring.** Forge measures the language of a person's own posts from three signals: the script of the letters, common words of each mix that are not English words, and the function words of each Latin-script language. When the posts disagree with the setting, the posts win. The exception is a difference text cannot settle: Hindi and Marathi share Devanagari, and two mixes can share words, so in those cases the setting wins.
+- **Transcription.** A language in its own script is named to Whisper, so Marathi is not heard as Hindi. A mix is left for Whisper to detect, with a prompt sentence in the mix that keeps the other language's words in Roman script.
+- **Right-to-left text.** Urdu, Arabic and Hebrew drafts display right to left in the studio and the weekly plan.
+- **Threads.** Splitting a long post into a thread recognises the danda, Arabic and CJK sentence endings.
+- **Visuals.** Slides are drawn with the brand kit's Latin typefaces and no complex-script shaping. When slide text contains another script, the visual panel says so instead of rendering empty boxes. Mixes in Roman script render correctly.
+
+No new environment variables.
+
+---
+
 ## The platform release (capture, weekly plan, teams, API)
 
 This release turns Forge from a writing tool into a weekly system: material comes in on its own (voice notes, email, shares, the extension, GitHub, Linear, Notion, calendars), the person keeps or discards what Forge finds, a plan of drafts arrives every week to approve or skip by swiping, and results flow back into predictions, experiments and goals. Workspaces gain members, roles, live co-editing, comments, version history and an activity log. Forge also becomes something other tools call, through a REST API and an MCP server.

@@ -7,9 +7,10 @@
  * Typefaces are bundled TTFs under public/fonts/visuals: Instrument Sans
  * (static instances of the variable font, SIL Open Font License) and the
  * unmodified DejaVu Serif and DejaVu Sans Mono (Bitstream Vera licence). See
- * LICENSES.md there. Satori does not shape complex scripts,
- * so slides render Latin text; Hinglish written in Latin script renders
- * correctly, Devanagari does not, and the UI says so.
+ * LICENSES.md there. Satori does not shape complex scripts and the bundled
+ * faces are Latin, so slides render Latin text: Hinglish, Tenglish and the
+ * other mixes in Roman script render correctly, other scripts do not, and the
+ * visual panel says so (renderableOnSlides in lib/forge/language.ts).
  */
 
 import { readFile } from 'node:fs/promises';

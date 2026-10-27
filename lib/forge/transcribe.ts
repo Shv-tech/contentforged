@@ -11,7 +11,7 @@
 
 import OpenAI, { toFile } from 'openai';
 import { HttpError } from './http';
-import type { WritingLanguage } from './types';
+import { languageSpec, type WritingLanguage } from './languages';
 
 export interface TranscriptSegment {
   start: number;
@@ -46,13 +46,22 @@ export function transcriptionConfigured(): boolean {
 }
 
 /**
- * A prompt steers Whisper's spelling. For Hinglish speakers it keeps Hindi
- * words in Latin script, which is how they write, instead of Devanagari.
+ * How to ask Whisper for this language.
+ *
+ * A language in its own script is named outright, which keeps Whisper from
+ * guessing a neighbour (Marathi heard as Hindi) and from translating.
+ *
+ * A mix is left for Whisper to detect, with a sentence in the mix as the
+ * prompt. The prompt steers spelling: a Tenglish speaker's Telugu words come
+ * back in Latin script, which is how they write, instead of Telugu script.
  */
-function stylePrompt(language: WritingLanguage): string | undefined {
-  if (language === 'hinglish') return 'Haan, toh main yeh keh raha tha ki launch ke baad pehle hafte mein 40 customers aaye. Bahut accha laga.';
-  if (language === 'hi') return 'नमस्ते, आज मैं बताना चाहता हूँ कि हमने क्या सीखा।';
-  return undefined;
+function whisperOptions(language: WritingLanguage): { language?: string; prompt?: string } {
+  const spec = languageSpec(language);
+  if (spec.group === 'mix') return spec.transcriptPrompt ? { prompt: spec.transcriptPrompt } : {};
+  if (language === 'hi') return { language: 'hi', prompt: 'नमस्ते, आज मैं बताना चाहता हूँ कि हमने क्या सीखा।' };
+  // English stays auto-detected: someone who set English may still record in another language.
+  if (language === 'en' || !spec.whisper) return {};
+  return { language: spec.whisper };
 }
 
 export async function transcribe(audio: Buffer, options: { filename: string; contentType: string; language: WritingLanguage }): Promise<Transcript> {
@@ -66,8 +75,7 @@ export async function transcribe(audio: Buffer, options: { filename: string; con
       model,
       response_format: 'verbose_json',
       timestamp_granularities: ['segment'],
-      ...(options.language === 'hi' ? { language: 'hi' } : {}),
-      ...(stylePrompt(options.language) ? { prompt: stylePrompt(options.language) } : {}),
+      ...whisperOptions(options.language),
     });
   } catch (error) {
     const status = (error as { status?: number }).status;

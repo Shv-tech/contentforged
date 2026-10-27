@@ -129,6 +129,7 @@ export function StudioEditor({
           onKeyUp={readSelection}
           onBlur={() => collab.onCursor()}
           readOnly={locked}
+          dir="auto"
           spellCheck
           aria-label="Draft text"
           placeholder={canEdit ? 'Write the post here.' : ''}

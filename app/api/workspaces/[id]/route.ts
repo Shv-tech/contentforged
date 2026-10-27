@@ -15,6 +15,7 @@ import { HttpError, isUuid, parseJson, requireUser, route } from '@/lib/forge/ht
 import { requireFeature } from '@/lib/forge/plan';
 import { canWrite, forgetWorkspaceKind, resolveRole, WORKSPACE_COLUMNS } from '@/lib/forge/data/workspace';
 import { recordAudit } from '@/lib/forge/data/collab';
+import { LANGUAGE_CODES } from '@/lib/forge/languages';
 
 type Params = { params: { id: string } };
 
@@ -24,7 +25,7 @@ const PatchSchema = z
     kind: z.enum(['client', 'company']).optional(),
     client_email: z.string().trim().email().max(254).nullable().optional(),
     brand_dna: z.string().trim().max(8000).nullable().optional(),
-    writing_language: z.enum(['en', 'hi', 'hinglish']).optional(),
+    writing_language: z.enum(LANGUAGE_CODES).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update.');
 

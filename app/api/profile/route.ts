@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { createServiceClient } from '@/lib/supabase/service';
 import { HttpError, parseJson, requireUser, route } from '@/lib/forge/http';
 import { isValidHandle, normaliseHandle } from '@/lib/x/client';
+import { LANGUAGE_CODES } from '@/lib/forge/languages';
 import type { ForgeProfile } from '@/lib/forge/types';
 import { sendWelcomeEmail } from '@/lib/email/transactional';
 
@@ -41,7 +42,7 @@ const PatchSchema = z
     niche: z.string().trim().max(80).nullable().optional(),
     x_handle: z.string().trim().max(60).nullable().optional(),
     share_anonymous_insights: z.boolean().optional(),
-    writing_language: z.enum(['en', 'hi', 'hinglish']).optional(),
+    writing_language: z.enum(LANGUAGE_CODES).optional(),
     onboarded: z.literal(true).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update.');

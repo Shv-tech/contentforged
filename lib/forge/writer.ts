@@ -23,7 +23,8 @@ import { acceptedRules, bannedPhrasesFrom } from './data/rules';
 import { formatStoriesForModel, searchStories } from './data/stories';
 import { getFingerprint } from './data/voice';
 import type { WorkspaceRef } from './data/workspace';
-import { languageInstructions } from './language';
+import { effectiveLanguage, languageInstructions } from './language';
+import { isWritingLanguage } from './languages';
 import { computePlaybook, loadPostedPosts, playbookPromptLines } from './playbook';
 import { slopPromptList } from './slop';
 import { joinSegments, measure, PLATFORM_LIMITS, splitIntoThread } from './text';
@@ -76,7 +77,8 @@ export async function loadBrandContext(db: SupabaseClient, userId: string, works
   const profileRow = profile.status === 'fulfilled' ? (profile.value.data as { timezone?: string | null; writing_language?: string | null } | null) : null;
   const timezone = profileRow?.timezone ?? 'UTC';
   const postedPosts = settled(posts, []);
-  const statedLanguage = (workspace?.writing_language ?? profileRow?.writing_language ?? 'en') as WritingLanguage;
+  const stated = workspace?.writing_language ?? profileRow?.writing_language;
+  const statedLanguage: WritingLanguage = isWritingLanguage(stated) ? stated : 'en';
 
   return {
     db,
@@ -89,7 +91,7 @@ export async function loadBrandContext(db: SupabaseClient, userId: string, works
     rules: ruleRows.map((rule) => rule.rule),
     bannedPhrases: bannedPhrasesFrom(ruleRows),
     playbook: postedPosts.length > 0 ? playbookPromptLines(computePlaybook(postedPosts, timezone)) : [],
-    language: usableVoice?.profile.language && usableVoice.profile.language.primary !== 'en' ? usableVoice.profile.language.primary : statedLanguage,
+    language: effectiveLanguage(statedLanguage, usableVoice?.profile.language ?? null),
     timezone,
   };
 }

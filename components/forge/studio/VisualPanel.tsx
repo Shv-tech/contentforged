@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ApiError, api } from '@/lib/forge/client';
+import { renderableOnSlides } from '@/lib/forge/language';
 import type { DraftRecord, DraftVisual, VisualLayout } from '@/lib/forge/types';
 import { MAX_SLIDES, VISUAL_LAYOUTS } from '@/lib/forge/visuals/layouts';
 import { UpsellCard } from '@/components/forge/views/UpsellCard';
@@ -92,6 +93,12 @@ export function VisualPanel({ draft, canEdit, onUpdated }: { draft: DraftRecord;
             className="self-start"
           />
         </div>
+      )}
+
+      {!renderableOnSlides(visual.slides.join('\n')) && (
+        <p className="rounded-[12px] bg-forge-warn/10 px-3 py-2 text-[12.5px] leading-relaxed text-forge-warn">
+          Slides draw Latin script only for now, so letters in other scripts show as empty boxes. Edit the slide text into Roman script before downloading.
+        </p>
       )}
 
       {placeholders && <p className="rounded-[12px] bg-forge-warn/10 px-3 py-2 text-[12.5px] text-forge-warn">A slide still has a [bracket]. Fill it in before downloading.</p>}

@@ -112,7 +112,8 @@ export function fits(text: string, platform: DraftPlatform): boolean {
 // THREAD SPLITTING
 // ============================================================================
 
-const SENTENCE_PATTERN = /[^.!?\n]+(?:[.!?]+["')\]]*|\n|$)/g;
+// Sentence ends in Latin, Indic (danda), Arabic and CJK punctuation.
+const SENTENCE_PATTERN = /[^.!?।॥؟。！？\n]+(?:[.!?।॥؟。！？]+["')\]」』]*|\n|$)/gu;
 
 export function splitSentences(text: string): string[] {
   return (text.match(SENTENCE_PATTERN) ?? []).map((sentence) => sentence.trim()).filter((sentence) => sentence.length > 0);

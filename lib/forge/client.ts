@@ -9,7 +9,7 @@
 
 import { create } from 'zustand';
 import { useAppStore } from '@/lib/store';
-import type { ChatStreamEvent, DraftRecord, ForgeProfile } from './types';
+import type { ChatStreamEvent, DraftRecord, ForgeProfile, WritingLanguage } from './types';
 import type { RuleSuggestion } from './learning';
 import type { StoredFingerprint } from './data/voice';
 
@@ -249,7 +249,7 @@ export interface WorkspaceSummary {
   owner_id: string;
   name: string;
   kind: 'client' | 'company';
-  writing_language: 'en' | 'hi' | 'hinglish';
+  writing_language: WritingLanguage;
   brand_dna: string | null;
   client_email: string | null;
   role: 'owner' | 'editor' | 'reviewer' | 'client';

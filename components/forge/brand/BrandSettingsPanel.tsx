@@ -10,8 +10,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api, ApiError, useConnectionsStore, useProfileStore, useWorkspaceStore, type ConnectionSummary } from '@/lib/forge/client';
-import { LANGUAGE_NAMES, type WritingLanguage } from '@/lib/forge/types';
-import { Button, Card, Field, Segmented, Tag, Toggle, cn, inputClass, relativeTime } from '../ui';
+import { LANGUAGE_GROUPS, LANGUAGE_NAMES, LANGUAGES, isWritingLanguage, languageHint, type WritingLanguage } from '@/lib/forge/languages';
+import { Button, Card, Field, Tag, Toggle, cn, inputClass, relativeTime } from '../ui';
 import { BlueskyGlyph, LinkedInGlyph, ThreadsGlyph, XGlyph } from '../icons';
 import { ExtensionCard } from './ExtensionCard';
 
@@ -210,12 +210,6 @@ function WorkspaceIdentity({ workspaceId }: { workspaceId: string }) {
 // Language
 // ---------------------------------------------------------------------------
 
-const LANGUAGE_HINT: Record<WritingLanguage, string> = {
-  en: 'Drafts in English.',
-  hi: 'Drafts in Hindi, in Devanagari. Platform names and technical terms stay as people write them.',
-  hinglish: 'Drafts in Hinglish: Hindi and English mixed the way you speak, in Roman script. Forge matches how much you switch.',
-};
-
 /** The language this brand writes in. Forge also measures it from the voice samples and follows those when they disagree. */
 function LanguageCard() {
   const activeId = useWorkspaceStore((s) => s.activeId);
@@ -248,14 +242,31 @@ function LanguageCard() {
   return (
     <Card className="p-6">
       <h3 className="text-[15px] font-semibold text-white">Writing language</h3>
-      <p className="mt-1 text-[13.5px] leading-relaxed text-white/50">{LANGUAGE_HINT[value]}</p>
-      <div className={cn('mt-4', (busy || !canEdit) && 'pointer-events-none opacity-60')}>
-        <Segmented<WritingLanguage>
-          label="Writing language"
+      <p className="mt-1 text-[13.5px] leading-relaxed text-white/50">{languageHint(value)}</p>
+      <div className="mt-4 flex flex-col gap-2">
+        <label htmlFor="writing-language" className="sr-only">
+          Writing language
+        </label>
+        <select
+          id="writing-language"
           value={value}
-          onChange={choose}
-          options={(Object.keys(LANGUAGE_NAMES) as WritingLanguage[]).map((language) => ({ value: language, label: LANGUAGE_NAMES[language] }))}
-        />
+          disabled={busy || !canEdit}
+          onChange={(e) => {
+            if (isWritingLanguage(e.target.value)) void choose(e.target.value);
+          }}
+          className="h-11 w-full max-w-[360px] rounded-[12px] border border-white/[0.09] bg-white/[0.03] px-3 text-[14px] text-white focus:border-white/25 focus:outline-none disabled:opacity-60"
+        >
+          {LANGUAGE_GROUPS.map(({ group, label }) => (
+            <optgroup key={group} label={label}>
+              {LANGUAGES.filter((language) => language.group === group).map((language) => (
+                <option key={language.code} value={language.code}>
+                  {language.name === language.native ? language.name : `${language.name} (${language.native})`}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <p className="text-[12.5px] leading-relaxed text-white/40">Voice notes are transcribed in this language too. When your own posts show a different language, Forge follows your posts.</p>
       </div>
     </Card>
   );

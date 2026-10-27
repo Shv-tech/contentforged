@@ -10,11 +10,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/service';
-import type { WritingLanguage } from './types';
-
-function isLanguage(value: unknown): value is WritingLanguage {
-  return value === 'en' || value === 'hi' || value === 'hinglish';
-}
+import { isWritingLanguage as isLanguage, type WritingLanguage } from './languages';
 
 export async function timezoneOf(userId: string): Promise<string> {
   const { data } = await createServiceClient().from('profiles').select('timezone').eq('id', userId).maybeSingle();

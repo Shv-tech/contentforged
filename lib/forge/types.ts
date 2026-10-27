@@ -6,6 +6,8 @@
  * changes there, the matching type changes here.
  */
 
+import type { WritingLanguage } from './languages';
+
 export const DRAFT_PLATFORMS = ['x', 'linkedin', 'threads', 'bluesky', 'instagram', 'newsletter'] as const;
 export type DraftPlatform = (typeof DRAFT_PLATFORMS)[number];
 
@@ -23,14 +25,9 @@ export const PLATFORM_NAMES: Record<DraftPlatform, string> = {
 };
 
 export type DraftKind = 'post' | 'thread' | 'carousel';
-export type WritingLanguage = 'en' | 'hi' | 'hinglish';
+export type { WritingLanguage } from './languages';
+export { LANGUAGE_NAMES } from './languages';
 export type ReviewStatus = 'pending' | 'approved' | 'skipped';
-
-export const LANGUAGE_NAMES: Record<WritingLanguage, string> = {
-  en: 'English',
-  hi: 'Hindi',
-  hinglish: 'Hinglish',
-};
 export type DraftStatus = 'draft' | 'scheduled' | 'posted' | 'archived';
 export type ApprovalStatus = 'pending' | 'approved' | 'changes_requested';
 

@@ -18,7 +18,7 @@
  */
 
 import { classifyHook, HOOK_TYPES, type HookType } from './hooks';
-import { buildLanguageProfile, describeLanguage, languageMismatch, type LanguageProfile } from './language';
+import { buildLanguageProfile, describeLanguage, languageMismatch, languageTraitLine, type LanguageProfile } from './language';
 import { findSlop, type SlopHit } from './slop';
 import { splitSentences, words } from './text';
 import type { WritingLanguage } from './types';
@@ -398,11 +398,7 @@ export function voicePromptBlock(profile: VoiceProfile, traits: string[]): strin
     profile.perPost.emoji < 0.15 ? '- Uses no emoji.' : `- Uses about ${profile.perPost.emoji} emoji per post.`,
     profile.perPost.hashtags < 0.1 ? '- Uses no hashtags.' : `- Uses about ${profile.perPost.hashtags} hashtags per post.`,
     profile.signatureWords.length > 0 ? `- Words they reach for: ${profile.signatureWords.slice(0, 12).join(', ')}.` : '',
-    profile.language?.primary === 'hinglish'
-      ? `- Mixes Hindi and English (Hindi words in Latin script) in about ${Math.round(profile.language.switchRate * 100)}% of sentences. Keep that mix.`
-      : profile.language?.primary === 'hi'
-        ? '- Writes in Hindi, in Devanagari.'
-        : '',
+    languageTraitLine(profile.language) ?? '',
     traits.length > 0 ? `- In short: ${traits.join('; ')}.` : '',
   ];
   return lines.filter(Boolean).join('\n');

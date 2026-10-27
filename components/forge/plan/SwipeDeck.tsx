@@ -230,7 +230,7 @@ function TopCard({
 
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5">
         {draft.title && <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-white/30">{draft.title}</p>}
-        <p className="whitespace-pre-wrap text-[15.5px] leading-[1.6] text-white/90">{text}</p>
+        <p dir="auto" className="whitespace-pre-wrap text-[15.5px] leading-[1.6] text-white/90">{text}</p>
       </div>
 
       <footer className={cn('flex flex-wrap items-center gap-3 border-t border-white/[0.06] px-6 py-4 text-[12.5px]', missing ? 'text-forge-warn' : 'text-white/45')}>
