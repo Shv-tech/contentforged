@@ -31,6 +31,8 @@ export const API_SCOPES: readonly ApiScope[] = ['read', 'write', 'generate'];
 export interface ForgeContext {
   userId: string;
   email: string;
+  /** True once the person proved they own `email` (Supabase email_confirmed_at, or an OAuth sign-in). */
+  emailVerified: boolean;
   name: string;
   via: 'session' | 'token';
   /** RLS-scoped for sessions; service role for tokens. Always filter by userId. */
@@ -82,6 +84,7 @@ export async function requireUser(req?: Request): Promise<ForgeContext> {
   return {
     userId: user.id,
     email: user.email ?? '',
+    emailVerified: Boolean(user.email_confirmed_at),
     name: fullName.split(' ')[0] || (user.email ?? '').split('@')[0] || 'there',
     via: 'session',
     db: supabase as unknown as SupabaseClient,
@@ -112,6 +115,7 @@ async function resolveToken(token: string): Promise<ForgeContext> {
   return {
     userId: data.user_id,
     email,
+    emailVerified: Boolean(userData?.user?.email_confirmed_at),
     name: fullName.split(' ')[0] || email.split('@')[0] || 'there',
     via: 'token',
     db: service,

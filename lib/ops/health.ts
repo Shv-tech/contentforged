@@ -51,24 +51,48 @@ async function timed(name: string, run: () => Promise<Response>, ok: (r: Respons
       state: 'down',
       mode: 'active',
       latencyMs: Math.round(performance.now() - started),
-      message: clip(error instanceof Error ? error.message : String(error), 300),
+      message: clip(networkReason(error), 300),
     };
   }
+}
+
+/**
+ * "fetch failed" on its own says nothing. Node puts the real reason in
+ * `cause`: ENOTFOUND (the host does not exist: wrong URL or deleted
+ * database), ECONNREFUSED, a TLS error, or a timeout.
+ */
+function networkReason(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  if (error.name === 'TimeoutError' || error.name === 'AbortError') return `No answer within ${TIMEOUT_MS / 1000} s`;
+  const cause = (error as Error & { cause?: { code?: string; message?: string } }).cause;
+  const code = cause?.code ?? '';
+  let hint = cause?.message ?? error.message;
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') hint = 'this address does not exist. Check the URL setting, and that the service or database still exists';
+  else if (code === 'ECONNREFUSED') hint = 'the connection was refused';
+  else if (code.startsWith('ERR_TLS') || code.includes('CERT')) hint = 'a TLS certificate problem';
+  else if (code === 'ERR_INVALID_URL' || /Invalid URL|Failed to parse URL/i.test(`${error.message} ${cause?.message ?? ''}`)) hint = 'the URL setting is not a valid https URL';
+  return `Could not connect${code ? ` (${code})` : ''}: ${hint}`;
 }
 
 function get(url: string, headers: Record<string, string>): Promise<Response> {
   return rawFetch()(url, { headers, cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS) });
 }
 
-const REQUIRED_ENV = [
+/** Without these Forge cannot work at all. */
+const REQUIRED_ENV = ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ANTHROPIC_API_KEY'];
+/** Without these, parts of Forge break: email links, OAuth, jobs, publishing, shared limits, billing. */
+const PRODUCTION_ENV = [
   'NEXT_PUBLIC_APP_URL',
-  'NEXT_PUBLIC_SUPABASE_URL',
-  'SUPABASE_SERVICE_ROLE_KEY',
-  'ANTHROPIC_API_KEY',
   'CRON_SECRET',
   'FORGE_ENCRYPTION_KEY',
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
+  'RESEND_API_KEY',
+  'RAZORPAY_WEBHOOK_SECRET',
+  'X_BEARER_TOKEN',
+  'ADMIN_EMAILS',
 ];
-const PRODUCTION_ENV = ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'RESEND_API_KEY', 'RAZORPAY_WEBHOOK_SECRET', 'X_BEARER_TOKEN', 'ADMIN_EMAILS'];
+const URL_ENV = ['NEXT_PUBLIC_APP_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'UPSTASH_REDIS_REST_URL'];
 
 function configCheck(): HealthResult {
   const missing = REQUIRED_ENV.filter((k) => !env(k));
@@ -76,6 +100,13 @@ function configCheck(): HealthResult {
   if (missing.length > 0) return { name: 'Configuration', state: 'down', mode: 'config', latencyMs: null, message: `Missing: ${missing.join(', ')}` };
   if (missingProd.length > 0)
     return { name: 'Configuration', state: 'degraded', mode: 'config', latencyMs: null, message: `Not set: ${missingProd.join(', ')}` };
+  const badUrls = URL_ENV.filter((k) => {
+    const v = env(k);
+    return v !== null && !/^https?:\/\/[^\s"']+$/.test(v);
+  });
+  if (badUrls.length > 0) {
+    return { name: 'Configuration', state: 'degraded', mode: 'config', latencyMs: null, message: `Not a plain https URL (look for quotes, spaces, or a redis:// address): ${badUrls.join(', ')}` };
+  }
   return { name: 'Configuration', state: 'up', mode: 'config', latencyMs: null, message: null };
 }
 

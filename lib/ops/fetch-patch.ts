@@ -15,7 +15,7 @@
  */
 
 import 'server-only';
-import { featureFor, serviceFor } from './features';
+import { serviceFor } from './features';
 import { clip, opsContext, record, setBaseFetch } from './recorder';
 
 const PATCHED = Symbol.for('forge.ops.fetchPatched');
@@ -59,7 +59,7 @@ export function installFetchPatch(): void {
     const started = performance.now();
     const method = methodOf(input, init);
     const ctx = opsContext();
-    const feature = ctx?.feature ?? featureFor('');
+    const feature = ctx?.feature ?? 'Background';
     const path = `${url.host}${url.pathname}`.slice(0, 300);
 
     try {

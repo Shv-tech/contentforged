@@ -22,8 +22,14 @@ export function isAdmin(email: string | null | undefined): boolean {
   return admins.includes(email.toLowerCase());
 }
 
+/**
+ * Admin pages and their APIs. Signed in with a browser session (never an
+ * API key), an address listed in ADMIN_EMAILS, and that address confirmed:
+ * without the last check, someone could sign up with an admin's address
+ * before the admin does and walk in. Everyone else gets a plain 404.
+ */
 export function requireAdmin(ctx: ForgeContext): void {
-  if (ctx.via !== 'session' || !isAdmin(ctx.email)) throw new HttpError(404, 'Not found.');
+  if (ctx.via !== 'session' || !ctx.emailVerified || !isAdmin(ctx.email)) throw new HttpError(404, 'Not found.');
 }
 
 /** The path from first visit to a published post, in order. */

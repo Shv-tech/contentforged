@@ -35,15 +35,16 @@ An honest review of the whole repository before handover: every directory, the d
 4. **Service-role client could be imported by client code.** `lib/supabase/service.ts` now imports `server-only`; the build fails if that ever happens.
 5. **Security headers.** Added `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security` and `Permissions-Policy` in `next.config.js`.
 6. **Unvalidated public AI endpoint.** `app/api/tools/generate` (the free tools, no login) passed a user-supplied `tone` straight into the system prompt with no length limit, and accepted any string containing `@` as a lead email. Now every field is validated with zod: `tone` is a short plain label, `input` is capped, and the email must be a real address.
-7. **Stale duplicate endpoint.** `app/api/api/public/grade-hook` (note the doubled `api`) was an older copy with an in-memory rate limit and a TODO. Removed; the live endpoint is unaffected.
+7. **A Redis outage took down every rate-limited endpoint.** If Upstash was configured but unreachable, `consumeLimit` threw, so the free hook grader, the X audit and the public API all returned 500. It now falls back to per-instance limits for 30 seconds and retries, with one quick retry instead of five slow ones. Found by the new monitoring dashboard on its first run.
+8. **Stale duplicate endpoint.** `app/api/api/public/grade-hook` (note the doubled `api`) was an older copy with an in-memory rate limit and a TODO. Removed; the live endpoint is unaffected.
 
 ### Code health
 
-8. **Dead code removed** (no imports anywhere): `PreviewPane.tsx`, `psychologysection.tsx`, `blog-card.tsx`, `HookGrader.tsx`, `ShadowbanChecker.tsx`, `RazorpayCheckoutButton.tsx`, `lib/email/design.ts`, `lib/email/marketing.ts`, `lib/supabase-server.ts`, and `lib/supabase/client.ts` (a duplicate of `lib/supabase-browser.ts`).
-9. **Unused dependencies removed:** `@anthropic-ai/sdk` (the code calls the Anthropic HTTP API with `fetch`), `tesseract.js`, `@types/katex`.
-10. **React hook bugs** in `CalendarPane.tsx`: stale closures and a Supabase client recreated every render. Fixed with `useCallback`, `useMemo` and correct dependencies. In `EditorPane.tsx` a new empty array every render caused needless re-renders; replaced with a stable constant.
-11. **`@ts-ignore` removed** where it was hiding nothing (3 places) and a success `console.log` removed from `lib/memory.ts`.
-12. **Lint configuration added** (`.eslintrc.json`), with 40 unescaped-entity fixes across marketing and legal pages. `npm run typecheck` and `npm run check` scripts added.
+9. **Dead code removed** (no imports anywhere): `PreviewPane.tsx`, `psychologysection.tsx`, `blog-card.tsx`, `HookGrader.tsx`, `ShadowbanChecker.tsx`, `RazorpayCheckoutButton.tsx`, `lib/email/design.ts`, `lib/email/marketing.ts`, `lib/supabase-server.ts`, and `lib/supabase/client.ts` (a duplicate of `lib/supabase-browser.ts`).
+10. **Unused dependencies removed:** `@anthropic-ai/sdk` (the code calls the Anthropic HTTP API with `fetch`), `tesseract.js`, `@types/katex`.
+11. **React hook bugs** in `CalendarPane.tsx`: stale closures and a Supabase client recreated every render. Fixed with `useCallback`, `useMemo` and correct dependencies. In `EditorPane.tsx` a new empty array every render caused needless re-renders; replaced with a stable constant.
+12. **`@ts-ignore` removed** where it was hiding nothing (3 places) and a success `console.log` removed from `lib/memory.ts`.
+13. **Lint configuration added** (`.eslintrc.json`), with 40 unescaped-entity fixes across marketing and legal pages. `npm run typecheck` and `npm run check` scripts added.
 
 ## Critical: the database baseline is missing
 
