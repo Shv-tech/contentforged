@@ -6,7 +6,7 @@
  * place and the calendar never holds a stale copy of its text.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, X, Share2, Loader2, Trash2, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase-browser';
 import { useAppStore } from '@/lib/store';
@@ -41,31 +41,35 @@ export function CalendarPane() {
   const [editing, setEditing] = useState<CalEvent | null>(null);
   const [form, setForm] = useState({ title: '', description: '', time: '09:00', type: 'post', platform: '', reminder_minutes_before: 60 });
   const [saving, setSaving] = useState(false);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
-  const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-  const monthLabel = monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  // The visible month, as plain numbers so effects and memos can depend on it.
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const monthLabel = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const rangeStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1).toISOString();
-    const rangeEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59).toISOString();
+    const rangeStart = new Date(year, month, 1).toISOString();
+    const rangeEnd = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
     const { data } = await supabase.from('calendar_events').select('*').eq('user_id', user.id).gte('start_date', rangeStart).lte('start_date', rangeEnd).order('start_date');
     setEvents(data || []);
     setLoading(false);
-  };
+  }, [supabase, user, year, month]);
 
-  useEffect(() => { load(); }, [user, cursor.getMonth(), cursor.getFullYear()]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const cells = useMemo(() => {
-    const firstWeekday = monthStart.getDay();
-    const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
     const out: (number | null)[] = Array(firstWeekday).fill(null);
     for (let d = 1; d <= daysInMonth; d++) out.push(d);
     while (out.length % 7 !== 0) out.push(null);
     return out;
-  }, [cursor]);
+  }, [year, month]);
 
   const eventsOnDay = (day: number) => {
     const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -74,7 +78,8 @@ export function CalendarPane() {
 
   const today = new Date();
   const weekEvents = useMemo(() => {
-    const start = new Date(today); start.setDate(today.getDate() - today.getDay()); start.setHours(0,0,0,0);
+    const now = new Date();
+    const start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
     const end = new Date(start); end.setDate(start.getDate() + 7);
     return events.filter(e => { const d = new Date(e.start_date); return d >= start && d < end; })
       .sort((a,b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());

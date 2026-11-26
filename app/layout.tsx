@@ -3,9 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import { rootMetadata } from '@/lib/seo';
 
-// @ts-ignore: allow side-effect CSS import in Next.js app directory
 import './globals.css';
-// @ts-ignore: allow side-effect CSS import in Next.js app directory
 import 'katex/dist/katex.min.css';
 
 import { Toaster } from 'react-hot-toast';

@@ -1,0 +1,21 @@
+flowchart TD
+  CR["pg_cron, hourly"] --> J["/api/cron/weekly-plan"]
+  J --> DUE{"Brand's delivery hour<br/>in its time zone?"}
+  DUE -- no --> SKIP["Wait for the next hour"]
+  DUE -- yes --> IDEAS["Rank the idea queue<br/>captures, Story Bank, questions, reruns"]
+  IDEAS --> W["Write each draft<br/>measured voice and writing language"]
+  W --> GR["Grade the opening"]
+  W --> PR["Predict a range<br/>from the most similar past posts"]
+  GR --> SAVE[("weekly_plans and drafts<br/>review_status: pending")]
+  PR --> SAVE
+  SAVE --> NOTIFY["Email and Web Push"]
+  NOTIFY --> SWIPE{"Swipe review"}
+  SWIPE -- Approve --> SCH["Scheduled at a best time"]
+  SWIPE -- Skip --> BACK["Idea returns to the queue"]
+  SCH --> PUBA{"Platform"}
+  PUBA -- "LinkedIn, Threads, Bluesky" --> AUTO["/api/cron/publish-scheduled<br/>when auto publish is on"]
+  PUBA -- X --> FILL["Reminder, then the extension fills<br/>X's composer. The person presses Post."]
+  AUTO --> MET["/api/cron/post-metrics<br/>results at 1 hour, 24 hours, 7 days"]
+  FILL --> MET
+  MET --> LEARN["Playbook, prediction hit rate,<br/>experiments, learned rules"]
+  LEARN --> IDEAS

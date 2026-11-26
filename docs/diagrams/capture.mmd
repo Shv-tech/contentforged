@@ -1,0 +1,17 @@
+flowchart TD
+  V["Voice note or interview<br/>recorded in the browser"] --> U["Signed upload<br/>Storage bucket: captures"]
+  E["Email to the person's private capture address<br/>FORGE_INBOUND_DOMAIN"] --> H["/api/capture/email<br/>Resend webhook, signature checked"]
+  S["Share sheet, extension,<br/>pasted link or text"] --> C2["/api/capture"]
+  G["GitHub, Linear, Notion,<br/>calendar feed (read-only)"] --> SY["/api/cron/sources-sync<br/>every 6 hours"]
+  U --> A["/api/capture/audio"]
+  A --> T["Transcribe<br/>Whisper via Groq, OpenAI fallback<br/>language from the brand setting"]
+  T --> X["Extract proposals<br/>lib/forge/capture/extract.ts"]
+  H --> X
+  C2 --> X
+  SY --> X
+  X --> P[("story_proposals<br/>status: pending")]
+  P --> REV{"The person reviews<br/>Inbox or phone"}
+  REV -- Keep --> SB[("story_items<br/>the Story Bank")]
+  REV -- Discard --> DIS["Kept out of every draft"]
+  SB --> IQ["Idea queue<br/>lib/forge/ideas.ts"]
+  IQ --> WP["Weekly plan and chat drafting"]

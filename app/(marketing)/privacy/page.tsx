@@ -58,7 +58,7 @@ export default function PrivacyPolicy() {
               Forge utilizes Supabase as our primary backend-as-a-service (BaaS) provider. To ensure optimal latency and stringent data protection, our core PostgreSQL databases and vector storage are physically housed in East Asia, specifically within highly secured server clusters located in <strong>Tokyo, Japan</strong>.
             </p>
             <p>
-              By utilizing the Service, you consent to the cross-border transfer, processing, and storage of your Brand DNA and contextual data in Tokyo, governed by international data protection protocols and Supabase's enterprise security architecture.
+              By utilizing the Service, you consent to the cross-border transfer, processing, and storage of your Brand DNA and contextual data in Tokyo, governed by international data protection protocols and Supabase&apos;s enterprise security architecture.
             </p>
           </section>
 

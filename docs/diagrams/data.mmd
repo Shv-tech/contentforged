@@ -1,0 +1,25 @@
+erDiagram
+  workspaces ||--o{ workspace_members : has
+  workspaces ||--o{ workspace_invites : has
+  workspaces ||--o{ drafts : owns
+  workspaces ||--o{ story_items : owns
+  workspaces ||--o{ weekly_plans : owns
+  workspaces ||--o{ client_reports : gets
+  profiles ||--o{ drafts : writes
+  profiles ||--o{ voice_fingerprints : measured_as
+  captures ||--o{ story_proposals : yields
+  story_proposals |o--o| story_items : becomes
+  story_items ||--o{ ideas : feeds
+  ideas |o--o{ drafts : drafted_as
+  weekly_plans ||--o{ drafts : contains
+  drafts ||--o{ draft_versions : history
+  drafts ||--o{ draft_comments : discussed_in
+  drafts ||--o| predictions : forecast
+  drafts ||--o{ post_metrics : measured_by
+  drafts ||--o{ post_comments : receives
+  drafts ||--o{ short_links : tracked_by
+  short_links ||--o{ link_clicks : records
+  goal_endpoints ||--o{ goal_events : receives
+  experiments ||--o{ drafts : tests
+  formats ||--o{ drafts : shapes
+  profiles ||--o{ extension_tokens : "API keys"

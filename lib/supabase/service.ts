@@ -22,6 +22,9 @@
  *    catch a missing filter.
  */
 
+// Fails the build if any client component imports this module, directly or
+// through another file, so the service-role key can never reach a browser.
+import 'server-only';
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 
 let cached: SupabaseClient | null = null;

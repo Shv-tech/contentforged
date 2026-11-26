@@ -221,7 +221,17 @@ export function faqSchema(faqs: Array<{ question: string; answer: string }>) {
   };
 }
 
-/** Renders a schema object as a script tag. */
+/**
+ * Serialises a schema object for a <script type="application/ld+json"> body.
+ * Characters that could close the script tag or start an HTML comment are
+ * escaped, so content in the schema (a title, an FAQ answer) can never break
+ * out of the tag and run as markup.
+ */
 export function jsonLd(schema: object): string {
-  return JSON.stringify(schema);
+  return JSON.stringify(schema)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }

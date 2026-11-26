@@ -1,0 +1,22 @@
+sequenceDiagram
+  autonumber
+  participant C as Browser or API client
+  participant R as route() wrapper<br/>lib/forge/http.ts
+  participant A as brandRequest / apiCaller
+  participant D as Domain function<br/>lib/forge/*
+  participant DB as Postgres (RLS)
+
+  C->>R: HTTP request
+  R->>A: resolve who is calling
+  alt Signed-in person
+    A->>A: Supabase session cookie, active workspace, role
+  else API key or MCP
+    A->>A: hash fx_ key, check scopes, 600 requests an hour
+  end
+  A-->>R: ForgeContext (user, workspace, role, scopes)
+  R->>R: parse body with zod (parseJson)
+  R->>D: call with the context
+  D->>DB: query scoped to user or workspace
+  DB-->>D: rows the policies allow
+  D-->>R: result
+  R-->>C: JSON, or HttpError mapped to a status code

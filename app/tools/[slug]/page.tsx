@@ -9,6 +9,7 @@ import MoreTools from "../../../components/tools/MoreTools";
 import ForgePromoBanner from "../../../components/tools/ForgePromoBanner";
 import AdSlot from "../../../components/tools/AdSlot";
 import ToolsFooter from "@/components/tools/ToolsFooter";
+import { jsonLd } from '@/lib/seo';
 
 interface Props {
   params: { slug: string };
@@ -73,11 +74,11 @@ export default function ToolPage({ params }: Props) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(faqJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(softwareJsonLd) }}
       />
 
       {/* Pure white, high-end minimalist styling */}

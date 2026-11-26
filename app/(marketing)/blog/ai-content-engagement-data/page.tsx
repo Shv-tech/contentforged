@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AnimatedBars, StatCallout } from '@/components/blogs/AnimatedBars';
 import { getPost, formatPostDate } from '@/lib/blog/posts';
-import { pageMeta, SITE } from '@/lib/seo';
+import { pageMeta, SITE, jsonLd } from '@/lib/seo';
 
 const post = getPost('ai-content-engagement-data')!;
 
@@ -45,7 +45,7 @@ export default function Page() {
     <article className="min-h-screen bg-black">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema()) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(articleSchema()) }}
       />
 
       <div className="max-w-[680px] mx-auto px-6 py-24 md:py-32">
@@ -120,7 +120,7 @@ export default function Page() {
           </p>
 
           <p>
-            A fully manual post is limited by the writer's energy on the day. Most people write their
+            A fully manual post is limited by the writer&apos;s energy on the day. Most people write their
             best hook on their third attempt and publish their first, because attempts two and three
             cost twenty minutes they do not have. The average AI-assisted LinkedIn post takes around
             3.2 minutes to produce, against 18 minutes manually. The gain is not that the machine
@@ -145,14 +145,14 @@ export default function Page() {
 
           <p>
             The most persistent myth in this space is that Google penalises AI content. It does not.
-            Google's stated position is that E-E-A-T (experience, expertise, authoritativeness,
+            Google&apos;s stated position is that E-E-A-T (experience, expertise, authoritativeness,
             trustworthiness) remains the standard, and that content is judged on quality regardless of
             how it was produced.
           </p>
 
           <p>
             What has changed is enforcement of the failure mode. Google has ramped up manual actions
-            for "scaled content abuse" since June 2025. The trigger is not the tool. It is publishing
+            for &quot;scaled content abuse&quot; since June 2025. The trigger is not the tool. It is publishing
             a large volume of low-value pages, which is precisely what happens when a team discovers
             they can generate forty articles in an afternoon.
           </p>
@@ -196,7 +196,7 @@ export default function Page() {
 
           <p>
             <strong>Knowing what you already published.</strong> The failure mode nobody measures is
-            repetition. A model with no memory of last week's post will happily make the same argument
+            repetition. A model with no memory of last week&apos;s post will happily make the same argument
             again in different words, and the audience reads it as thinness even if each individual
             post is fine.
           </p>

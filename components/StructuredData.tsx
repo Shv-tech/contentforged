@@ -11,6 +11,8 @@
 // structured data (wrong price, dead URL) is worse than no structured data,
 // since it can get you a manual "misleading markup" flag from Google.
 
+import { jsonLd } from '@/lib/seo';
+
 const BASE_URL = 'https://forgeyourway.dev';
 
 export default function StructuredData() {
@@ -58,7 +60,7 @@ export default function StructuredData() {
     <script
       type="application/ld+json"
       // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: jsonLd(data) }}
     />
   );
 }

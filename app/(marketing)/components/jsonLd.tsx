@@ -11,6 +11,7 @@
 
 import { PLANS, PAID_PLANS } from '@/lib/billing/plans';
 import { FAQS } from '../lib/landing-data';
+import { jsonLd } from '@/lib/seo';
 
 const BASE_URL = 'https://forgeyourway.dev';
 
@@ -106,7 +107,7 @@ export function JsonLd() {
           key={index}
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(schema) }}
         />
       ))}
     </>

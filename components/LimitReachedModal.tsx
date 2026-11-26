@@ -140,11 +140,11 @@ export function LimitReachedModal({
         {isMonthly ? (
           <>
             <h2 className="text-[19px] font-semibold text-white mb-2.5 tracking-[-0.01em]">
-              You've used this month's allowance
+              You&apos;ve used this month&apos;s allowance
             </h2>
             <p className="text-[14px] leading-[1.65] text-[#999] mb-6">
               Your plan resets at the start of your next billing period. Upgrading raises the limit
-              straight away, and everything you've made stays where it is.
+              straight away, and everything you&apos;ve made stays where it is.
             </p>
           </>
         ) : (
@@ -153,7 +153,7 @@ export function LimitReachedModal({
               Taking a short break
             </h2>
             <p className="text-[14px] leading-[1.65] text-[#999] mb-6">
-              You've used the generations in this window.{' '}
+              You&apos;ve used the generations in this window.{' '}
               {resetsIn ? (
                 <>
                   It resets in <span className="text-white font-medium">{resetsIn}</span>, and

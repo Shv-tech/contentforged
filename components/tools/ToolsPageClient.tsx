@@ -151,7 +151,7 @@ export default function ToolPageClient({ tool }: Props) {
             Loved that one? Enter your email to keep generating.
           </p>
           <p className="mt-1 text-sm text-neutral-500">
-            We'll also send you a free {platformName} content calendar template. No payment required.
+            We&apos;ll also send you a free {platformName} content calendar template. No payment required.
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <input

@@ -46,8 +46,6 @@ export async function saveEpisodicMemory(
       });
 
     if (error) throw error;
-    
-    console.log(`[MEMORY] Successfully saved ${type} for user ${userId}`);
   } catch (error) {
     console.error('Silently caught memory write error:', error);
   }

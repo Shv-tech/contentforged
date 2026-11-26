@@ -56,7 +56,7 @@ const GraderCard = ({ data }: { data: any }) => {
           </div>
         </div>
         <blockquote className="text-[15px] italic text-[#ccc] leading-relaxed border-l-4 border-[#444] pl-4 break-words whitespace-pre-wrap max-w-full">
-          "{data.hook}"
+          &quot;{data.hook}&quot;
         </blockquote>
       </div>
 
@@ -265,7 +265,6 @@ export default function SharedChatPage() {
                       finalContent.replace(/\[Document: .*?\]\n[\s\S]*?\n\nUser Prompt: /g, '')
                     ) : (
                       <ReactMarkdown 
-                        // @ts-ignore
                         remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
                         rehypePlugins={[rehypeKatex]}
                         components={{

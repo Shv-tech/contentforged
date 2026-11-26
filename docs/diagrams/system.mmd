@@ -1,0 +1,53 @@
+flowchart TB
+  subgraph Clients["Who calls Forge"]
+    direction LR
+    WEB["Web app and installable app"]
+    EXT["Chrome extension"]
+    AGENT["AI agents over MCP"]
+    APIC["REST API clients"]
+  end
+
+  subgraph App["Next.js 14 on Vercel"]
+    direction LR
+    PAGES["Pages<br/>marketing, dashboard, studio"]
+    ROUTES["API routes<br/>app/api/*"]
+    PUBLIC["Public API and MCP<br/>/api/v1, /api/mcp"]
+    CRON["Scheduled endpoints<br/>/api/cron/*"]
+  end
+
+  DOMAIN["Domain logic: lib/forge<br/>voice, capture, ideas, drafting, grading,<br/>prediction, publishing, metrics, billing rules"]
+
+  subgraph Supabase
+    direction LR
+    AUTH["Auth<br/>email, Google, SSO"]
+    PG[("Postgres<br/>RLS on every table")]
+    STORE["Storage"]
+    RT["Realtime"]
+    PGCRON["pg_cron"]
+  end
+
+  subgraph Ext["External services"]
+    direction LR
+    ANTH["Anthropic"]
+    WHISPER["Groq Whisper<br/>OpenAI fallback"]
+    TAVILY["Tavily"]
+    SOCIAL["X, LinkedIn,<br/>Threads, Bluesky APIs"]
+    RESEND["Resend"]
+    REDIS["Upstash Redis"]
+    PAY["Razorpay"]
+  end
+
+  WEB --> PAGES
+  WEB --> ROUTES
+  EXT --> ROUTES
+  AGENT --> PUBLIC
+  APIC --> PUBLIC
+  ROUTES --> DOMAIN
+  PUBLIC --> DOMAIN
+  CRON --> DOMAIN
+  PGCRON -- "Bearer CRON_SECRET" --> CRON
+  DOMAIN --> Supabase
+  DOMAIN --> Ext
+  PAGES <-. "live co-editing" .-> RT
+  PAY -. "signed webhooks" .-> ROUTES
+  RESEND -. "inbound email" .-> ROUTES

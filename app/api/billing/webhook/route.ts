@@ -87,9 +87,22 @@ export async function POST(req: Request) {
 
   if (insertError) {
     // 23505 = unique_violation: we have seen this exact event before.
-    // Return 200 so Razorpay stops retrying a delivery we already handled.
-    if ((insertError as any).code === '23505') {
-      return NextResponse.json({ status: 'duplicate_ignored' });
+    if (insertError.code === '23505') {
+      // A retry of an event whose processing failed is claimed for another
+      // attempt. The conditional update is atomic, so of two concurrent
+      // retries only one gets the row back and reprocesses it; without this,
+      // one transient failure would leave a paid plan ungranted forever.
+      const { data: reclaimed } = await supabase
+        .from('billing_events')
+        .update({ status: 'processing', error_message: null })
+        .eq('razorpay_event_id', eventId)
+        .eq('status', 'failed')
+        .select('razorpay_event_id');
+      if (!reclaimed || reclaimed.length === 0) {
+        // Already processed, or being processed right now: stop the retries.
+        return NextResponse.json({ status: 'duplicate_ignored' });
+      }
+      return processEvent(supabase, event, eventId);
     }
     console.error('[billing/webhook] Ledger insert failed:', insertError);
     // Return 500 so Razorpay retries: failing to record an event is worse
@@ -97,6 +110,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Ledger unavailable' }, { status: 500 });
   }
 
+  return processEvent(supabase, event, eventId);
+}
+
+/** Handles a claimed event and records the outcome in the ledger. */
+async function processEvent(supabase: ReturnType<typeof createServiceClient>, event: any, eventId: string): Promise<NextResponse> {
   try {
     const result = await handleEvent(supabase, event);
 
@@ -119,10 +137,8 @@ export async function POST(req: Request) {
       .update({ status: 'failed', error_message: message })
       .eq('razorpay_event_id', eventId);
 
-    // 500 asks Razorpay to retry. The ledger row is already marked failed, and
-    // the retry will hit the duplicate branch above, so recovery requires
-    // manual replay rather than automatic. This is the safe default: silently
-    // swallowing a billing failure is worse than a visible stuck event.
+    // 500 asks Razorpay to retry. The ledger row is marked failed, so the
+    // retry reclaims it in the duplicate branch above and processes it again.
     return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
   }
 }

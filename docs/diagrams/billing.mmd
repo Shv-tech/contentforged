@@ -1,0 +1,24 @@
+sequenceDiagram
+  autonumber
+  participant B as Browser
+  participant S as /api/billing/subscription
+  participant RZ as Razorpay
+  participant W as /api/billing/webhook
+  participant DB as Postgres
+
+  B->>S: choose a plan
+  S->>RZ: create subscription, notes carry the user id
+  RZ-->>B: checkout
+  B->>RZ: pay
+  RZ->>W: subscription.charged, signed
+  W->>W: verify HMAC on the raw body, constant time
+  W->>DB: insert billing_events row (unique event id)
+  alt First delivery
+    W->>DB: upsert subscriptions, set plan and period end
+  else Seen before and processed
+    W-->>RZ: 200 duplicate_ignored
+  else Seen before and failed
+    W->>DB: reclaim the row, process again
+  end
+  W-->>RZ: 200, or 500 so Razorpay retries
+  Note over B,DB: The plan is granted only by the verified webhook, never by the browser.

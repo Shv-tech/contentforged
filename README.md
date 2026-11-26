@@ -56,6 +56,17 @@ How each score is produced, and its limits, is documented on the [methodology pa
 
 **Instrumentation.** A fixed vocabulary of product events, never content, and an internal `/admin` page with daily active people, the path from capture to publishing, how much of each draft people rewrite, plan approval, and weekly retention cohorts.
 
+## Documentation
+
+| Document | For |
+| --- | --- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How Forge is built, with system, request, capture, weekly-loop, data and billing diagrams |
+| [docs/ONBOARDING.md](docs/ONBOARDING.md) | New engineers: local setup, code tour, conventions, PR checklist |
+| [docs/INTEGRATION.md](docs/INTEGRATION.md) | Partners: REST API, MCP server, auth, data sourcing, pilot plan |
+| [docs/AUDIT.md](docs/AUDIT.md) | Code audit: what was fixed, what is open |
+| [docs/HANDOVER.md](docs/HANDOVER.md) | Ownership transfer checklist |
+| [docs/UPGRADE.md](docs/UPGRADE.md) | What each migration changes |
+
 ## Stack
 
 Next.js 14 (App Router, TypeScript strict), Tailwind, Framer Motion, Zustand, Supabase (Postgres with row level security, Storage, Realtime), Yjs, Anthropic (Claude Haiku 4.5, prompt caching), Groq for the fallback model and Whisper transcription, Upstash Redis for rate limits, Tavily for web research, the X API v2, Resend (outbound and inbound), Web Push, Razorpay.
@@ -66,13 +77,14 @@ Next.js 14 (App Router, TypeScript strict), Tailwind, Framer Motion, Zustand, Su
 npm install
 cp .env.example .env.local      # fill in at least the REQUIRED values
 npm run dev
+npm run check                   # type check and lint, must be clean
 ```
 
 ### Database
 
 Apply the migrations in `supabase/migrations/` in order, in the Supabase SQL editor or with `supabase db push`. Each is additive and idempotent. [`docs/UPGRADE.md`](docs/UPGRADE.md) lists what each one changes and the project settings it needs.
 
-`supabase-schema.sql` is the original baseline. The production project also holds billing objects (`plan_limits`, `get_quota_status`, `reserve_quota`, `settle_quota`), the calendar, ebooks and email preference tables, which were created before migrations were tracked in this repository; a fresh project needs those too.
+`supabase-schema.sql` is the original baseline. The production project also holds billing objects (`plan_limits`, `get_quota_status`, `reserve_quota`, `settle_quota`), the calendar, ebooks and email preference tables, which were created before migrations were tracked in this repository; a fresh project needs those too. Until a schema dump is committed, follow the baseline step in [docs/ONBOARDING.md](docs/ONBOARDING.md#database).
 
 ### Scheduled jobs
 

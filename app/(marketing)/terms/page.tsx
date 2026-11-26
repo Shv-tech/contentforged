@@ -30,20 +30,20 @@ export default function TermsOfService() {
           <section className="mb-12">
             <h2 className="text-2xl mb-4">1. Acceptance of Terms</h2>
             <p>
-              By accessing, registering for, or utilizing the Forge platform ("Service"), operated by SHV Groups Pvt Ltd ("Company," "we," "us," or "our"), you agree to be bound by these Terms of Service ("Terms"). Logging into the platform, creating an account, or executing any authentication sequence constitutes your explicit, irrevocable consent to these Terms, our Privacy Policy, and our Security Protocols. If you do not agree to these Terms in their entirety, you are strictly prohibited from accessing or utilizing the Service.
+              By accessing, registering for, or utilizing the Forge platform (&quot;Service&quot;), operated by SHV Groups Pvt Ltd (&quot;Company,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;), you agree to be bound by these Terms of Service (&quot;Terms&quot;). Logging into the platform, creating an account, or executing any authentication sequence constitutes your explicit, irrevocable consent to these Terms, our Privacy Policy, and our Security Protocols. If you do not agree to these Terms in their entirety, you are strictly prohibited from accessing or utilizing the Service.
             </p>
             <p>
-              These Terms establish a legally binding agreement between you (the "User") and SHV Groups Pvt Ltd. The Service is classified as enterprise-grade software infrastructure; accordingly, these terms reflect a commercial relationship governing software-as-a-service (SaaS) architecture.
+              These Terms establish a legally binding agreement between you (the &quot;User&quot;) and SHV Groups Pvt Ltd. The Service is classified as enterprise-grade software infrastructure; accordingly, these terms reflect a commercial relationship governing software-as-a-service (SaaS) architecture.
             </p>
           </section>
 
           <section className="mb-12">
             <h2 className="text-2xl mb-4">2. Description of the Operating System</h2>
             <p>
-              Forge is an artificial intelligence-driven content operating system designed to analyze, structure, and generate text based on specific user-provided heuristics, historical performance data, and localized stylistic guidelines (collectively referred to as "Brand DNA").
+              Forge is an artificial intelligence-driven content operating system designed to analyze, structure, and generate text based on specific user-provided heuristics, historical performance data, and localized stylistic guidelines (collectively referred to as &quot;Brand DNA&quot;).
             </p>
             <p>
-              The Service is provided on an "as is" and "as available" basis. While our underlying models undergo rigorous training and structural fine-tuning, SHV Groups Pvt Ltd does not guarantee the factual accuracy, platform compliance, or absolute algorithmic performance of the generated output. The User retains ultimate editorial control and liability for any content published using the Service.
+              The Service is provided on an &quot;as is&quot; and &quot;as available&quot; basis. While our underlying models undergo rigorous training and structural fine-tuning, SHV Groups Pvt Ltd does not guarantee the factual accuracy, platform compliance, or absolute algorithmic performance of the generated output. The User retains ultimate editorial control and liability for any content published using the Service.
             </p>
           </section>
 
@@ -53,17 +53,17 @@ export default function TermsOfService() {
               SHV Groups Pvt Ltd maintains a strict zero-knowledge architecture regarding your financial data. We do not collect, process, or store credit card numbers, bank account details, or any localized payment information on our servers.
             </p>
             <p>
-              All financial transactions, subscription billing, and token purchases are securely delegated to and processed entirely by our authorized payment gateway partner, <strong>Razorpay</strong>. By initiating a subscription, you are bound by Razorpay's Terms of Service and Privacy Policy. Your obligation to pay for the Service continues until your subscription is actively terminated via the billing portal. Failure to complete payment via Razorpay will result in the immediate automated suspension of API access and computation rights.
+              All financial transactions, subscription billing, and token purchases are securely delegated to and processed entirely by our authorized payment gateway partner, <strong>Razorpay</strong>. By initiating a subscription, you are bound by Razorpay&apos;s Terms of Service and Privacy Policy. Your obligation to pay for the Service continues until your subscription is actively terminated via the billing portal. Failure to complete payment via Razorpay will result in the immediate automated suspension of API access and computation rights.
             </p>
           </section>
 
           <section className="mb-12">
             <h2 className="text-2xl mb-4">4. Data Sovereignty and Brand DNA</h2>
             <p>
-              <strong>Your Input, Your Output:</strong> You retain full intellectual property ownership of the raw data, stylistic guidelines, and historical content you upload into the Service to generate your "Brand DNA." Furthermore, you own the finalized, user-approved outputs generated by the Service during your active subscription.
+              <strong>Your Input, Your Output:</strong> You retain full intellectual property ownership of the raw data, stylistic guidelines, and historical content you upload into the Service to generate your &quot;Brand DNA.&quot; Furthermore, you own the finalized, user-approved outputs generated by the Service during your active subscription.
             </p>
             <p>
-              <strong>Infrastructure Ownership:</strong> SHV Groups Pvt Ltd retains exclusive, unrestricted ownership of the underlying machine learning architectures, weights, fine-tuning protocols, user interface, source code, and the proprietary methodological frameworks (e.g., "Performance Autopsy") that power Forge.
+              <strong>Infrastructure Ownership:</strong> SHV Groups Pvt Ltd retains exclusive, unrestricted ownership of the underlying machine learning architectures, weights, fine-tuning protocols, user interface, source code, and the proprietary methodological frameworks (e.g., &quot;Performance Autopsy&quot;) that power Forge.
             </p>
             <p>
               <strong>Data Isolation:</strong> We process your Brand DNA exclusively to serve your account. We do not aggregate your proprietary strategic data into a global pool to train base foundational models accessible by other users. Your competitive advantage remains cryptographically isolated.

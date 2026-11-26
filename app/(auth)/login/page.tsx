@@ -323,7 +323,7 @@ export default function LoginPage() {
 
             {/* Footer Link */}
             <p className="text-[13px] text-white/40 text-center mt-10">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href={next === '/dashboard' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="text-white hover:text-[#d18a5e] transition-colors duration-300">
                 Create one
               </Link>

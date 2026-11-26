@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getToolBySlug } from "@/lib/tools-config";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { createServiceClient } from "@/lib/supabase/service";
+import { z } from "zod";
 
 // Cheapest capable model — short-form generation task
 const MODEL = "claude-haiku-4-5-20251001";
@@ -12,34 +13,37 @@ const MODEL = "claude-haiku-4-5-20251001";
 const ABSOLUTE_MAX_OUTPUT_TOKENS = 400;
 
 
+// Public, unauthenticated endpoint: bound every field. `tone` is appended to
+// the system prompt, so it is limited to a short plain label.
+const BodySchema = z.object({
+  slug: z.string().min(1).max(100),
+  input: z.string().min(1).max(5000),
+  tone: z.string().max(40).regex(/^[\p{L}\p{N} ,'-]*$/u).optional(),
+  useEmojis: z.boolean().optional(),
+  email: z.union([z.string().trim().max(254).email(), z.literal(""), z.null()]).optional(),
+});
+
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { slug, input, tone, useEmojis, email } = body as {
-      slug?: string;
-      input?: string;
-      tone?: string;
-      useEmojis?: boolean;
-      email?: string;
-    };
-
-    if (!slug || !input) {
+    const parsed = BodySchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Missing slug or input." },
+        { error: "Missing or invalid slug, input, tone or email." },
         { status: 400 }
       );
     }
+    const { slug, input, tone, useEmojis, email } = parsed.data;
 
     const tool = getToolBySlug(slug);
     if (!tool) {
       return NextResponse.json({ error: "Unknown tool." }, { status: 404 });
     }
 
-    const hasEmail = Boolean(email && email.includes("@"));
+    const hasEmail = Boolean(email);
 
     // ── 1. Atomic Rate Limiting ──
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "127.0.0.1";

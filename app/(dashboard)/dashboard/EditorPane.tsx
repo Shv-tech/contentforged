@@ -465,7 +465,6 @@ const CanvasBlock = ({ title, content }: { title: string; content: string }) => 
       <div className="max-h-[420px] overflow-y-auto custom-scrollbar px-4 sm:px-5 py-4">
         <div className="prose prose-invert prose-sm max-w-none break-words prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-400 prose-a:break-all prose-pre:bg-[#111] prose-pre:border prose-pre:border-[#333] prose-pre:overflow-x-auto prose-table:block prose-table:overflow-x-auto text-[#e0e0e0] text-[14px]">
           <ReactMarkdown
-            // @ts-ignore - plugin typing mismatch between remark and react-markdown versions
             remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
             rehypePlugins={[rehypeKatex]}
           >
@@ -481,6 +480,9 @@ const CanvasBlock = ({ title, content }: { title: string; content: string }) => 
 // MAIN COMPONENT
 // ============================================================================
 
+
+/** One shared empty list, so a chat with no messages keeps a stable identity across renders. */
+const NO_MESSAGES: Message[] = [];
 export function EditorPane() {
   const {
     setRenderData, user,
@@ -573,7 +575,7 @@ export function EditorPane() {
   // user set a name on the account page.
   const greetingName = useMemo(() => firstName(user), [user]);
 
-  const messages: Message[] = activeSessionId ? (chatHistory[activeSessionId] || []) : [];
+  const messages: Message[] = (activeSessionId && chatHistory[activeSessionId]) || NO_MESSAGES;
   const isChatActive = messages.length > 0;
   const activeToolName = activeTool ? (toolById(activeTool)?.name ?? activeTool) : null;
   const hasPendingInput = Boolean(input.trim() || images.length > 0 || documents.length > 0);
@@ -1513,7 +1515,6 @@ export function EditorPane() {
           className="prose prose-invert prose-sm max-w-none min-w-0 break-words text-[15.5px] prose-p:leading-relaxed prose-headings:font-semibold prose-headings:tracking-[-0.01em] prose-a:text-forge-gold prose-a:break-all prose-strong:text-white prose-table:block prose-table:overflow-x-auto"
         >
           <ReactMarkdown
-            // @ts-ignore - plugin typing mismatch between remark and react-markdown versions
             remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
             rehypePlugins={[rehypeKatex]}
             components={markdownComponents}
