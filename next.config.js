@@ -4,6 +4,8 @@ const nextConfig = {
   swcMinify: true,
 
   experimental: {
+    // instrumentation.ts installs the outbound-call recorder for /admin/ops.
+    instrumentationHook: true,
     // Slide rendering reads its fonts from disk at request time; make sure
     // the serverless bundle for that route carries them.
     outputFileTracingIncludes: {

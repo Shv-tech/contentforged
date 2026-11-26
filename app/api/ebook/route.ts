@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import OpenAI from 'openai';
+import { observed } from '@/lib/ops/observe';
 
 type Provider = 'openai' | 'anthropic';
 type Step = 'outline' | 'chapter';
@@ -386,7 +387,7 @@ async function handleChapterStep(
 // Route entry point
 // ---------------------------------------------------------------------------
 
-export async function POST(req: Request): Promise<NextResponse> {
+async function handlePOST(req: Request): Promise<NextResponse> {
   let body: EbookRequestBody;
   try {
     body = await req.json();
@@ -425,3 +426,5 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
+
+export const POST = observed('api/ebook', handlePOST);

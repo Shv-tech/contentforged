@@ -19,6 +19,7 @@ What the current owner does so that another team can run Forge without him, and 
 
 - [ ] Rotate every production secret that has ever been pasted into chat, a screenshot or a laptop shared with others: Anthropic, Supabase service role, Razorpay, Resend, X bearer, `CRON_SECRET`. (`FORGE_ENCRYPTION_KEY` rotation forces users to reconnect platforms; skip unless exposed.)
 - [ ] Confirm `UPSTASH_REDIS_*` is set in production, so rate limits are shared across instances.
+- [ ] Apply `20261126000000_forge_ops.sql`, schedule `forge-ops-health`, open `/admin/ops` and press Check now. Add `/api/health` to a free uptime monitor. See [MONITORING.md](./MONITORING.md).
 - [ ] Confirm the `pg_cron` jobs are scheduled in production (`select jobname, schedule from cron.job;`) and match the table in [ARCHITECTURE.md](./ARCHITECTURE.md#10-scheduled-jobs).
 - [ ] Set `SUPABASE_WEBHOOK_SECRET` and add it as the `x-webhook-secret` header on the calendar database webhook. The endpoint now refuses calls without it.
 - [ ] Measure cost per active user per week from `usage_events` before agreeing a price or revenue split.

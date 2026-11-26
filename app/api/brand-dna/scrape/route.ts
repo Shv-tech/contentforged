@@ -3,8 +3,9 @@
 import { NextResponse } from 'next/server';
 import { scrapePublicProfile } from '@/lib/scraper';
 import { createClient } from '@/lib/supabase/server';
+import { observed } from '@/lib/ops/observe';
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   try {
     const supabase = createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -31,3 +32,5 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export const POST = observed('api/brand-dna/scrape', handlePOST);

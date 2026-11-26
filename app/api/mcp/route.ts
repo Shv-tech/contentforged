@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 import { HttpError } from '@/lib/forge/http';
 import { handleMessage, protocolVersionAllowed, RPC_ERRORS, type JsonRpcResponse } from '@/lib/forge/mcp';
 import { apiCaller, type ApiCaller } from '@/lib/forge/public-api';
+import { observed } from '@/lib/ops/observe';
 
 const MAX_BATCH = 20;
 
@@ -22,7 +23,7 @@ function rpcError(status: number, code: number, message: string, headers: Record
   return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code, message } }, { status, headers });
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!protocolVersionAllowed(req.headers.get('mcp-protocol-version'))) {
     return rpcError(400, RPC_ERRORS.invalidRequest, 'Unsupported MCP-Protocol-Version.');
   }
@@ -60,10 +61,14 @@ export async function POST(req: Request) {
   return reply ? NextResponse.json(reply) : new Response(null, { status: 202 });
 }
 
-export function GET() {
+async function handleGET() {
   return new Response(null, { status: 405, headers: { Allow: 'POST' } });
 }
 
-export function DELETE() {
+async function handleDELETE() {
   return new Response(null, { status: 405, headers: { Allow: 'POST' } });
 }
+
+export const POST = observed('api/mcp', handlePOST);
+export const GET = observed('api/mcp', handleGET);
+export const DELETE = observed('api/mcp', handleDELETE);

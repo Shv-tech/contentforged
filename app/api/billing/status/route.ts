@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { PLANS, isPlanId, type PlanId } from '@/lib/billing/plans';
 import { resolveBillingCurrency, formatMinor, availableMethods } from '@/lib/billing/currency';
+import { observed } from '@/lib/ops/observe';
 
 /**
  * Single read endpoint for everything the billing UI needs: current plan,
@@ -18,7 +19,7 @@ import { resolveBillingCurrency, formatMinor, availableMethods } from '@/lib/bil
  * must never be cached — a stale response there would leave a paying customer
  * looking at the free plan.
  */
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const supabase = createClient();
   const {
     data: { user },
@@ -135,3 +136,5 @@ export async function GET(req: Request) {
       }),
   });
 }
+
+export const GET = observed('api/billing/status', handleGET);

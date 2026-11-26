@@ -54,16 +54,21 @@ export default function AdminPage() {
       width="wide"
       showBrand={false}
       actions={
-        <Segmented<Window>
-          label="Window"
-          value={days}
-          onChange={setDays}
-          options={[
-            { value: '7', label: '7 days' },
-            { value: '30', label: '30 days' },
-            { value: '90', label: '90 days' },
-          ]}
-        />
+        <>
+          <Link href="/admin/ops" className="rounded-full border border-white/[0.1] px-3 py-1.5 text-[12.5px] text-white/75 transition hover:text-white">
+            Health and errors
+          </Link>
+          <Segmented<Window>
+            label="Window"
+            value={days}
+            onChange={setDays}
+            options={[
+              { value: '7', label: '7 days' },
+              { value: '30', label: '30 days' },
+              { value: '90', label: '90 days' },
+            ]}
+          />
+        </>
       }
     >
       {failed ? <p className="py-16 text-center text-[14px] text-white/55">{failed}</p> : !data ? <LoadingRow label="Counting" /> : <Dashboard data={data} />}
@@ -84,7 +89,11 @@ function Dashboard({ data }: { data: Insights }) {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="People" value={compactNumber(data.totals.users)} note={`Opened Forge in the last ${data.days} days`} />
         <StatTile label="Today" value={activeToday} note={`${averageDaily} on an average day`} />
-        <StatTile label="Plan approval" value={decided > 0 ? `${Math.round((data.plan.approved / decided) * 100)}%` : 'None yet'} note={`${data.plan.approved} approved, ${data.plan.skipped} skipped, ${data.plan.generated} plans`} />
+        <StatTile
+          label="Plan approval"
+          value={decided > 0 ? `${Math.round((data.plan.approved / decided) * 100)}%` : 'None yet'}
+          note={`${data.plan.approved} approved, ${data.plan.skipped} skipped, ${data.plan.generated} plans`}
+        />
         <StatTile label="Events" value={compactNumber(data.totals.events)} />
       </div>
 
@@ -93,7 +102,10 @@ function Dashboard({ data }: { data: Insights }) {
         <div className="mt-5 flex h-[140px] items-end gap-[3px]" role="img" aria-label="Daily active people">
           {data.active.map((day) => (
             <div key={day.day} className="group relative flex h-full flex-1 items-end" title={`${day.day}: ${day.users}`}>
-              <div className="w-full rounded-t-[3px] bg-gradient-to-t from-forge-ember2 to-forge-gold opacity-80 transition-opacity group-hover:opacity-100" style={{ height: `${Math.max(2, (day.users / peak) * 100)}%` }} />
+              <div
+                className="w-full rounded-t-[3px] bg-gradient-to-t from-forge-ember2 to-forge-gold opacity-80 transition-opacity group-hover:opacity-100"
+                style={{ height: `${Math.max(2, (day.users / peak) * 100)}%` }}
+              />
             </div>
           ))}
         </div>
@@ -135,7 +147,10 @@ function Dashboard({ data }: { data: Insights }) {
                   <span className="tabular-nums text-white/55">{editTotal ? `${Math.round((band.events / editTotal) * 100)}%` : '0%'}</span>
                 </div>
                 <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/[0.06]">
-                  <div className={cn('h-full rounded-full', index < 2 ? 'bg-forge-good' : 'bg-forge-warn')} style={{ width: `${editTotal ? (band.events / editTotal) * 100 : 0}%` }} />
+                  <div
+                    className={cn('h-full rounded-full', index < 2 ? 'bg-forge-good' : 'bg-forge-warn')}
+                    style={{ width: `${editTotal ? (band.events / editTotal) * 100 : 0}%` }}
+                  />
                 </div>
               </li>
             ))}
@@ -152,7 +167,9 @@ function Dashboard({ data }: { data: Insights }) {
       {data.retention.length > 0 && (
         <Card className="overflow-x-auto p-6">
           <h2 className="text-[15px] font-semibold text-white">Who comes back</h2>
-          <p className="mt-1 text-[12.5px] text-white/40">Each row is the week people first opened Forge; each column, how many returned that many weeks later.</p>
+          <p className="mt-1 text-[12.5px] text-white/40">
+            Each row is the week people first opened Forge; each column, how many returned that many weeks later.
+          </p>
           <table className="mt-5 w-full min-w-[560px] text-[12.5px] tabular-nums">
             <thead className="text-white/35">
               <tr>
@@ -177,7 +194,10 @@ function Dashboard({ data }: { data: Insights }) {
                       <td key={i} className="px-1 py-1">
                         <div
                           className="flex h-8 items-center justify-center rounded-[6px] text-[11.5px]"
-                          style={{ background: share === null ? 'transparent' : `rgba(255,138,43,${0.08 + share * 0.8})`, color: share !== null && share > 0.5 ? '#000' : 'rgba(255,255,255,0.75)' }}
+                          style={{
+                            background: share === null ? 'transparent' : `rgba(255,138,43,${0.08 + share * 0.8})`,
+                            color: share !== null && share > 0.5 ? '#000' : 'rgba(255,255,255,0.75)',
+                          }}
                         >
                           {share === null ? '' : `${Math.round(share * 100)}%`}
                         </div>

@@ -17,6 +17,7 @@ import {
   type SubscriptionStatus,
 } from '@/lib/billing/plans';
 import { sendBillingEmail, type BillingEmailData } from '@/lib/mail-service';
+import { observed } from '@/lib/ops/observe';
 
 /**
  * THE ENTITLEMENT RULE
@@ -38,7 +39,7 @@ import { sendBillingEmail, type BillingEmailData } from '@/lib/mail-service';
 /** Grace period after a failed renewal before access is revoked. */
 const GRACE_PERIOD_DAYS = 7;
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   // The raw body must be read as text and hashed exactly as received.
   // Parsing and re-serializing changes key order and whitespace, producing a
   // different HMAC and rejecting every legitimate webhook.
@@ -470,3 +471,5 @@ async function markCancelled(supabase: any, entity: any, event?: any): Promise<H
 // entitlement semantics; referenced here so the import is not stripped and the
 // intent stays discoverable from this file.
 void statusGrantsAccess;
+
+export const POST = observed('api/billing/webhook', handlePOST);

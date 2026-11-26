@@ -10,6 +10,7 @@ import { Toaster } from 'react-hot-toast';
 import { Analytics } from '@vercel/analytics/next';
 import { AuthProvider } from '@/components/AuthProvider';
 import StructuredData from '@/components/StructuredData';
+import { OpsReporter } from '@/components/ops/OpsReporter';
 
 // One typeface across the marketing site and the app, exposed as a CSS
 // variable so Tailwind's font-sans resolves to it everywhere. Instrument
@@ -163,6 +164,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             error: { iconTheme: { primary: '#ff8a65', secondary: '#141414' } },
           }}
         />
+
+        {/* Reports browser errors and failed API calls to /admin/ops */}
+        <OpsReporter />
 
         {/* Vercel Web Analytics — page views + route changes */}
         <Analytics />

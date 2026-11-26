@@ -16,10 +16,11 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { observed } from '@/lib/ops/observe';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
 
   const code = searchParams.get('code');
@@ -87,3 +88,5 @@ export async function GET(request: NextRequest) {
 
   return response;
 }
+
+export const GET = observed('auth/callback', handleGET);

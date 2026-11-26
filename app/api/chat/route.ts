@@ -25,6 +25,8 @@ import { HttpError, parseJson, requireUser } from '@/lib/forge/http';
 import { resolvePlan } from '@/lib/forge/plan';
 import type { ChatStreamEvent } from '@/lib/forge/types';
 import { friendlyProviderError } from '@/lib/forge/errors';
+import { observed } from '@/lib/ops/observe';
+import { reportError } from '@/lib/ops/recorder';
 
 const MessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
@@ -45,7 +47,7 @@ const BodySchema = z.object({
   sessionId: z.string().uuid().nullish(),
 });
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   let body: z.output<typeof BodySchema>;
   let user: Awaited<ReturnType<typeof requireUser>>;
 
@@ -110,7 +112,8 @@ export async function POST(req: Request) {
       } catch (error) {
         if (!req.signal.aborted) {
           console.error('[api/chat]', error);
-          emit({ type: 'error', message: friendlyProviderError(error) });
+          const reference = reportError('api/chat', error, { feature: 'Chat', path: '/api/chat' });
+          emit({ type: 'error', message: `${friendlyProviderError(error)} Reference: ${reference}` });
         }
       } finally {
         closed = true;
@@ -131,3 +134,5 @@ export async function POST(req: Request) {
     },
   });
 }
+
+export const POST = observed('api/chat', handlePOST);

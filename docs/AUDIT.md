@@ -63,7 +63,7 @@ The code uses database objects that **no SQL file in this repository creates**. 
 | 3 | Add tests for the money and safety paths | No tests today. Start with the billing webhook, `metered.ts` quota reserve and settle, `requireScope`, RLS policies (pgTAP or a Supabase test project), and `voice.ts` scoring | 3 to 5 days |
 | 4 | Measure cost per active user | Needed before a 50,000-user pilot. `usage_events` holds tokens per call; turn it into cost per user per week | 1 day |
 | 5 | Move heavy cron work to a queue | `weekly-plan` and `post-metrics` loop over all brands inside one request (max 300 s). Fine for hundreds of brands, not for tens of thousands. Use a queue (Supabase queues, Inngest or QStash) with one job per brand | 3 to 5 days |
-| 6 | Error monitoring | Errors go to `console.error` only. Add Sentry or similar | half a day |
+| 6 | Error monitoring | **Done** (after the audit): `/admin/ops` records every request, outside call and browser error, checks services every 5 minutes and emails alerts. See [MONITORING.md](./MONITORING.md). An outside uptime monitor on `/api/health` is still worth adding | 10 min |
 | 7 | Content Security Policy | Not added yet because Razorpay, AdSense and analytics need careful allowlisting. Start in report-only mode | 1 day |
 | 8 | Split the large legacy components | `EditorPane.tsx` (about 2,100 lines, 25 `useState`, 146 hard-coded colours), `components/EbookCanvas.tsx` (about 2,000 lines, 73 inline style blocks), `app/account/page.tsx` (about 1,450 lines), `lib/mail-service.ts` (about 950 lines). Move state into hooks, colours into Tailwind tokens, and sections into components | 1 to 2 weeks, incremental |
 | 9 | CI | Run `npm run check` and `npm run build` on every pull request (GitHub Actions) | 1 hour |

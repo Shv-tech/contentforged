@@ -53,6 +53,7 @@ The rule that keeps this clean: **route handlers do not contain business logic.*
 | Plans and money | `entitlements.ts`, `limits.ts`, `metered.ts`, `plan.ts` |
 | Public surface | `public-api.ts`, `mcp.ts`, `api-keys.ts` |
 | Safety | `net.ts` (SSRF-safe fetch), `crypto.ts` (credential encryption), `errors.ts`, `telemetry.ts` |
+| Monitoring (`lib/ops`) | `observe.ts` (request recording), `fetch-patch.ts` (outside calls), `recorder.ts`, `health.ts`, `summary.ts`, `features.ts` (path and host to feature and service names) |
 | Language | `language.ts`, `languages.ts` (41 languages for speech and writing) |
 
 ## 5. A request, end to end
@@ -100,7 +101,7 @@ The plan is granted only by Razorpay's signed webhook. Every event is written on
 
 ## 10. Scheduled jobs
 
-All are POST endpoints under `/api/cron/*`, protected by `requireCron` (`Authorization: Bearer $CRON_SECRET`, constant-time compare). The `cron.schedule` statements are in the migrations, commented out, so you schedule them once per environment.
+All are GET endpoints under `/api/cron/*`, called by `pg_cron` through `pg_net`, protected by `requireCron` (`Authorization: Bearer $CRON_SECRET`, constant-time compare). The `cron.schedule` statements are in the migrations, commented out, so you schedule them once per environment.
 
 | Job | Schedule | What it does |
 | --- | --- | --- |
@@ -113,8 +114,15 @@ All are POST endpoints under `/api/cron/*`, protected by `requireCron` (`Authori
 | `niche-insights` | daily | Refreshes signals for each niche |
 | `competitor-digest` | Mondays | Weekly digest of watched accounts |
 | `client-reports` | monthly | Agency reports for client workspaces |
+| `ops-health` | every 5 min | Service health checks, alerts, pruning of monitoring rows |
 
-## 11. Things that are intentionally simple
+## 11. Monitoring
+
+Every API call, outside-service call and browser error is recorded in `ops_events` and shown live at `/admin/ops`. Every response carries an `x-request-id`, and server errors tell the person a reference to quote. See [MONITORING.md](./MONITORING.md).
+
+![Monitoring](./diagrams/monitoring.svg)
+
+## 12. Things that are intentionally simple
 
 - **No queue.** Long work runs inside the request or the cron call. At current scale this is fine. At 50,000 users, the weekly-plan and post-metrics jobs should move to a queue (see AUDIT recommendations).
 - **No ORM.** Supabase's query builder plus typed row helpers in `lib/forge/data`.

@@ -5,6 +5,7 @@ import { getToolBySlug } from "@/lib/tools-config";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { createServiceClient } from "@/lib/supabase/service";
 import { z } from "zod";
+import { observed } from '@/lib/ops/observe';
 
 // Cheapest capable model — short-form generation task
 const MODEL = "claude-haiku-4-5-20251001";
@@ -27,7 +28,7 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   try {
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
@@ -160,3 +161,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export const POST = observed('api/tools/generate', handlePOST);

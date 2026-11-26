@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 import { safeEqualHeader } from '@/lib/forge/http';
 import { sendCalendarEmail } from '@/lib/mail-service';
 import { createServiceClient } from '@/lib/supabase/service';
+import { observed } from '@/lib/ops/observe';
 
 interface CalendarEventRow {
   user_id?: string;
@@ -26,7 +27,7 @@ interface CalendarEventRow {
   description?: string;
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const secret = process.env.SUPABASE_WEBHOOK_SECRET;
   if (!secret) return NextResponse.json({ error: 'SUPABASE_WEBHOOK_SECRET is not configured.' }, { status: 503 });
   if (!safeEqualHeader(req.headers.get('x-webhook-secret'), secret)) {
@@ -66,3 +67,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ sent: true });
 }
+
+export const POST = observed('api/webhook/calendar-event-created', handlePOST);

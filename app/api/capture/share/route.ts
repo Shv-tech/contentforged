@@ -21,6 +21,7 @@ import { track } from '@/lib/forge/events';
 import { HttpError, requireUser } from '@/lib/forge/http';
 import { fetchPublicText } from '@/lib/forge/net';
 import { brandLanguage } from '@/lib/forge/profile';
+import { observed } from '@/lib/ops/observe';
 
 function readable(html: string): { title: string; text: string } {
   const $ = cheerio.load(html);
@@ -36,7 +37,7 @@ function readable(html: string): { title: string; text: string } {
   return { title: title.trim().slice(0, 200), text: text.slice(0, 40_000) };
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const origin = new URL(req.url).origin;
   let ctx;
   try {
@@ -84,3 +85,5 @@ export async function POST(req: Request) {
     return NextResponse.redirect(`${origin}/capture?shared=failed`, 303);
   }
 }
+
+export const POST = observed('api/capture/share', handlePOST);

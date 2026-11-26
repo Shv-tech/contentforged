@@ -1,0 +1,29 @@
+flowchart LR
+  subgraph Browser
+    PAGE["Any Forge page"]
+    REP["OpsReporter<br/>crashes, failed /api calls"]
+  end
+  subgraph Server["Next.js on Vercel"]
+    ROUTE["route() / observed()<br/>every API call"]
+    PATCH["fetch recorder<br/>instrumentation.ts"]
+    CRON["/api/cron/ops-health<br/>every 5 min"]
+    INTAKE["/api/ops/client"]
+    ADMIN["/admin/ops<br/>live dashboard"]
+  end
+  subgraph Outside["Outside services"]
+    SVC["Anthropic, X, Groq,<br/>Resend, Razorpay..."]
+  end
+  DB[("ops_events<br/>service role only")]
+  MAIL["Alert email<br/>ADMIN_EMAILS"]
+  UPTIME["Uptime monitor<br/>/api/health"]
+
+  PAGE --> ROUTE
+  ROUTE -- "calls" --> PATCH
+  PATCH --> SVC
+  ROUTE -- "request + its outside calls,<br/>after the response" --> DB
+  REP --> INTAKE --> DB
+  CRON -- "free read-only checks" --> SVC
+  CRON --> DB
+  CRON -- "errors spike or service down" --> MAIL
+  DB -- "ops_summary()" --> ADMIN
+  UPTIME -.-> Server

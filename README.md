@@ -63,6 +63,7 @@ How each score is produced, and its limits, is documented on the [methodology pa
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How Forge is built, with system, request, capture, weekly-loop, data and billing diagrams |
 | [docs/ONBOARDING.md](docs/ONBOARDING.md) | New engineers: local setup, code tour, conventions, PR checklist |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | Partners: REST API, MCP server, auth, data sourcing, pilot plan |
+| [docs/MONITORING.md](docs/MONITORING.md) | Health, errors and the live `/admin/ops` dashboard |
 | [docs/AUDIT.md](docs/AUDIT.md) | Code audit: what was fixed, what is open |
 | [docs/HANDOVER.md](docs/HANDOVER.md) | Ownership transfer checklist |
 | [docs/UPGRADE.md](docs/UPGRADE.md) | What each migration changes |
@@ -101,6 +102,7 @@ Jobs are plain HTTP endpoints called by Supabase `pg_cron` with `Authorization: 
 | `/api/cron/sources-sync` | every 6 hours | Reads connected GitHub, Linear, Notion and calendars into the inbox |
 | `/api/cron/comments-sync` | every 2 hours | Reads comments on recent posts |
 | `/api/cron/client-reports` | monthly | Builds each client workspace's report for the month before |
+| `/api/cron/ops-health` | every 5 minutes | Checks every outside service, sends alerts, prunes monitoring rows ([docs/MONITORING.md](docs/MONITORING.md)) |
 
 ### Platform apps
 

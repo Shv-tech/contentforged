@@ -3,8 +3,9 @@
 import { NextResponse } from 'next/server';
 import { createBrandDnaSource } from '@/lib/brand-dna';
 import { createClient } from '@/lib/supabase/server';
+import { observed } from '@/lib/ops/observe';
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   try {
     const supabase = createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -49,3 +50,5 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export const POST = observed('api/brand-dna/upload', handlePOST);

@@ -48,6 +48,7 @@ function describeError(error: unknown): string {
   return String(error);
 }
 import { resolveBillingCurrency, reconcileCurrencyPreference, availableMethods, formatMinor } from '@/lib/billing/currency';
+import { observed } from '@/lib/ops/observe';
 
 /**
  * Creates a Razorpay Subscription and returns its id for checkout.
@@ -62,7 +63,7 @@ import { resolveBillingCurrency, reconcileCurrencyPreference, availableMethods, 
  * 'created' and the user stays on their current plan until a verified
  * `subscription.charged` webhook arrives.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const supabase = createClient();
   const {
     data: { user },
@@ -198,7 +199,7 @@ export async function POST(req: Request) {
  * Cancels at period end. Access continues until current_period_end, at which
  * point the quota functions fall back to free limits automatically.
  */
-export async function DELETE() {
+async function handleDELETE() {
   const supabase = createClient();
   const {
     data: { user },
@@ -237,3 +238,6 @@ export async function DELETE() {
     return NextResponse.json({ error: 'Could not cancel. Please contact support.' }, { status: 500 });
   }
 }
+
+export const POST = observed('api/billing/subscription', handlePOST);
+export const DELETE = observed('api/billing/subscription', handleDELETE);

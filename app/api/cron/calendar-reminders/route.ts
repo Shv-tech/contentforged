@@ -9,6 +9,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { requireCron } from '@/lib/forge/cron';
 import { HttpError } from '@/lib/forge/http';
 import { sendScheduledPostEmail } from '@/lib/mail-service';
+import { observed } from '@/lib/ops/observe';
 
 /**
  * Sends reminders for events whose reminder time has arrived.
@@ -61,7 +62,7 @@ interface DueEvent {
  */
 const CATCHUP_WINDOW_HOURS = 6;
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   // Fails closed, like every other job: without CRON_SECRET this would be a
   // public trigger for outbound email.
   try {
@@ -169,3 +170,5 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ sent: sentCount, users: byUser.size, failed: failedCount });
 }
+
+export const GET = observed('api/cron/calendar-reminders', handleGET);

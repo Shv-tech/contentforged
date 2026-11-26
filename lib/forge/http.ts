@@ -22,6 +22,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { timingSafeEqual } from 'node:crypto';
 import { sha256Hex } from './crypto';
+import { observe } from '@/lib/ops/observe';
+import { noteUser, opsContext } from '@/lib/ops/recorder';
 
 export type ApiScope = 'read' | 'write' | 'generate';
 export const API_SCOPES: readonly ApiScope[] = ['read', 'write', 'generate'];
@@ -57,6 +59,7 @@ export async function requireUser(req?: Request): Promise<ForgeContext> {
   const authorization = req?.headers.get('authorization') ?? '';
   if (authorization.startsWith(`Bearer ${TOKEN_PREFIX}`)) {
     const ctx = await resolveToken(authorization.slice('Bearer '.length).trim());
+    noteUser(ctx.userId);
     // API keys are for the public API and the MCP server only. Everything
     // else in /api is the app's own surface, reachable with a session or the
     // extension's token.
@@ -72,6 +75,7 @@ export async function requireUser(req?: Request): Promise<ForgeContext> {
   if (error || !data.user) throw new HttpError(401, 'Sign in to continue.');
 
   const user = data.user;
+  noteUser(user.id);
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const fullName = typeof meta.full_name === 'string' ? meta.full_name : '';
 
@@ -145,19 +149,33 @@ function describeZodError(error: ZodError): string {
 
 /**
  * Wraps a route handler so thrown HttpErrors become JSON responses and
- * anything unexpected becomes a logged 500 with no internals leaked.
+ * anything unexpected becomes a logged 500 with no internals leaked. Every
+ * call is recorded for the monitoring dashboard (lib/ops/observe.ts), and a
+ * 500 carries a reference the person can quote to support.
  */
 export function route<Args extends unknown[]>(name: string, handler: (...args: Args) => Promise<Response>): (...args: Args) => Promise<Response> {
-  return async (...args: Args) => {
-    try {
-      return await handler(...args);
-    } catch (error) {
-      if (error instanceof HttpError) {
-        return NextResponse.json({ error: error.message, ...error.extra }, { status: error.status });
+  return (...args: Args) => {
+    const req = args[0] instanceof Request ? args[0] : null;
+    return observe(name, req, async () => {
+      try {
+        return await handler(...args);
+      } catch (error) {
+        if (error instanceof HttpError) {
+          return NextResponse.json({ error: error.message, ...error.extra }, { status: error.status });
+        }
+        console.error(`[${name}]`, error);
+        const ops = opsContext();
+        if (ops) ops.error = error;
+        const reference = ops?.requestId;
+        return NextResponse.json(
+          {
+            error: reference ? `Something went wrong on our side. Please try again. Reference: ${reference}` : 'Something went wrong on our side. Please try again.',
+            ...(reference ? { reference } : {}),
+          },
+          { status: 500 }
+        );
       }
-      console.error(`[${name}]`, error);
-      return NextResponse.json({ error: 'Something went wrong on our side. Please try again.' }, { status: 500 });
-    }
+    });
   };
 }
 

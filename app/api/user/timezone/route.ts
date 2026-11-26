@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { observed } from '@/lib/ops/observe';
 
 /**
  * Records the user's IANA timezone.
@@ -26,7 +27,7 @@ import { createServiceClient } from '@/lib/supabase/service';
  * 10 AM gets 10:00 UTC, which is 3:30pm to them, and they have no way to tell
  * why.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const supabase = createClient();
   const {
     data: { user },
@@ -78,3 +79,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ timezone });
 }
+
+export const POST = observed('api/user/timezone', handlePOST);

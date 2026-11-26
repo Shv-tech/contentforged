@@ -158,3 +158,13 @@ Run the `cron.schedule` statements at the end of the migration after replacing `
 ### 5. Fonts
 
 Instrument Sans is now self-hosted from `app/fonts/` (SIL Open Font License), so builds no longer fetch from Google Fonts.
+
+## Monitoring (20261126000000_forge_ops.sql)
+
+Adds `ops_events` (service role only) and `ops_summary()` for the `/admin/ops` dashboard.
+
+1. Apply the migration. It is idempotent.
+2. Schedule the health job with the `cron.schedule('forge-ops-health', ...)` statement at the end of the file.
+3. Optional settings: `OPS_SAMPLE_SUCCESS`, `OPS_RETENTION_DAYS`, `OPS_ALERT_ERRORS`, `OPS_DISABLED`. See `docs/MONITORING.md`.
+
+`next.config.js` now enables `experimental.instrumentationHook`, which `instrumentation.ts` needs to record calls to outside services.

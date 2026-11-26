@@ -18,6 +18,7 @@ import { consumeOAuthState, saveConnection } from '@/lib/forge/connections';
 import { exchangeLinkedInCode } from '@/lib/platforms/linkedin';
 import { exchangeThreadsCode } from '@/lib/platforms/threads';
 import { PlatformError } from '@/lib/platforms/http';
+import { observed } from '@/lib/ops/observe';
 
 type Params = { params: { platform: string } };
 
@@ -27,7 +28,7 @@ function back(req: Request, path: string, params: Record<string, string>): NextR
   return NextResponse.redirect(url);
 }
 
-export async function GET(req: Request, { params }: Params) {
+async function handleGET(req: Request, { params }: Params) {
   const platform = params.platform;
   if (platform !== 'linkedin' && platform !== 'threads') return back(req, '/dashboard', { connect_error: 'Unknown platform.' });
 
@@ -77,3 +78,5 @@ export async function GET(req: Request, { params }: Params) {
     return back(req, stored.returnTo, { connect_error: message });
   }
 }
+
+export const GET = observed('api/connections/[platform]/callback', handleGET);

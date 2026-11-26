@@ -5,6 +5,7 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { observed } from '@/lib/ops/observe';
 
 /**
  * Unsubscribe by opaque token. No login required.
@@ -27,7 +28,7 @@ import { createServiceClient } from '@/lib/supabase/service';
  * you sure", no interstitial. Anything else is treated as a broken
  * unsubscribe.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const token = new URL(req.url).searchParams.get('token');
   if (!token) {
     return NextResponse.json({ error: 'Missing token' }, { status: 400 });
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
  * resubscribe and granular preferences instead, which is the useful place to
  * spend their attention.
  */
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const url = new URL(req.url);
   const token = url.searchParams.get('token');
 
@@ -94,3 +95,6 @@ async function unsubscribeByToken(token: string, source: string): Promise<boolea
     return false;
   }
 }
+
+export const POST = observed('api/email/unsubscribe', handlePOST);
+export const GET = observed('api/email/unsubscribe', handleGET);

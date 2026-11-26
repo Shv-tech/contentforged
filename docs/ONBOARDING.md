@@ -36,7 +36,8 @@ Fill these in `.env.local` before the first run. The rest of `.env.example` is c
 | `RAZORPAY_*` | for billing | Checkout and the signed webhook |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | for push | Web Push notifications |
 | `SUPABASE_WEBHOOK_SECRET` | for the calendar webhook | Database webhook on new calendar events |
-| `ADMIN_EMAILS` | optional | Who can open `/admin` |
+| `ADMIN_EMAILS` | optional | Who can open `/admin` and `/admin/ops`, and who gets monitoring alerts |
+| `OPS_SAMPLE_SUCCESS`, `OPS_RETENTION_DAYS`, `OPS_ALERT_ERRORS`, `OPS_DISABLED` | optional | Monitoring tuning, see MONITORING.md |
 
 ### Database
 
@@ -123,6 +124,8 @@ Rules:
 - Plan gates come from `lib/forge/entitlements.ts`. Do not check plan names inline.
 - Outbound fetches of user-supplied URLs go through `lib/forge/net.ts` (`fetchPublicText`), which blocks private addresses.
 - Anything that touches the service-role key lives in a file that imports `server-only`.
+- A new route folder needs its prefix in `lib/ops/features.ts` so `/admin/ops` files it under the right feature. Work that can fail after the response is sent (streams, background tasks) calls `reportError()` from `lib/ops/recorder.ts`.
+- When something breaks in production, start at `/admin/ops` (see [MONITORING.md](./MONITORING.md)). A reference like `r_3f9a1c2b7d` from a user's screenshot finds the exact request.
 
 ### Adding a table
 
